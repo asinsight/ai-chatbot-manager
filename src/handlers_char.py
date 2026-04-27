@@ -28,7 +28,6 @@ from src.llm_queue import llm_queue, QueueFullError, QueueTimeoutError
 from src.prompt import build_messages, replace_macros, SEARCH_EXCLUDED_CHARS
 from src.grok import generate_danbooru_tags, _load_image_config
 from src.comfyui import generate_image, check_queue
-from src.pose_scene_classifier import classify_pose_scene
 from src.watchdog import notify_image_timeout
 from src.rate_limiter import rate_limiter
 from src.input_filter import filter_input, is_non_character_image_request
@@ -82,96 +81,6 @@ async def _research_location_bg(location_key: str) -> None:
         logger.error("Location research background task failed (%s): %s", key, e)
     finally:
         _location_research_inflight.discard(key)
-
-
-async def _classify_and_extract_lora(
-    chat_history: list[dict],
-    description: str,
-    user_id: int,
-) -> tuple[dict | None, dict | None, str, dict | None]:
-    """캐릭터 봇 이미지 트리거 3곳 공통 — pose scene 분류 + LoRA 추출.
-
-    Returns:
-        (scene_lock, lora_overrides, lora_trigger, scene_meta)
-
-        - scene_lock: Grok generate_danbooru_tags(scene_lock=...)에 그대로 전달할 dict.
-            매칭 실패 / SFW / 임계값 미달 시 None.
-        - lora_overrides: comfyui generate_image(lora_overrides=...)에 그대로 전달.
-            None이면 워크플로우 기본 LoRA 슬롯 유지.
-        - lora_trigger: comfyui generate_image(lora_trigger=...)에 그대로 전달. 빈 문자열일 수 있음.
-        - scene_meta: {"scene_key": ..., "pose": ...} — 🎬 영상 콜백에서
-            preferred_pose_key 결정에 사용 (비디오 sync 보장). 미매칭 시 None.
-
-    캐릭터 봇은 현재 HQ 워크플로우 미사용 — workflow_type은 항상 "main".
-    """
-    classify_result = await classify_pose_scene(
-        chat_history=chat_history,
-        description=description,
-        user_id=user_id,
-    )
-
-    scene_data = classify_result.get("scene_data")
-    if not classify_result.get("scene_key") or not scene_data:
-        return (None, None, "", None)
-
-    scene_lock = {
-        "person_tags": scene_data.get("person_tags", ""),
-        "scene_tags": scene_data.get("scene_tags", ""),
-        "pose": scene_data.get("pose", ""),
-        "camera": scene_data.get("camera", ""),
-        "exclude_tags": scene_data.get("exclude_tags", []),
-    }
-
-    lora_section = scene_data.get("lora") or None
-    lora_overrides: dict | None = None
-    lora_trigger = ""
-    if lora_section:
-        # 캐릭터 봇은 main 워크플로우 사용 (미래 호환성 유지)
-        workflow_type = "main"
-        lora_overrides = lora_section.get(workflow_type) or None
-        # 활성 슬롯이 하나라도 있을 때만 trigger 활성화 (imagegen 패턴과 동일)
-        if lora_overrides and any(
-            isinstance(slot, dict) and slot.get("on")
-            for slot in lora_overrides.values()
-        ):
-            lora_trigger = (lora_section.get("trigger") or "").strip()
-
-    scene_meta = {
-        "scene_key": classify_result.get("scene_key"),
-        "pose": scene_data.get("pose", ""),
-    }
-
-    return (scene_lock, lora_overrides, lora_trigger, scene_meta)
-
-
-def _resolve_preferred_pose_key(scene_key: str | None, pose: str | None) -> str | None:
-    """nsfw_scenes scene_key + 분류기 선택 pose → lora_presets 키 매핑.
-
-    🎬 영상 콜백에서 분류기 결과를 video LoRA preset 키로 안전하게 변환.
-    - nsfw_scenes 19개 vs lora_presets 22개: 일치 15개 + 양쪽 차이 키들
-    - 일치하지 않는 케이스(예: hetero_sex / male_pov / solo_nsfw / toy_solo)는
-      scene_key 자체로는 LoRA preset에 없으므로 pose나 generic NSFW로 fallback.
-
-    Fallback 우선순위 (PM 컨펌):
-      1. scene_key가 lora_presets에 있으면 → scene_key
-      2. pose가 lora_presets에 있으면 → pose
-      3. 둘 중 하나라도 있고 매핑 실패하면 → "general_nsfw" (NSFW 맥락 보장)
-      4. 둘 다 None/빈값 → None (분류기 미매칭 — Vision analyzer 자체 판단 위임)
-    """
-    from src.pose_motion_presets import list_keys_by_tier
-
-    tiers = list_keys_by_tier()
-    # LoRA preset 키만 사용 (텍스트 fallback 키는 scene matching 용도가 아님)
-    lora_keys = set(tiers.get("lora_specific", []) + tiers.get("lora_general", []))
-
-    if scene_key and scene_key in lora_keys:
-        return scene_key
-    if pose and pose in lora_keys:
-        return pose
-    if scene_key or pose:
-        # 분류기가 NSFW 씬을 매칭했지만 LoRA preset에 직접 매핑되는 키가 없음 → general fallback
-        return "general_nsfw" if "general_nsfw" in lora_keys else None
-    return None
 
 
 def _parse_outfit_signal(text: str) -> str | None:
@@ -784,18 +693,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             _loc_bg = _loc_ctx.get("danbooru_background", "") or ""
                     except Exception:
                         _loc_bg = ""
-                # NSFW Pose Scene Classifier — 매칭 시 Grok에 SCENE LOCK + ComfyUI에 LoRA 주입.
-                # SFW / 미매칭 시 (None, None, "", None) — 현재 자유 생성 경로 유지.
-                scene_lock, lora_overrides, lora_trigger, scene_meta = await _classify_and_extract_lora(
-                    chat_history=recent_history,
-                    description=image_description,
-                    user_id=user_id,
-                )
                 tags = await generate_danbooru_tags(
                     recent_history, combined_desc, character=character, char_id=char_id,
                     outfit_override=outfit,
                     location_background=_loc_bg,
-                    scene_lock=scene_lock,
                 )
                 logger.info("Grok 태그 (유저 %s): pos=%s | neg=%s | orient=%s | skip_face=%s",
                             user_id, tags["pos_prompt"], tags["neg_prompt"],
@@ -804,8 +705,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 skip_face = tags.get("skip_face", False)
                 image_path = await generate_image(
                     tags["pos_prompt"], tags["neg_prompt"], anchor_image, orientation, skip_face,
-                    lora_overrides=lora_overrides,
-                    lora_trigger=lora_trigger,
                 )
 
                 if image_path == "TIMEOUT":
@@ -824,8 +723,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         video_ctx_id = _store_video_context(
                             user_id, char_id, image_path, image_description,
                             danbooru_tags=tags["pos_prompt"],
-                            scene_key=(scene_meta or {}).get("scene_key"),
-                            pose=(scene_meta or {}).get("pose"),
                         )
                         keyboard = InlineKeyboardMarkup([[
                             InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{video_ctx_id}")
@@ -888,17 +785,10 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _img_loc_bg = ""
     typing_task = asyncio.create_task(keep_typing())
     try:
-        # NSFW Pose Scene Classifier — 캐릭터 봇 /image 진입점.
-        scene_lock, lora_overrides, lora_trigger, scene_meta = await _classify_and_extract_lora(
-            chat_history=recent_history,
-            description=custom_command,
-            user_id=user_id,
-        )
         tags = await generate_danbooru_tags(
             recent_history, custom_command, character=character, char_id=char_id,
             outfit_override=outfit,
             location_background=_img_loc_bg,
-            scene_lock=scene_lock,
         )
         logger.info("Grok 태그 (유저 %s /image): pos=%s | neg=%s | orient=%s | skip_face=%s",
                     user_id, tags["pos_prompt"][:150], tags["neg_prompt"][:80],
@@ -907,8 +797,6 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
         skip_face = tags.get("skip_face", False)
         image_path = await generate_image(
             tags["pos_prompt"], tags["neg_prompt"], anchor_image, orientation, skip_face,
-            lora_overrides=lora_overrides,
-            lora_trigger=lora_trigger,
         )
 
         if image_path:
@@ -917,8 +805,6 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
             video_ctx_id = _store_video_context(
                 user_id, char_id, image_path, desc,
                 danbooru_tags=tags["pos_prompt"],
-                scene_key=(scene_meta or {}).get("scene_key"),
-                pose=(scene_meta or {}).get("pose"),
             )
             keyboard = InlineKeyboardMarkup([[
                 InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{video_ctx_id}")
@@ -1172,14 +1058,6 @@ async def capture_scene_callback(update: Update, context: ContextTypes.DEFAULT_T
                     _cap_loc_bg = _cap_ctx.get("danbooru_background", "") or ""
             except Exception:
                 _cap_loc_bg = ""
-        # NSFW Pose Scene Classifier — 📷촬영 버튼은 대화 컨텍스트 기반이라
-        # 분류기가 가장 효과적으로 작동하는 진입점.
-        scene_lock, lora_overrides, lora_trigger, scene_meta = await _classify_and_extract_lora(
-            chat_history=recent_history,
-            description=scene_desc,
-            user_id=user_id,
-        )
-
         # 실제 history 리스트를 그대로 Grok에 전달 (auto-image와 동일)
         tags = await generate_danbooru_tags(
             recent_history,
@@ -1188,7 +1066,6 @@ async def capture_scene_callback(update: Update, context: ContextTypes.DEFAULT_T
             char_id=char_id,
             outfit_override=outfit,
             location_background=_cap_loc_bg,
-            scene_lock=scene_lock,
         )
 
         if not tags or tags.get("pos_prompt") == "BLOCKED":
@@ -1202,8 +1079,6 @@ async def capture_scene_callback(update: Update, context: ContextTypes.DEFAULT_T
         image_path = await generate_image(
             tags["pos_prompt"], tags["neg_prompt"],
             anchor, orientation, skip_face,
-            lora_overrides=lora_overrides,
-            lora_trigger=lora_trigger,
         )
 
         upload_task.cancel()
@@ -1214,8 +1089,6 @@ async def capture_scene_callback(update: Update, context: ContextTypes.DEFAULT_T
                 video_ctx_id = _store_video_context(
                     user_id, char_id, image_path, scene_desc,
                     danbooru_tags=tags["pos_prompt"],
-                    scene_key=(scene_meta or {}).get("scene_key"),
-                    pose=(scene_meta or {}).get("pose"),
                 )
                 keyboard = InlineKeyboardMarkup([[
                     InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{video_ctx_id}")
@@ -1285,11 +1158,6 @@ async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
         from src.grok import generate_video_prompts
         recent_history = get_history(user_id, limit=6, character_id=char_id)
         stats = get_character_stats(user_id, char_id)
-        # Pose Scene Classifier 결과를 LoRA preset 키로 매핑 — Vision analyzer가 자체 분석으로
-        # 다른 pose_key를 고르지 않도록 강제 (이미지/영상 sync 보장).
-        preferred_pose_key = _resolve_preferred_pose_key(
-            ctx.get("scene_key"), ctx.get("pose"),
-        )
         try:
             prompts = await generate_video_prompts(
                 ctx["description"],
@@ -1297,7 +1165,6 @@ async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
                 chat_history=recent_history,
                 danbooru_tags=ctx.get("danbooru_tags", ""),
                 mood=stats.get("mood", "neutral"),
-                preferred_pose_key=preferred_pose_key,
             )
         except Exception as e:
             logger.error("Grok 비디오 프롬프트 실패: %s", e)

@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import random
 import re
 from pathlib import Path
 from string import Template
@@ -13,33 +12,6 @@ from src.pose_motion_presets import (
     lookup as _pose_lookup,
 )
 
-
-def _select_lora_trigger(preset: dict | None) -> tuple[str, str]:
-    """LoRA preset에서 사용할 trigger를 Python이 결정론적으로 선택한다.
-
-    Priority (exclusive — 하나만 선택):
-      1. trigger_templates 있음 → random.choice
-      2. trigger_words 있음 → 그대로
-      3. trigger_variants 있음 → random.choice
-      4. else → ""
-
-    Returns: (selected_trigger, motion_addon). use_lora=false면 둘 다 "".
-    """
-    if not preset or not preset.get("use_lora"):
-        return ("", "")
-    templates = preset.get("trigger_templates") or []
-    words = preset.get("trigger_words") or ""
-    variants = preset.get("trigger_variants") or []
-    if templates:
-        selected = random.choice(templates)
-    elif words:
-        selected = words
-    elif variants:
-        selected = random.choice(variants)
-    else:
-        selected = ""
-    addon = preset.get("motion_addon") or ""
-    return (selected, addon)
 
 logger = logging.getLogger(__name__)
 
@@ -1023,41 +995,17 @@ async def _compose_video_prompt(
         f"## Preset (sfw primary + camera + audio; pose_key_resolved={preset.get('pose_key_resolved')}):\n```json\n{preset_block}\n```",
     ]
 
-    _selected_trigger, _motion_addon_for_prefix = _select_lora_trigger(preset)
-    if preset.get("use_lora"):
-        logger.info(
-            "LoRA trigger pre-selected (pose_key=%s): trigger=%r addon=%r",
-            preset.get("pose_key_resolved"),
-            _selected_trigger[:80] if _selected_trigger else "",
-            _motion_addon_for_prefix[:50] if _motion_addon_for_prefix else "",
-        )
-        lora_context = (
-            "## LoRA Context (Python handles trigger injection — DO NOT write trigger text in your output)\n"
-            f"- Pre-selected trigger (Python will AUTOMATICALLY prepend to final motion_prompt): \"{_selected_trigger or '(none)'}\"\n"
-            f"- Motion addon (Python will append after trigger): \"{_motion_addon_for_prefix or '(none)'}\"\n\n"
-            "RULES:\n"
-            "- Your motion_prompt output MUST contain ONLY motion content: motion_hints sentences + camera clause + lighting + ambient.\n"
-            "- DO NOT include the trigger text, trigger phrases, or LoRA-specific activation words in your motion_prompt field.\n"
-            "- DO NOT include the motion addon text either — Python will prepend both automatically.\n"
-            "- Write motion that NATURALLY FLOWS AFTER the pre-selected trigger above (treat the trigger as context for tone/action only).\n"
-            "- Target your output ~60-80 words (Python adds ~20-40 for trigger+addon, final total ~100-120)."
-        )
-        sections.append(lora_context)
-
     _examples = preset.get("examples") or []
     if _examples:
         _ex_block_body = "\n".join(f"{i+1}. {ex}" for i, ex in enumerate(_examples))
         examples_context = (
-            "## Reference Motion Examples (MANDATORY STYLE TEMPLATE for this LoRA)\n"
+            "## Reference Motion Examples (style template)\n"
             f"{_ex_block_body}\n\n"
             "RULES (highest priority — override default style preferences):\n"
             "- MATCH the vocabulary, sentence structure, and rhythm of these examples as closely as possible.\n"
             "- Your output should READ as if written by the SAME author using the SAME cadence.\n"
             "- Only vary subject-specific details (speed modifier, body-part descriptor, intensity) "
             "based on Analyzer's pose_state — keep the scaffolding identical.\n"
-            "- NOTE: Examples may contain trigger_words / motion_addon text that Python auto-prepends. "
-            "Focus on the CONNECTIVE MOTION STYLE between those fixed parts — replicate clause length, "
-            "verb choice, and focal-point ordering.\n"
             "- When examples and motion_hints conflict in PHRASING, favor examples' phrasing "
             "(motion_hints stay as semantic anchors, but word choice follows examples)."
         )
@@ -1067,9 +1015,9 @@ async def _compose_video_prompt(
     if _avoid:
         _avoid_body = "\n".join(f"- {p}" for p in _avoid)
         avoid_context = (
-            "## Avoid (known failure modes for this LoRA — DO NOT replicate these phrasings)\n"
+            "## Avoid (known failure modes — DO NOT replicate these phrasings)\n"
             f"{_avoid_body}\n\n"
-            "If your draft motion_prompt resembles any of these patterns, REWRITE using LoRA-specific vocabulary "
+            "If your draft motion_prompt resembles any of these patterns, REWRITE using vocabulary "
             "from the examples above and concrete motion language from Analyzer's motion_hints."
         )
         sections.append(avoid_context)
@@ -1123,26 +1071,6 @@ async def _compose_video_prompt(
         logger.warning("Composer JSON 파싱 실패: %s", content[:200])
         return None
 
-    if preset.get("use_lora"):
-        _lora = preset.get("lora") or {}
-        result["lora_config"] = {
-            "high_noise_loras": list(_lora.get("high_noise_loras", [])),
-            "low_noise_loras": list(_lora.get("low_noise_loras", [])),
-        }
-        current_motion = (result.get("motion_prompt") or "").strip()
-        prefix_parts = []
-        if _selected_trigger:
-            prefix_parts.append(_selected_trigger)
-        if _motion_addon_for_prefix:
-            prefix_parts.append(_motion_addon_for_prefix)
-        prefix = ", ".join(prefix_parts)
-        if prefix:
-            if current_motion:
-                result["motion_prompt"] = f"{prefix}, {current_motion}"
-            else:
-                result["motion_prompt"] = prefix
-        result["_debug_selected_trigger"] = _selected_trigger
-        result["_debug_motion_addon"] = _motion_addon_for_prefix
     return result
 
 

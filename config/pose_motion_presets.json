@@ -1,0 +1,100 @@
+{
+  "_doc": "pose_motion_presets — SFW text-only fallback presets for the WAN 2.2 i2v Composer stage.\nFlat schema. Each public preset must define: primary, camera, audio, ambient_fallback, anchor_risk.\n'generic' is the catch-all fallback (required by lookup()).\nKeys starting with underscore (_) are docs/templates and excluded from list_keys().",
+  "_template_text_only": {
+    "_doc": "TEMPLATE — copy this structure for new SFW pose_keys. anchor_risk in {low,medium,high}.",
+    "primary": "PLACEHOLDER subject-level motion (15-40 words, no anchor-breaking verbs, SFW only)",
+    "camera": "fixed lens, slow push-in",
+    "audio": "soft breath, quiet room tone",
+    "ambient_fallback": "micro-blink, soft breath, subtle weight shift",
+    "anchor_risk": "low",
+    "notes": "PLACEHOLDER — PM fills primary clauses with Grok."
+  },
+  "generic": {
+    "primary": "subject remains mostly still, chest rising and falling with soft breath, hair sways lightly, micro-blink every 1.5-2s",
+    "camera": "fixed lens, slow push-in",
+    "audio": "soft breath, quiet room tone",
+    "ambient_fallback": "micro-blink every 1.5-2s, soft idle breathing, subtle weight shift",
+    "anchor_risk": "medium",
+    "notes": "Catch-all fallback for uncatalogued poses. Conservative camera defaults. Composer should not invent pose-specific motion beyond what Analyzer hints provide."
+  },
+  "portrait_static_sfw": {
+    "primary": "subject tilts head slightly, blinks softly, hair sways gently in ambient air, chest rising with each breath",
+    "camera": "fixed lens, slow push-in",
+    "audio": "soft breath, quiet room tone",
+    "ambient_fallback": "micro-blink every 1.5-2s, soft breath, hair sway",
+    "anchor_risk": "high",
+    "notes": "Portrait / close-up static pose. No major motion."
+  },
+  "standing": {
+    "primary": "subject stands in place with relaxed posture, weight shifts gently between feet, shoulders rise and fall with breath, hair sways lightly in ambient air",
+    "camera": "fixed lens, slow push-in",
+    "audio": "soft breath, quiet room tone, faint footstep shuffle",
+    "ambient_fallback": "micro-blink every 1.5-2s, soft breath, subtle weight shift",
+    "anchor_risk": "low",
+    "notes": "Default standing idle. Avoid full-body locomotion verbs that would break the anchor pose."
+  },
+  "sitting": {
+    "primary": "subject stays seated with calm torso, hands rest naturally, head turns slightly toward the camera, chest rising and falling with steady breath",
+    "camera": "fixed lens, very slow push-in",
+    "audio": "soft breath, quiet room tone, faint fabric rustle",
+    "ambient_fallback": "micro-blink every 1.5-2s, soft breath, subtle hand adjustment",
+    "anchor_risk": "low",
+    "notes": "Seated idle on chair / couch / floor. Keep lower body anchored."
+  },
+  "walking": {
+    "primary": "subject walks forward at a relaxed pace, arms swinging naturally, hair bouncing with each step, gaze drifting ahead",
+    "camera": "tracking dolly following the subject, steady framing",
+    "audio": "rhythmic footsteps on the surface, soft breath, ambient outdoor or indoor tone",
+    "ambient_fallback": "soft breath, subtle hair bounce, paced footstep cadence",
+    "anchor_risk": "medium",
+    "notes": "Locomotion preset — Composer should match cadence to environment (indoor/outdoor)."
+  },
+  "running": {
+    "primary": "subject runs forward with controlled stride, arms pumping, hair flowing back, breath becoming faster and deeper",
+    "camera": "tracking dolly, slight handheld sway, steady framing on torso",
+    "audio": "fast paced footsteps, accelerated breathing, light wind",
+    "ambient_fallback": "fast breath, hair sway, controlled stride cadence",
+    "anchor_risk": "medium",
+    "notes": "High-energy locomotion. Keep camera anchored to torso to avoid limb morphing."
+  },
+  "reading": {
+    "primary": "subject focuses on a book or screen, eyes scanning gently, fingers turn a page or tap softly, head tilts a fraction with concentration",
+    "camera": "fixed lens, slow push-in toward the face",
+    "audio": "page turn, soft breath, quiet room tone",
+    "ambient_fallback": "micro-blink every 1.5-2s, soft breath, occasional page turn",
+    "anchor_risk": "low",
+    "notes": "Quiet focused activity. Hands stay near the reading surface."
+  },
+  "talking": {
+    "primary": "subject speaks naturally, lips moving in sync with breath, eyebrows shifting slightly, hand gestures small and grounded",
+    "camera": "fixed lens, gentle slow push-in",
+    "audio": "soft conversational tone, light breath between phrases, quiet room tone",
+    "ambient_fallback": "micro-blink, soft breath, small gestural hand motion",
+    "anchor_risk": "medium",
+    "notes": "Dialogue-driven shot. Avoid exaggerated mouth motion that breaks lip-sync anchoring."
+  },
+  "smiling": {
+    "primary": "subject's expression warms into a soft smile, cheeks lift gently, eyes narrow slightly, head tilts a touch toward the camera",
+    "camera": "fixed lens, very slow push-in",
+    "audio": "soft breath, light laugh, quiet room tone",
+    "ambient_fallback": "micro-blink, soft breath, subtle cheek lift",
+    "anchor_risk": "high",
+    "notes": "Expression close-up. Keep face anchored — avoid large head pivots."
+  },
+  "waving": {
+    "primary": "subject raises a hand and waves naturally toward the camera, smile lifting, shoulders relaxed, hair shifting with the arm motion",
+    "camera": "fixed lens, steady framing",
+    "audio": "soft breath, light cheerful exhale, quiet room tone",
+    "ambient_fallback": "micro-blink, soft breath, subtle hand motion",
+    "anchor_risk": "medium",
+    "notes": "Greeting gesture. Keep wave amplitude moderate so the hand stays inside the frame."
+  },
+  "stretching": {
+    "primary": "subject stretches arms upward and lengthens the torso, shoulders rolling back, breath deepens with the motion before relaxing",
+    "camera": "fixed lens, slow vertical drift to follow the stretch",
+    "audio": "deep breath, soft fabric stretch, quiet room tone",
+    "ambient_fallback": "soft breath, subtle shoulder roll, gentle weight shift",
+    "anchor_risk": "medium",
+    "notes": "Daily-life motion. Anchor lower body so the stretch reads as upper-torso."
+  }
+}

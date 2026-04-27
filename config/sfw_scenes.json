@@ -1,0 +1,1339 @@
+{
+  "_doc": "sfw_scenes — Python에서 프리셀렉하여 Grok에 시드로 전달하는 SFW 씬 카드.\nNSFW와 동일한 패턴 — Grok이 포즈 목록에서 자율 선택 시 편향되는 문제를 제거하기 위해 '씬 타입'을 미리 고정한다.\n\n로더: src/trait_pools.py `_load_sfw_scenes()` — 언더스코어(_) 프리픽스 키는 skip.\nAPI: `SFW_SCENES` (list), `roll_sfw_scene()`, `list_sfw_scene_keys()`, `set_forced_sfw_scene(key)`.\n\n스키마 per 엔트리 (NSFW보다 필드 3개 더 많음):\n- label: 사람이 읽는 설명\n- person_tags: danbooru 인원 태그 (comma-sep) — 필수\n- pose_pool: Grok에 제공할 포즈 후보 (list)\n- camera_pool: 카메라 앵글 후보 (list)\n- location_pool: 로케이션 후보 (list) — SFW 전용\n- activity_tags: 활동/소품 태그 (comma-sep) — SFW 전용\n- expression_hint: 표정 가이드 (Grok이 참고, 자율 변형 가능) — SFW 전용\n- notes: 메모 (한글 OK)\n\nPM이 새 씬 추가 시 `_template` 복사해서 채우고 고유 key로 등록.",
+  "_template": {
+    "_doc": "TEMPLATE — 복사해서 신규 씬 등록 시 사용. key는 object 키 그 자체.",
+    "label": "PLACEHOLDER — short English description",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "PLACEHOLDER_POSE_1",
+      "PLACEHOLDER_POSE_2"
+    ],
+    "camera_pool": [
+      "from_front",
+      "from_side"
+    ],
+    "location_pool": [
+      "PLACEHOLDER_LOCATION_1",
+      "PLACEHOLDER_LOCATION_2"
+    ],
+    "activity_tags": "activity, prop, environment_detail",
+    "expression_hint": "soft_smile, relaxed",
+    "notes": "PLACEHOLDER — 메모"
+  },
+  "cafe_coffee": {
+    "label": "Relaxing at a cafe with coffee",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting",
+      "holding_cup",
+      "leaning_forward",
+      "head_tilt",
+      "looking_at_viewer",
+      "hand_on_own_face"
+    ],
+    "camera_pool": [
+      "from_front",
+      "from_side",
+      "from_above",
+      "over_the_shoulder",
+      "close-up"
+    ],
+    "location_pool": [
+      "cafe",
+      "coffee_shop",
+      "cozy_cafe_interior",
+      "window_seat_cafe"
+    ],
+    "activity_tags": "coffee, cup, saucer, table",
+    "expression_hint": "soft_smile, relaxed, daydreaming",
+    "notes": "Warm cafe atmosphere. Wholesome, no suggestive elements."
+  },
+  "reading_book": {
+    "label": "Reading a book",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting",
+      "lying_on_stomach",
+      "cross-legged",
+      "reading",
+      "holding_book",
+      "head_tilt"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_above",
+      "close-up",
+      "over_the_shoulder"
+    ],
+    "location_pool": [
+      "library",
+      "home_living_room",
+      "bedroom",
+      "bookstore",
+      "park_bench",
+      "rooftop_day"
+    ],
+    "activity_tags": "book, holding_book, reading",
+    "expression_hint": "focused, gentle_smile, closed_eyes",
+    "notes": "Quiet, studious vibe."
+  },
+  "park_walking": {
+    "label": "Walking in a park",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "walking",
+      "looking_back",
+      "holding_hands_together",
+      "arms_behind_back",
+      "hand_in_pocket",
+      "stretching"
+    ],
+    "camera_pool": [
+      "from_behind",
+      "from_side",
+      "from_below",
+      "from_front",
+      "from_above"
+    ],
+    "location_pool": [
+      "park",
+      "cherry_blossom_tree",
+      "flower_field",
+      "garden",
+      "autumn_leaves",
+      "path"
+    ],
+    "activity_tags": "outdoors, wind_lift, floating_hair",
+    "expression_hint": "bright_smile, laughing, closed_eyes",
+    "notes": "Outdoor daylight scene. Capture motion of hair/clothing."
+  },
+  "bed_relaxing": {
+    "label": "Relaxing in bed (fully clothed)",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "lying_on_back",
+      "lying_on_stomach",
+      "lying_on_side",
+      "hugging_pillow",
+      "stretching",
+      "curled_up"
+    ],
+    "camera_pool": [
+      "from_above",
+      "from_side",
+      "close-up",
+      "overhead_view"
+    ],
+    "location_pool": [
+      "bedroom",
+      "dorm_room",
+      "hotel_room"
+    ],
+    "activity_tags": "bed, pillow, blanket, indoors",
+    "expression_hint": "closed_eyes, soft_smile, sleepy, relaxed",
+    "notes": "Fully dressed — no underwear, no exposure. Cozy morning/evening vibe."
+  },
+  "kitchen_cooking": {
+    "label": "Cooking in a kitchen",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "holding_knife",
+      "cutting_vegetables",
+      "stirring_pot",
+      "looking_back",
+      "apron_smile"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_front",
+      "over_the_shoulder",
+      "close-up"
+    ],
+    "location_pool": [
+      "kitchen",
+      "home_kitchen",
+      "cafe_kitchen"
+    ],
+    "activity_tags": "apron, kitchen_utensils, cutting_board, vegetables, steam",
+    "expression_hint": "focused_expression, bright_smile, gentle_expression",
+    "notes": "Domestic cozy scene. Apron over normal clothing."
+  },
+  "beach_sfw": {
+    "label": "At the beach (casual, SFW)",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "walking",
+      "sitting",
+      "looking_at_viewer",
+      "looking_to_the_side",
+      "arms_stretched"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_below",
+      "from_behind",
+      "from_above",
+      "cowboy_shot",
+      "close-up"
+    ],
+    "location_pool": [
+      "beach",
+      "seaside",
+      "shore",
+      "ocean_view"
+    ],
+    "activity_tags": "ocean, sand, seagull, sky",
+    "expression_hint": "bright_smile, laughing, squinting, happy",
+    "notes": "Casual beach outing — NOT in swimsuit (fully dressed). Summer outfit OK."
+  },
+  "school_classroom": {
+    "label": "In a school classroom",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting_on_chair",
+      "leaning_on_desk",
+      "holding_pen",
+      "writing",
+      "looking_back",
+      "head_rest_on_hand"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_front",
+      "over_the_shoulder",
+      "from_behind"
+    ],
+    "location_pool": [
+      "classroom",
+      "school_hallway",
+      "library"
+    ],
+    "activity_tags": "desk, chair, notebook, pencil, blackboard, window",
+    "expression_hint": "focused, bored_expression, gentle_smile, daydreaming",
+    "notes": "Classroom daylight. Student uniform OK if provided."
+  },
+  "selfie_casual": {
+    "label": "Taking a casual selfie",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "selfie",
+      "peace_sign",
+      "v_sign",
+      "head_tilt",
+      "winking",
+      "looking_at_viewer"
+    ],
+    "camera_pool": [
+      "close-up",
+      "upper_body",
+      "from_above",
+      "from_front"
+    ],
+    "location_pool": [
+      "bedroom",
+      "bathroom_mirror",
+      "cafe",
+      "rooftop_day",
+      "street"
+    ],
+    "activity_tags": "holding_phone, cellphone, mirror_selfie",
+    "expression_hint": "bright_smile, winking, open_mouth, laughing",
+    "notes": "Self-portrait style. Phone visible in hand or mirror."
+  },
+  "street_fashion": {
+    "label": "Street / fashion shot",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "walking",
+      "hand_in_pocket",
+      "hands_on_hips",
+      "looking_back",
+      "leaning_against_wall"
+    ],
+    "camera_pool": [
+      "full_body",
+      "from_below",
+      "from_side",
+      "from_front",
+      "from_behind",
+      "cowboy_shot",
+      "close-up",
+      "upper_body"
+    ],
+    "location_pool": [
+      "cityscape",
+      "street",
+      "crosswalk",
+      "shopping_mall"
+    ],
+    "activity_tags": "crowd_background, storefront, fashion",
+    "expression_hint": "confident, smirk, sidelong_glance, cool_expression",
+    "notes": "Fashion/editorial tone."
+  },
+  "flower_field": {
+    "label": "In a flower field",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "sitting_in_grass",
+      "lying_on_grass",
+      "spinning",
+      "arms_spread",
+      "looking_up"
+    ],
+    "camera_pool": [
+      "from_below",
+      "from_above",
+      "from_side",
+      "wide_shot",
+      "cowboy_shot",
+      "close-up",
+      "upper_body"
+    ],
+    "location_pool": [
+      "flower_field",
+      "sunflower_field",
+      "tulip_field",
+      "poppy_field",
+      "meadow"
+    ],
+    "activity_tags": "wind, sky, dress_flutter",
+    "expression_hint": "closed_eyes, bright_smile, laughing, happy",
+    "notes": "Dreamlike vibe. Dress/skirt motion from wind. Natural light."
+  },
+  "rainy_day_umbrella": {
+    "label": "Walking in the rain with an umbrella",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "walking",
+      "standing",
+      "holding_umbrella",
+      "looking_back",
+      "looking_up",
+      "looking_at_viewer"
+    ],
+    "camera_pool": [
+      "from_front",
+      "from_behind",
+      "from_side",
+      "low_angle",
+      "from_above",
+      "cowboy_shot",
+      "close-up",
+      "upper_body"
+    ],
+    "location_pool": [
+      "rainy_street",
+      "wet_pavement",
+      "puddle",
+      "urban_rain",
+      "park_rain"
+    ],
+    "activity_tags": "umbrella, rain, raindrops, reflection, overcast, raincoat",
+    "expression_hint": "soft_smile, gentle_expression, closed_eyes, slight_smile",
+    "notes": "Melancholic rain mood. Raincoat keeps clothing fully covered. No wet/see-through emphasis."
+  },
+  "winter_snow": {
+    "label": "Winter snow scene with scarf",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "walking",
+      "breath_mist",
+      "cupped_hands",
+      "catching_snow",
+      "looking_up"
+    ],
+    "camera_pool": [
+      "from_front",
+      "from_side",
+      "from_below",
+      "close-up"
+    ],
+    "location_pool": [
+      "snowy_street",
+      "winter_park",
+      "snowy_forest",
+      "frozen_lake",
+      "ski_resort"
+    ],
+    "activity_tags": "snow, snowflakes, scarf, winter_clothes, mittens, breath_visible",
+    "expression_hint": "bright_smile, laughing, rosy_cheeks, closed_eyes",
+    "notes": "Cold breath mist visible. Winter coat, scarf, beanie. Snow falling."
+  },
+  "rooftop_sunset": {
+    "label": "Rooftop at sunset with city view",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "leaning_on_railing",
+      "arms_on_railing",
+      "looking_away",
+      "hair_blowing",
+      "sitting_on_ledge"
+    ],
+    "camera_pool": [
+      "from_behind",
+      "from_side",
+      "wide_shot",
+      "from_below",
+      "cowboy_shot",
+      "close-up",
+      "upper_body"
+    ],
+    "location_pool": [
+      "rooftop",
+      "rooftop_sunset",
+      "city_rooftop",
+      "apartment_rooftop"
+    ],
+    "activity_tags": "cityscape, skyline, wind, hair_blowing",
+    "expression_hint": "contemplative, soft_smile, closed_eyes, serene",
+    "notes": "Golden-hour warm light. Wind in hair. Contemplative mood."
+  },
+  "train_window": {
+    "label": "Looking out a train window",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting",
+      "chin_on_hand",
+      "looking_out_window",
+      "head_rest_on_hand",
+      "holding_ticket",
+      "closed_eyes"
+    ],
+    "camera_pool": [
+      "from_side",
+      "close-up",
+      "over_the_shoulder",
+      "from_front"
+    ],
+    "location_pool": [
+      "train_interior",
+      "subway_car",
+      "bullet_train",
+      "window_seat"
+    ],
+    "activity_tags": "train_window, passing_scenery, motion_blur_outside, seat, indoors",
+    "expression_hint": "daydreaming, gentle_expression, bored, slight_smile, serene",
+    "notes": "Reflection on window ok. Outside scenery blurred by motion."
+  },
+  "convenience_store_night": {
+    "label": "Convenience store at night",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "holding_drink",
+      "browsing_shelf",
+      "looking_back",
+      "crouching",
+      "holding_basket"
+    ],
+    "camera_pool": [
+      "from_front",
+      "from_side",
+      "from_above",
+      "wide_shot",
+      "cowboy_shot",
+      "close-up",
+      "upper_body"
+    ],
+    "location_pool": [
+      "convenience_store",
+      "24hr_store",
+      "store_aisle",
+      "brightly_lit_store"
+    ],
+    "activity_tags": "convenience_store, shelves, drink_cooler, snack, plastic_bag",
+    "expression_hint": "casual, bored_expression, slight_smile, focused",
+    "notes": "Late-night slice-of-life vibe. 'fluorescent' 태그 제거 (SDXL이 green tint로 학습되어 color bleed 유발) — 중립 white_lighting으로 대체."
+  },
+  "picnic_outdoor": {
+    "label": "Picnic on grass with basket",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting_on_ground",
+      "lying_on_stomach",
+      "cross-legged",
+      "holding_sandwich",
+      "pouring_drink",
+      "reading"
+    ],
+    "camera_pool": [
+      "from_above",
+      "from_side",
+      "eye_level",
+      "close-up"
+    ],
+    "location_pool": [
+      "grass_field",
+      "picnic_spot",
+      "park",
+      "riverside",
+      "lakeside"
+    ],
+    "activity_tags": "picnic_blanket, basket, sandwich, fruit, outdoors",
+    "expression_hint": "bright_smile, laughing, soft_smile, closed_eyes",
+    "notes": "Warm daytime. Casual summer outfit. Blanket spread with food."
+  },
+  "gym_workout": {
+    "label": "Casual gym workout",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "stretching",
+      "holding_dumbbell",
+      "yoga_pose",
+      "running_pose",
+      "wiping_sweat",
+      "hand_on_hip"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_front",
+      "from_behind",
+      "full_body",
+      "close-up",
+      "upper_body"
+    ],
+    "location_pool": [
+      "gym",
+      "yoga_studio",
+      "fitness_center",
+      "outdoor_gym"
+    ],
+    "activity_tags": "sportswear, dumbbell, yoga_mat, water_bottle, gym_equipment",
+    "expression_hint": "focused_expression, determined, slight_smile, gentle_smile",
+    "notes": "Athletic leggings + loose t-shirt or tank top (covered). Conservative framing — no body-emphasis angles."
+  },
+  "pet_cat": {
+    "label": "With a pet cat",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting",
+      "lying_on_stomach",
+      "holding_cat",
+      "petting_cat",
+      "face_to_face_with_cat",
+      "cross-legged"
+    ],
+    "camera_pool": [
+      "close-up",
+      "from_above",
+      "from_side",
+      "eye_level"
+    ],
+    "location_pool": [
+      "home_living_room",
+      "bedroom",
+      "window_seat",
+      "sofa"
+    ],
+    "activity_tags": "cat, kitten, holding_cat, petting, cat_on_lap, indoor_pet",
+    "expression_hint": "gentle_smile, soft_expression, closed_eyes, happy",
+    "notes": "Cozy indoor scene with cat. Cat can be orange_tabby, black_cat, white_cat, etc."
+  },
+  "stargazing_night": {
+    "label": "Stargazing at night",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "lying_on_back",
+      "sitting_on_ground",
+      "looking_up",
+      "arms_behind_head",
+      "pointing_up",
+      "standing"
+    ],
+    "camera_pool": [
+      "from_above",
+      "from_side",
+      "wide_shot",
+      "low_angle",
+      "close-up",
+      "upper_body",
+      "cowboy_shot"
+    ],
+    "location_pool": [
+      "hilltop_night",
+      "starry_sky",
+      "observatory",
+      "rooftop_night",
+      "camping_spot"
+    ],
+    "activity_tags": "night_sky, stars, milky_way, telescope, sleeping_bag",
+    "expression_hint": "serene, soft_smile, wonder, closed_eyes, dreamy",
+    "notes": "Deep blue/black night. Stars as key visual element."
+  },
+  "bakery_sweets": {
+    "label": "At a bakery or sweets shop",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "looking_at_display",
+      "holding_plate",
+      "eating_cake",
+      "pointing",
+      "head_tilt"
+    ],
+    "camera_pool": [
+      "from_front",
+      "from_side",
+      "close-up",
+      "over_the_shoulder"
+    ],
+    "location_pool": [
+      "bakery",
+      "cafe_patisserie",
+      "ice_cream_shop",
+      "donut_shop",
+      "cake_shop"
+    ],
+    "activity_tags": "cake, macaron, donut, ice_cream, pastry, display_case, fork, plate",
+    "expression_hint": "bright_smile, open_mouth, excited, licking_lips, happy",
+    "notes": "Colorful, cute vibe. Sweets visible as focal element."
+  },
+  "stage_performance": {
+    "label": "On stage performing (music / dance)",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "holding_microphone",
+      "arms_raised",
+      "mid_dance_pose",
+      "twirling",
+      "bowing"
+    ],
+    "camera_pool": [
+      "low_angle",
+      "wide_shot",
+      "from_front",
+      "from_side",
+      "close-up",
+      "upper_body"
+    ],
+    "location_pool": [
+      "stage",
+      "concert_hall",
+      "music_venue",
+      "theater"
+    ],
+    "activity_tags": "microphone, audience_silhouette, curtain, confetti",
+    "expression_hint": "bright_smile, open_mouth, singing, passionate, closed_eyes",
+    "notes": "Performer energy."
+  },
+  "balcony_morning": {
+    "label": "Morning on a balcony with coffee",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "leaning_on_railing",
+      "holding_cup",
+      "stretching",
+      "arms_raised",
+      "yawning",
+      "looking_out"
+    ],
+    "camera_pool": [
+      "from_behind",
+      "from_side",
+      "close-up",
+      "wide_shot"
+    ],
+    "location_pool": [
+      "balcony",
+      "terrace",
+      "high_rise_balcony",
+      "apartment_balcony"
+    ],
+    "activity_tags": "coffee_cup, railing, city_view, morning_mist, casual_loungewear",
+    "expression_hint": "sleepy, soft_smile, closed_eyes, yawning, content",
+    "notes": "Casual loungewear — sweater + pants or modest pajama set. No robe-only / oversized-shirt-only framing. Golden morning sun."
+  },
+  "festival_summer": {
+    "label": "Summer festival (yukata / fireworks)",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "walking",
+      "standing",
+      "holding_fan",
+      "looking_up",
+      "looking_back",
+      "holding_food_stick"
+    ],
+    "camera_pool": [
+      "from_behind",
+      "from_side",
+      "from_below",
+      "wide_shot",
+      "cowboy_shot",
+      "close-up",
+      "upper_body"
+    ],
+    "location_pool": [
+      "summer_festival",
+      "matsuri",
+      "shrine_approach",
+      "fireworks_display",
+      "night_festival"
+    ],
+    "activity_tags": "yukata, paper_fan, lanterns, festival_stalls, goldfish_scooping, taiyaki",
+    "expression_hint": "bright_smile, laughing, wonder, shy_smile, happy",
+    "notes": "Yukata or summer dress. Lantern-lit atmosphere. Fireworks optional in background."
+  },
+  "drawing_sketching": {
+    "label": "Drawing or sketching at a desk",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting",
+      "leaning_on_desk",
+      "holding_pencil",
+      "drawing",
+      "chin_on_hand",
+      "looking_at_sketchbook"
+    ],
+    "camera_pool": [
+      "from_side",
+      "close-up",
+      "over_the_shoulder",
+      "from_above"
+    ],
+    "location_pool": [
+      "art_studio",
+      "bedroom_desk",
+      "cafe_corner",
+      "library_study",
+      "window_studio"
+    ],
+    "activity_tags": "sketchbook, pencil, drawing_tablet, art_supplies, paintbrush, scattered_papers",
+    "expression_hint": "focused_expression, tongue_out (concentration), slight_smile, closed_eyes",
+    "notes": "Creative concentration scene. Art tools visible."
+  },
+  "museum_visit": {
+    "label": "At a museum / art gallery",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "looking_at_painting",
+      "head_tilt",
+      "hand_on_chin",
+      "pointing",
+      "leaning_forward"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_behind",
+      "over_the_shoulder",
+      "close-up",
+      "cowboy_shot"
+    ],
+    "location_pool": [
+      "museum",
+      "art_gallery",
+      "exhibition_hall",
+      "sculpture_garden"
+    ],
+    "activity_tags": "painting, artwork, sculpture, exhibition, pedestal, frame",
+    "expression_hint": "focused, gentle_smile, thoughtful, intrigued",
+    "notes": "Cultural visit. Quiet, contemplative mood."
+  },
+  "bookstore_browsing": {
+    "label": "Browsing a bookstore",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "crouching",
+      "holding_book",
+      "head_tilt",
+      "reaching_for_shelf",
+      "flipping_pages"
+    ],
+    "camera_pool": [
+      "from_side",
+      "over_the_shoulder",
+      "close-up",
+      "cowboy_shot",
+      "from_behind"
+    ],
+    "location_pool": [
+      "bookstore",
+      "library",
+      "used_bookstore",
+      "manga_shop"
+    ],
+    "activity_tags": "bookshelf, books, stack_of_books, paperback, reading_glasses",
+    "expression_hint": "focused, gentle_smile, curious",
+    "notes": "Quiet reading mood. Book-focused close-ups OK."
+  },
+  "tea_ceremony": {
+    "label": "Traditional tea / tea ceremony",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting",
+      "seiza",
+      "holding_cup",
+      "pouring_tea",
+      "bow",
+      "kneeling"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_above",
+      "close-up",
+      "over_the_shoulder"
+    ],
+    "location_pool": [
+      "tea_room",
+      "traditional_japanese_interior",
+      "tatami_room",
+      "tea_house"
+    ],
+    "activity_tags": "teacup, teapot, tatami, shoji, kimono, tea_utensils",
+    "expression_hint": "serene, gentle_smile, closed_eyes, graceful",
+    "notes": "Traditional Japanese ambience. Kimono/yukata if clothing allows."
+  },
+  "amusement_park": {
+    "label": "At an amusement park",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "pointing",
+      "arms_raised",
+      "peace_sign",
+      "jumping",
+      "looking_back"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_front",
+      "from_below",
+      "cowboy_shot",
+      "close-up",
+      "upper_body"
+    ],
+    "location_pool": [
+      "amusement_park",
+      "theme_park",
+      "ferris_wheel",
+      "carnival",
+      "roller_coaster_line"
+    ],
+    "activity_tags": "cotton_candy, balloon, mascot, ride, ticket",
+    "expression_hint": "bright_smile, laughing, excited, open_mouth",
+    "notes": "Cheerful, high-energy outdoor setting."
+  },
+  "aquarium_visit": {
+    "label": "At an aquarium",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "looking_at_fish",
+      "hand_on_glass",
+      "head_tilt",
+      "pointing",
+      "leaning_forward"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_behind",
+      "close-up",
+      "upper_body",
+      "over_the_shoulder"
+    ],
+    "location_pool": [
+      "aquarium",
+      "fish_tank",
+      "underwater_tunnel",
+      "jellyfish_exhibit"
+    ],
+    "activity_tags": "fish, jellyfish, coral, aquatic_plants, water_reflection",
+    "expression_hint": "wonder, bright_eyes, soft_smile, captivated",
+    "notes": "Serene blue ambience. Reflection from fish tank on character OK."
+  },
+  "art_studio": {
+    "label": "In an artist's studio",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting",
+      "standing",
+      "holding_brush",
+      "painting",
+      "chin_on_hand",
+      "cross-legged"
+    ],
+    "camera_pool": [
+      "from_side",
+      "close-up",
+      "over_the_shoulder",
+      "from_above",
+      "cowboy_shot"
+    ],
+    "location_pool": [
+      "art_studio",
+      "painter_studio",
+      "cluttered_workshop",
+      "easel_room"
+    ],
+    "activity_tags": "easel, canvas, paint_brushes, palette, paint_stains, artwork_in_progress",
+    "expression_hint": "focused_expression, gentle_smile, paint_smudge, creative",
+    "notes": "Creative workspace. Paint on clothes/face OK for character detail."
+  },
+  "concert_attendance": {
+    "label": "Attending a concert",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "arms_raised",
+      "clapping",
+      "dancing",
+      "singing_along",
+      "head_tilt"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_behind",
+      "low_angle",
+      "close-up",
+      "upper_body"
+    ],
+    "location_pool": [
+      "concert_hall",
+      "music_venue",
+      "crowd",
+      "stage_view"
+    ],
+    "activity_tags": "glowstick, crowd, audience",
+    "expression_hint": "bright_smile, open_mouth, excited, closed_eyes",
+    "notes": "Music fan experience. Stage lights OK but balanced (no neon bleed)."
+  },
+  "morning_jog": {
+    "label": "Morning jogging / running outdoors",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "running_pose",
+      "stretching",
+      "jogging",
+      "wiping_sweat",
+      "hand_on_hip",
+      "drinking_water"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_front",
+      "from_behind",
+      "full_body",
+      "cowboy_shot"
+    ],
+    "location_pool": [
+      "park_path",
+      "riverside_path",
+      "morning_street",
+      "jogging_trail"
+    ],
+    "activity_tags": "sportswear, headphones, water_bottle, morning_mist, pavement",
+    "expression_hint": "determined, focused, slight_smile, bright_smile",
+    "notes": "Early morning energy. Modest sportswear (loose t-shirt + jogger). Action focus, no body-emphasis framing."
+  },
+  "library_study": {
+    "label": "Studying in a library",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting",
+      "leaning_on_desk",
+      "writing",
+      "chin_on_hand",
+      "reading",
+      "holding_pen"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_above",
+      "close-up",
+      "over_the_shoulder",
+      "cowboy_shot"
+    ],
+    "location_pool": [
+      "library",
+      "study_room",
+      "university_library",
+      "reading_area"
+    ],
+    "activity_tags": "notebooks, textbooks, laptop, glasses, bookshelves_background",
+    "expression_hint": "focused, tongue_out (concentration), tired, slight_smile",
+    "notes": "Study session. Glasses + books for academic atmosphere."
+  },
+  "onsen_hotsprings": {
+    "label": "Japanese onsen / hot springs (outdoor, towel covered)",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting",
+      "partial_submerge",
+      "hair_up",
+      "towel_wrapped",
+      "looking_up",
+      "tilting_head"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_above",
+      "upper_body",
+      "close-up"
+    ],
+    "location_pool": [
+      "onsen",
+      "hot_spring",
+      "rotenburo",
+      "outdoor_bath",
+      "steamy_bath"
+    ],
+    "activity_tags": "steam, bath_towel, water, stones, wooden_edge, rock_bath",
+    "expression_hint": "relaxed, closed_eyes, soft_smile, content",
+    "notes": "SFW bathing — towel covers body. Steam ambience. No nudity tags."
+  },
+  "photoshoot_studio": {
+    "label": "Professional photoshoot in a studio",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "posing",
+      "hand_on_hip",
+      "head_tilt",
+      "looking_at_viewer",
+      "standing",
+      "sitting_on_stool"
+    ],
+    "camera_pool": [
+      "cowboy_shot",
+      "upper_body",
+      "close-up",
+      "from_front",
+      "from_side"
+    ],
+    "location_pool": [
+      "photography_studio",
+      "white_background",
+      "seamless_background"
+    ],
+    "activity_tags": "camera, professional_photography",
+    "expression_hint": "confident, slight_smile, serene, gentle_smile",
+    "notes": "Editorial/fashion shoot. Conservative posing — no sultry/seductive framing."
+  },
+  "office_work": {
+    "label": "Working at an office desk",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting",
+      "typing",
+      "leaning_on_desk",
+      "holding_coffee",
+      "chin_on_hand",
+      "looking_at_monitor"
+    ],
+    "camera_pool": [
+      "from_side",
+      "over_the_shoulder",
+      "from_above",
+      "close-up",
+      "upper_body"
+    ],
+    "location_pool": [
+      "office",
+      "cubicle",
+      "home_office",
+      "coworking_space"
+    ],
+    "activity_tags": "laptop, desktop_monitor, keyboard, coffee_cup, documents, office_chair",
+    "expression_hint": "focused, slight_frown, tired, concentrating",
+    "notes": "Professional office setting. Office attire (shirt/blouse/blazer)."
+  },
+  "shopping_mall": {
+    "label": "Shopping at a mall",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "walking",
+      "holding_shopping_bag",
+      "looking_at_window",
+      "pointing",
+      "holding_multiple_bags"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_behind",
+      "cowboy_shot",
+      "upper_body",
+      "over_the_shoulder"
+    ],
+    "location_pool": [
+      "shopping_mall",
+      "department_store",
+      "boutique",
+      "fashion_store"
+    ],
+    "activity_tags": "shopping_bag, storefront, mannequin, escalator, display_window",
+    "expression_hint": "bright_smile, excited, head_tilt, slight_smile",
+    "notes": "Shopping trip vibe. Shopping bags as focal prop."
+  },
+  "rooftop_garden": {
+    "label": "On a rooftop garden",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "sitting",
+      "tending_plants",
+      "holding_watering_can",
+      "leaning_on_railing",
+      "cross-legged"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_above",
+      "cowboy_shot",
+      "close-up",
+      "upper_body"
+    ],
+    "location_pool": [
+      "rooftop_garden",
+      "urban_garden",
+      "greenhouse_rooftop",
+      "balcony_garden"
+    ],
+    "activity_tags": "plants, flowers, watering_can, gardening_gloves, pots, succulent, urban_skyline",
+    "expression_hint": "gentle_smile, closed_eyes, serene, content",
+    "notes": "Peaceful urban oasis. Green elements balanced with city view."
+  },
+  "sushi_restaurant": {
+    "label": "At a sushi restaurant",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting",
+      "holding_chopsticks",
+      "eating_sushi",
+      "head_tilt",
+      "looking_at_food",
+      "holding_cup"
+    ],
+    "camera_pool": [
+      "close-up",
+      "from_side",
+      "from_above",
+      "over_the_shoulder",
+      "upper_body"
+    ],
+    "location_pool": [
+      "sushi_bar",
+      "sushi_counter",
+      "izakaya",
+      "japanese_restaurant"
+    ],
+    "activity_tags": "sushi, chopsticks, plate, soy_sauce, sake_cup, wooden_counter",
+    "expression_hint": "bright_smile, licking_lips, excited, mouth_open_eating",
+    "notes": "Food-focused scene. Sushi on the counter is key visual."
+  },
+  "autumn_leaves_park": {
+    "label": "Autumn leaves in a park",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "walking",
+      "standing",
+      "catching_leaves",
+      "spinning",
+      "sitting_on_bench",
+      "holding_leaves"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_behind",
+      "cowboy_shot",
+      "close-up",
+      "from_above",
+      "upper_body"
+    ],
+    "location_pool": [
+      "autumn_park",
+      "maple_grove",
+      "autumn_forest_path",
+      "leaves_covered_path"
+    ],
+    "activity_tags": "autumn_leaves, maple_leaves, falling_leaves, scarf, warm_clothing, golden_hour",
+    "expression_hint": "bright_smile, closed_eyes, wonder, gentle_smile",
+    "notes": "Warm autumn palette (orange/red/yellow) naturally balanced."
+  },
+  "lake_dock": {
+    "label": "Sitting on a lake dock",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting",
+      "legs_dangling",
+      "arms_behind_back",
+      "leaning_back",
+      "looking_up",
+      "closed_eyes"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_behind",
+      "from_above",
+      "close-up",
+      "wide_shot"
+    ],
+    "location_pool": [
+      "lake_dock",
+      "wooden_pier",
+      "lakeside",
+      "boat_dock"
+    ],
+    "activity_tags": "water, wooden_dock, reflection, distant_mountains, fishing_rod",
+    "expression_hint": "serene, soft_smile, closed_eyes, peaceful",
+    "notes": "Peaceful waterside. Water reflection adds depth."
+  },
+  "karaoke_room": {
+    "label": "Singing at karaoke",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "standing",
+      "holding_microphone",
+      "sitting_on_couch",
+      "arms_raised",
+      "singing_pose",
+      "head_tilt"
+    ],
+    "camera_pool": [
+      "close-up",
+      "upper_body",
+      "from_side",
+      "cowboy_shot",
+      "from_front"
+    ],
+    "location_pool": [
+      "karaoke_room",
+      "karaoke_booth",
+      "private_room",
+      "tv_screen_background"
+    ],
+    "activity_tags": "microphone, karaoke_screen, couch, tambourine, soft_drinks",
+    "expression_hint": "bright_smile, open_mouth, singing, excited, closed_eyes",
+    "notes": "Fun, energetic. Colored mood lights OK but balanced."
+  },
+  "coffee_shop_work": {
+    "label": "Working remotely at a coffee shop",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting",
+      "typing",
+      "chin_on_hand",
+      "holding_cup",
+      "leaning_on_table",
+      "looking_at_laptop"
+    ],
+    "camera_pool": [
+      "from_side",
+      "over_the_shoulder",
+      "from_above",
+      "close-up",
+      "upper_body"
+    ],
+    "location_pool": [
+      "coffee_shop",
+      "cafe_corner",
+      "coworking_cafe",
+      "bookshop_cafe"
+    ],
+    "activity_tags": "laptop, coffee_cup, headphones, notebook, croissant",
+    "expression_hint": "focused, slight_smile, tired, gentle_smile",
+    "notes": "Digital nomad vibe. Laptop + coffee central."
+  },
+  "bicycle_ride": {
+    "label": "Riding a bicycle",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "riding_bicycle",
+      "standing_beside_bike",
+      "sitting_on_bike",
+      "looking_back",
+      "waving",
+      "one_foot_down"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_front",
+      "from_behind",
+      "cowboy_shot",
+      "low_angle"
+    ],
+    "location_pool": [
+      "bike_path",
+      "country_road",
+      "seaside_path",
+      "park_path",
+      "riverside_bike_trail"
+    ],
+    "activity_tags": "bicycle, basket, helmet, wind_lift, pedal, summer_road",
+    "expression_hint": "bright_smile, laughing, closed_eyes, wind_in_hair",
+    "notes": "Active outdoor scene. Motion via wind_lift and hair/dress movement."
+  },
+  "living_room_lounging": {
+    "label": "Lounging in the living room",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting_on_couch",
+      "lying_on_couch",
+      "cross-legged",
+      "hugging_pillow",
+      "holding_remote",
+      "sitting_with_legs_crossed",
+      "curled_up",
+      "leaning_on_armrest"
+    ],
+    "camera_pool": [
+      "from_side",
+      "from_above",
+      "cowboy_shot",
+      "close-up",
+      "upper_body",
+      "over_the_shoulder"
+    ],
+    "location_pool": [
+      "living_room",
+      "home_living_room",
+      "cozy_living_room",
+      "modern_living_room",
+      "apartment_living_room"
+    ],
+    "activity_tags": "couch, sofa, cushion, blanket, tv, remote_control, coffee_table, rug",
+    "expression_hint": "relaxed, soft_smile, closed_eyes, sleepy, content",
+    "notes": "Casual home lounging. TV watching / reading / just relaxing on the couch. 소파 중심 구도."
+  },
+  "bar_pub_evening": {
+    "label": "Evening at a bar / pub",
+    "person_tags": "1girl, solo",
+    "pose_pool": [
+      "sitting_at_bar",
+      "holding_drink",
+      "leaning_on_counter",
+      "head_tilt",
+      "looking_away",
+      "legs_crossed",
+      "smiling_at_viewer",
+      "chin_on_hand"
+    ],
+    "camera_pool": [
+      "close-up",
+      "upper_body",
+      "cowboy_shot",
+      "from_side",
+      "over_the_shoulder"
+    ],
+    "location_pool": [
+      "bar",
+      "pub",
+      "cocktail_bar",
+      "sports_bar",
+      "speakeasy",
+      "wine_bar",
+      "hotel_bar"
+    ],
+    "activity_tags": "cocktail_glass, wine_glass, beer_mug, bar_counter, liquor_shelf",
+    "expression_hint": "slight_smile, relaxed, gentle_smile, content, contemplative",
+    "notes": "Sophisticated evening bar atmosphere. 따뜻한 앰비언트 조명 (네온 X). 성인 분위기지만 SFW (술 한잔 정도) — no sultry/bedroom-eyes/blush emphasis."
+  }
+}
