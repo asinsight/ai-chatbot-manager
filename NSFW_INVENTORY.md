@@ -46,7 +46,9 @@ NEW 분류 항목(SFW 캐릭터 카드, `config/grok_prompts.json`)은 복사하
 | 비디오 LoRA 시스템 (video.py / video_context.py) | — | 📋 COPY+STRIP — LoRA 분기 전면 삭제 |
 | 비디오 모델 | — | 📋 COPY+SET — `VIDEO_MODEL = alibaba/wan-2.6/image-to-video-flash` (Atlas Cloud) |
 | DaSiWa/RunPod 비디오 fallback 경로 | — | ⚠️ 미정 — Atlas only 단일화(권장) vs 백업 유지 |
-| NSFW 씬/LoRA preset (config/nsfw_scenes.json, config/lora_presets.json NSFW preset) | 🗑️ DELETE / ✂️ STRIP | 🚫 DROP (`nsfw_scenes.json`) / 📋 COPY+STRIP (`lora_presets.json`) |
+| NSFW 씬/LoRA preset (config/nsfw_scenes.json, config/lora_presets.json NSFW preset) | 🗑️ DELETE / ✂️ STRIP | 🚫 DROP (`nsfw_scenes.json`) / 🚫 DROP (`lora_presets.json`) — Phase 2B B6 이후 fork 코드에서 참조 0건이라 미이관 (원래 계획은 COPY+STRIP) |
+| `config/dasiwa_aio_defaults.json` | ✂️ STRIP | 🚫 DROP — Phase 2A A3에서 DaSiWa 경로 삭제로 묵시적 미이관 (원래 계획은 COPY+STRIP) |
+| `comfyui_workflow/audiogen-workflow.json` | ✅ 이관 (Phase 1) | 🚫 DROP — Phase 2D 삭제. wan2.6-flash 네이티브 오디오 지원으로 별도 합성 불필요 |
 | `src/wan_nsfw_i2v_prompting_guide.md` | 🗑️ DELETE | 📋 COPY+RENAME+STRIP — `wan_i2v_prompting_guide.md`로 이름 변경, NSFW 섹션만 삭제 (일반 i2v 가이드 유지) |
 | 기타 NSFW 가이드 문서 (`docs/nsfw_rules.json`, `danbooru_tag_strategy.md` Section 10) | 🗑️ DELETE | 🚫 DROP — 미이관 |
 
@@ -364,7 +366,8 @@ EMBEDDING_NEG_PREFIX = "embedding:illustrious/lazy-nsfw, embedding:illustrious/l
 - `specificity: "specific"` (포즈 전용) vs `"general"` (catch-all NSFW LoRA) 듀얼 tier 구조
 - NSFW 전용 LoRA: `mating_press`, `reverse_suspended_congress`, `sex_machine`, `fellatio`, `anal_position`, `squirting`, `creampie`, `double_penetration` 등
 - Tier 2 fallback: `general_nsfw` LoRA preset
-- 조치: ✂️ NSFW 전용 LoRA preset 전부 삭제, 유틸성 LoRA(스타일/조명/품질)만 유지
+- ~~조치: ✂️ NSFW 전용 LoRA preset 전부 삭제, 유틸성 LoRA(스타일/조명/품질)만 유지~~
+- **실제 조치 (Phase 2B 이후)**: 🚫 **DROP** — Phase 2B B6에서 `pose_motion_presets.py`가 LoRA 로딩 자체를 드롭하면서 fork 코드 어디에서도 이 파일을 참조하지 않게 됨. Phase 2C C4가 검증 후 미이관 확정.
 
 ### 2.4 `config/pose_motion_presets.json` (66 lines, 4 NSFW 매치)
 - 스키마: 각 preset에 `sfw` / `nsfw` / `explicit` tier 구조
@@ -372,7 +375,8 @@ EMBEDDING_NEG_PREFIX = "embedding:illustrious/lazy-nsfw, embedding:illustrious/l
 
 ### 2.5 `config/dasiwa_aio_defaults.json` (59 lines)
 - `style=NSFW` LoRA preset 참조, `movement=(orgasm) LoRA` 참조
-- 조치: ✂️ NSFW 스타일 LoRA / orgasm LoRA 참조 제거
+- ~~조치: ✂️ NSFW 스타일 LoRA / orgasm LoRA 참조 제거~~
+- **실제 조치 (Phase 2A 이후)**: 🚫 **DROP** — Phase 2A A3에서 DaSiWa 코드 경로(워크플로우 로더, runpod fallback) 전체가 삭제되면서 이 파일을 참조하는 코드가 사라짐. Phase 2C C6 검증 후 미이관 확정.
 
 ### 2.6 `config/system_prompt.json` (5 NSFW 매치, 그러나 master_prompt 길이 큼)
 - **Section 2 (PHOTO SENDING)**: `[SEND_IMAGE]` 트리거 시 명시적 행위 묘사 (penetration/oral/cum shot/masturbation/fingering/afterglow)
@@ -455,7 +459,7 @@ EMBEDDING_NEG_PREFIX = "embedding:illustrious/lazy-nsfw, embedding:illustrious/l
 | [comfyui_workflow/main_character_build_highqual.json](../ella-telegram/comfyui_workflow/main_character_build_highqual.json) | 🔍 AUDIT — 동일 |
 | [comfyui_workflow/main_character_build_archived.json](../ella-telegram/comfyui_workflow/main_character_build_archived.json) | 🔍 AUDIT — archived지만 사용 시 동일 |
 | [comfyui_workflow/DaSiWa-WAN2.2-i2v-FastFidelity-C-AiO-69.json](../ella-telegram/comfyui_workflow/DaSiWa-WAN2.2-i2v-FastFidelity-C-AiO-69.json) | 🔍 AUDIT — i2v 워크플로우, safety_level 게이팅 로직이 워크플로우 내부에 있는지 확인 |
-| [comfyui_workflow/audiogen-workflow.json](../ella-telegram/comfyui_workflow/audiogen-workflow.json) | ✅ 오디오 (대상 외) |
+| [comfyui_workflow/audiogen-workflow.json](../ella-telegram/comfyui_workflow/audiogen-workflow.json) | ~~✅ 오디오 (대상 외)~~ → 🚫 **DROP (Phase 2D)** — wan2.6-flash 네이티브 오디오 지원으로 별도 MMAudio 합성 불필요. Phase 1에 일단 복사되었다가 Phase 2D D3에서 삭제. |
 | `comfyui_workflow/CLAUDE.md` | 🔍 NSFW 사용 가이드 부분 갱신 |
 
 ---

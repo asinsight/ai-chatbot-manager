@@ -305,7 +305,8 @@ def init_db() -> None:
             """
         )
 
-        # LoRA preset usage stats — 각 pose_key(lora_presets key)가 몇 번 선택됐는지
+        # Pose preset usage stats — 각 pose_key(pose_motion_presets key)가 몇 번 선택됐는지
+        # (테이블 이름은 schema-level identifier라 호환 위해 lora_preset_usage 그대로 유지)
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS lora_preset_usage (
@@ -1133,10 +1134,13 @@ def save_location_context(location_key: str, description: str, danbooru_backgrou
 
 
 def increment_lora_usage(pose_key: str) -> None:
-    """LoRA preset 호출 카운터를 1 증가 (upsert).
+    """Pose preset 호출 카운터를 1 증가 (upsert).
 
-    - pose_key: lora_presets.json 키 (`cowgirl_position`, `general_nsfw` 등)
-    - 텍스트 전용 preset(`generic`, `portrait_static_sfw`)도 기록 가능 — 호출부가 넘긴 모든 키를 저장.
+    SFW fork: pose_motion_presets.json 기반 SFW pose 사용 통계를 추적.
+    함수/테이블 이름(increment_lora_usage / lora_preset_usage)은 schema-level identifier라
+    하위 호환을 위해 유지.
+
+    - pose_key: pose_motion_presets.json 키 (`generic`, `portrait_static_sfw`, `standing` 등)
     """
     if not pose_key or not isinstance(pose_key, str):
         return

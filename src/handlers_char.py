@@ -84,12 +84,16 @@ async def _research_location_bg(location_key: str) -> None:
 
 
 def _parse_outfit_signal(text: str) -> str | None:
-    """LLM 응답에서 [OUTFIT: ...] 시그널을 추출한다. 없으면 None."""
+    """LLM 응답에서 [OUTFIT: ...] 시그널을 추출한다. 없으면 None.
+
+    SFW invariant (config/grok_prompts.json): clothing is always full and
+    intact — the LLM should never emit a state-style outfit (e.g. partial
+    undress). If one slips through, it flows into the standard Grok tag
+    converter and gets persisted as a normal full-set; no NSFW state
+    machinery exists to interpret it specially.
+    """
     match = re.search(r"\[OUTFIT:\s*(.+?)\]", text, re.IGNORECASE)
     return match.group(1).strip() if match else None
-
-
-_OUTFIT_STATE_KEYWORDS = ("nude", "underwear_only", "topless", "bottomless")
 
 
 def _split_tags(text: str) -> list[str]:
@@ -99,109 +103,9 @@ def _split_tags(text: str) -> list[str]:
     return [t.strip() for t in text.split(",") if t.strip()]
 
 
-def _is_state_only_emission(raw: str) -> str | None:
-    """
-    OUTFIT raw 문자열이 state-only emission인지 판단.
-    state keyword 1개만 있고 다른 clothing 태그가 없으면 해당 keyword를 반환.
-    그 외는 None (complete outfit change 혹은 일반 설명).
-    """
-    tags = [t.lower() for t in _split_tags(raw)]
-    if not tags:
-        return None
-    state_tags = [t for t in tags if t in _OUTFIT_STATE_KEYWORDS]
-    non_state_tags = [t for t in tags if t not in _OUTFIT_STATE_KEYWORDS]
-    if len(state_tags) == 1 and not non_state_tags:
-        return state_tags[0]
-    return None
-
-
-def _resolve_state_outfit(state_keyword: str, user_id: int, char_id: str) -> dict:
-    """
-    state-only emission을 캐릭터 default/현재 저장된 clothing과 병합한다.
-    Grok SYSTEM_PROMPT 규칙 4-1이 state keyword를 해석하여 렌더링하므로,
-    여기서는 단순 문자열 병합만 수행한다.
-
-    Returns: {"clothing": "...", "underwear": "..."}
-    """
-    # 현재 유저의 저장된 의상 (없으면 기본 이미지 config)
-    current = get_outfit(user_id, char_id)
-    img_config = _load_image_config(char_id)
-
-    # 현재 저장된 의상이 이미 state keyword를 포함하고 있으면 순수 default로 리셋 후 재적용
-    # (예: bottomless 저장 상태에서 topless 전환)
-    def _pure_clothing(s: str) -> str:
-        tags = [t for t in _split_tags(s) if t.lower() not in _OUTFIT_STATE_KEYWORDS]
-        return ", ".join(tags)
-
-    if current and current.get("source") == "custom":
-        base_clothing = _pure_clothing(current.get("clothing", "")) or img_config.get("clothing", "")
-        base_underwear = current.get("underwear", "") or img_config.get("underwear", "")
-    else:
-        base_clothing = img_config.get("clothing", "")
-        base_underwear = img_config.get("underwear", "")
-
-    kw = state_keyword.lower()
-    if kw == "nude":
-        # 모든 의상 제거
-        return {"clothing": "nude", "underwear": ""}
-    if kw == "underwear_only":
-        # 속옷만 — underwear는 저장된 값 또는 default
-        uw = base_underwear or img_config.get("underwear", "")
-        return {"clothing": "underwear_only", "underwear": uw}
-    if kw == "topless":
-        # 상의 제거, 하의 유지 — underwear는 bra 제거되므로 빈칸
-        merged = f"topless, {base_clothing}" if base_clothing else "topless"
-        return {"clothing": merged, "underwear": ""}
-    if kw == "bottomless":
-        # 하의 제거, 상의 유지 — 팬티 없음
-        merged = f"bottomless, {base_clothing}" if base_clothing else "bottomless"
-        return {"clothing": merged, "underwear": ""}
-    # fallback
-    return {"clothing": state_keyword, "underwear": ""}
-
-
-def _outfit_state_label(clothing: str, underwear: str = "") -> str | None:
-    """의상 태그 문자열에서 state keyword를 감지하여 한글 라벨을 반환한다.
-    state keyword가 없으면 None.
-    """
-    text = (clothing or "").lower()
-    if "nude" in text:
-        return "나체"
-    if "underwear_only" in text:
-        # underwear 필드 또는 clothing 뒤쪽 추가 태그에서 색상 힌트 추출
-        hint = (underwear or clothing or "").strip()
-        # underwear_only 자체는 빼고 나머지 표시
-        remainder = ", ".join(
-            t.strip() for t in hint.split(",") if t.strip() and t.strip().lower() != "underwear_only"
-        )
-        return f"속옷만 ({remainder})" if remainder else "속옷만"
-    if "topless" in text:
-        # topless 제외한 나머지 태그 (하의)
-        remainder = ", ".join(
-            t.strip() for t in clothing.split(",") if t.strip() and t.strip().lower() != "topless"
-        )
-        return f"상의 탈의 (하의: {remainder})" if remainder else "상의 탈의"
-    if "bottomless" in text:
-        remainder = ", ".join(
-            t.strip() for t in clothing.split(",") if t.strip() and t.strip().lower() != "bottomless"
-        )
-        return f"하의 탈의 (상의: {remainder})" if remainder else "하의 탈의"
-    return None
-
-
 async def _convert_outfit_tags(description: str) -> dict | None:
-    """자연어 의상 설명을 danbooru 태그로 변환한다. Grok 경량 호출.
-
-    state keyword(nude / underwear_only / topless / bottomless)가 포함되어 있으면
-    Grok 변환을 건너뛰고 원본 태그를 그대로 반환한다 — state keyword는 Grok
-    SYSTEM_PROMPT 규칙 4-1에서 직접 해석되므로 보존이 중요하다.
-    """
+    """자연어 의상 설명을 danbooru 태그로 변환한다. Grok 경량 호출."""
     from openai import AsyncOpenAI
-
-    # state keyword가 태그에 포함되어 있으면 원본 보존 (Grok 변환 시 소실 방지)
-    desc_lower = description.lower()
-    if any(kw in desc_lower for kw in _OUTFIT_STATE_KEYWORDS):
-        return {"clothing": description.strip(), "underwear": ""}
 
     api_key = os.getenv("GROK_API_KEY", "")
     if not api_key:
@@ -581,49 +485,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 의상 변경 감지 — LLM의 [OUTFIT: ...] 시그널 파싱
     # 이미지 생성 전에 처리해야 현재 이미지에도 반영됨
-    # 두 가지 emission 모드:
-    #  (A) state-only: 부분 노출 (bottomless 등) → default/현재 clothing과 병합
-    #  (B) full outfit change: 새 의상 태그들 → Grok 태그 변환
+    # full outfit change만 허용 (full-set 의상 이름) → Grok 태그 변환
     outfit_raw = _parse_outfit_signal(reply)
     current_outfit_override = None
     if outfit_raw:
-        state_only = _is_state_only_emission(outfit_raw)
-        if state_only:
-            # Mode A: state-only — 기본/현재 clothing과 병합 (Grok 호출 없음)
-            resolved = _resolve_state_outfit(state_only, user_id, char_id)
-            set_outfit(user_id, char_id, resolved["clothing"], resolved.get("underwear", ""), source="custom")
-            current_outfit_override = resolved
-            logger.info(
-                "의상 state-only 저장 (유저 %s, %s, state=%s): clothing=%s | underwear=%s",
-                user_id, char_id, state_only,
-                resolved["clothing"], resolved.get("underwear", ""),
-            )
-        else:
-            # Mode B: full outfit change — Grok 변환
-            # Sanity check — LLM이 캐릭터 default에 없는 태그를 발명했는지 로깅
-            try:
-                _default_clothing = _load_image_config(char_id).get("clothing", "").lower()
-                _default_underwear = _load_image_config(char_id).get("underwear", "").lower()
-                _emitted = [t.lower() for t in _split_tags(outfit_raw) if t.lower() not in _OUTFIT_STATE_KEYWORDS]
-                _novel = [t for t in _emitted if t not in _default_clothing and t not in _default_underwear]
-                if _novel:
-                    logger.warning(
-                        "의상 full-change novel tags (유저 %s, %s): %s — not in default wardrobe",
-                        user_id, char_id, _novel,
-                    )
-            except Exception:
-                pass
+        # Sanity check — LLM이 캐릭터 default에 없는 태그를 발명했는지 로깅
+        try:
+            _default_clothing = _load_image_config(char_id).get("clothing", "").lower()
+            _default_underwear = _load_image_config(char_id).get("underwear", "").lower()
+            _emitted = [t.lower() for t in _split_tags(outfit_raw)]
+            _novel = [t for t in _emitted if t not in _default_clothing and t not in _default_underwear]
+            if _novel:
+                logger.warning(
+                    "의상 full-change novel tags (유저 %s, %s): %s — not in default wardrobe",
+                    user_id, char_id, _novel,
+                )
+        except Exception:
+            pass
 
-            converted = await _convert_outfit_tags(outfit_raw)
-            if converted:
-                set_outfit(user_id, char_id, converted["clothing"], converted.get("underwear", ""), source="custom")
-                current_outfit_override = converted
-                logger.info("의상 변경 저장 (유저 %s, %s): %s", user_id, char_id, converted["clothing"])
-            else:
-                # Grok 변환 실패 시 원본 그대로 저장
-                set_outfit(user_id, char_id, outfit_raw, "", source="custom")
-                current_outfit_override = {"clothing": outfit_raw, "underwear": ""}
-                logger.info("의상 변경 저장 (원본, 유저 %s, %s): %s", user_id, char_id, outfit_raw)
+        converted = await _convert_outfit_tags(outfit_raw)
+        if converted:
+            set_outfit(user_id, char_id, converted["clothing"], converted.get("underwear", ""), source="custom")
+            current_outfit_override = converted
+            logger.info("의상 변경 저장 (유저 %s, %s): %s", user_id, char_id, converted["clothing"])
+        else:
+            # Grok 변환 실패 시 원본 그대로 저장
+            set_outfit(user_id, char_id, outfit_raw, "", source="custom")
+            current_outfit_override = {"clothing": outfit_raw, "underwear": ""}
+            logger.info("의상 변경 저장 (원본, 유저 %s, %s): %s", user_id, char_id, outfit_raw)
 
     # 티어별 이미지 제한 (Admin은 바이패스)
     if image_match or force_image:
@@ -874,12 +763,7 @@ async def outfit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         current_underwear = ""
         source_text = "기본"
 
-    # state keyword 감지 → 한글 라벨 추가
-    state_label = _outfit_state_label(current, current_underwear)
-
     text = f"👗 {char_name}의 현재 의상\n\n"
-    if state_label:
-        text += f"상태: {state_label}\n"
     text += f"의상: {current}\n"
     if current_underwear:
         text += f"속옷: {current_underwear}\n"

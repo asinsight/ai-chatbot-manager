@@ -160,8 +160,6 @@ def _load_image_config(char_id: str) -> dict:
     """images/char*.json에서 body_shape / breast / clothing / underwear 태그 로드.
 
     SFW fork 스키마: body_shape{size,build,curve,accent,ass}, breast{size,feature}, clothing, underwear, special, expressions.
-    NSFW 필드(body_nsfw)는 SFW fork에서 미지원이지만, 기존 캐릭터 파일 호환을 위해 로드 시 필드 존재만 허용
-    (해당 데이터는 user_message 조립 단계에서 사용하지 않는다).
     """
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     path = os.path.join(base, "images", f"{char_id}.json")
@@ -566,7 +564,6 @@ async def classify_tags_to_nested_blocks(pos_prompt: str) -> dict:
 
     💾 캐릭터 저장 시 호출 — /random과 custom 텍스트 모든 경로에서 통일된 nested 구조로
     저장하기 위함. 카테고리에 안 맞는 태그(pose/scene/expression/location/activity/quality)는 DROP.
-    NSFW 카테고리(body_nsfw)는 SFW fork에서 미지원 — classifier에서 모두 DROP된다.
 
     Args:
         pos_prompt: 이미지 생성 시 사용된 전체 positive prompt
@@ -646,7 +643,7 @@ async def classify_tags_to_nested_blocks(pos_prompt: str) -> dict:
 # ───────────────────────────────────────────────────────────────────────
 # @name 호출 시 유저가 입력한 한글 텍스트에서 영구 수정 의도를 감지하고
 # nested block 중 변경된 블록의 FULL NEW VALUE를 surgical edit로 산출.
-# SFW fork: body_nsfw 블록 미지원 — 명시적/성적 sub-attribute 수정 요청은 거절.
+# SFW fork: 명시적/성적 sub-attribute 수정 요청은 거절.
 
 
 async def analyze_partial_edit_intent(

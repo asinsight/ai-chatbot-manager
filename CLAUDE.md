@@ -57,9 +57,10 @@
    3. 모든 편집·삭제·추가 작업은 fork 디렉터리 안에서만 일어난다.
 
    적용 범위:
-   - **복사 후 수정**: `src/*.py` 대부분 (grok.py, history.py, handlers_*.py, prompt.py, trait_pools.py, comfyui.py, video.py, video_context.py 등), `config/system_prompt.json`, `config/lora_presets.json`(SFW LoRA만 남김), `config/sfw_scenes.json`, `comfyui_workflow/*.json`
+   - **복사 후 수정**: `src/*.py` 대부분 (grok.py, history.py, handlers_*.py, prompt.py, trait_pools.py, comfyui.py, video.py, video_context.py 등), `config/system_prompt.json`, ~~`config/lora_presets.json`(SFW LoRA만 남김)~~ → **DROP 확정 (아래 추가 DROP 참조)**, `config/sfw_scenes.json`, `comfyui_workflow/*.json`
    - **신규 작성 (NEW, 복사 안 함)**: `behaviors/`, `persona/`, `images/` 의 SFW 캐릭터 카드, `config/grok_prompts.json` (외부화된 SFW 프롬프트)
-   - **이관 안 함 (DROP)**: `config/nsfw_scenes.json`, `config/nsfw_scenes.json.bak`, `docs/nsfw_rules.json`, `src/pose_scene_classifier.py`, `comfyui_workflow/DaSiWa-WAN2.2-i2v-FastFidelity-C-AiO-69.json`, `deploy/runpod-video/`, `data/`, `output/`, `logs/`, `images/`(런타임 산출물), `venv/`, `.env`
+   - **이관 안 함 (DROP)**: `config/nsfw_scenes.json`, `config/nsfw_scenes.json.bak`, `docs/nsfw_rules.json`, `src/pose_scene_classifier.py`, `comfyui_workflow/DaSiWa-WAN2.2-i2v-FastFidelity-C-AiO-69.json`, `comfyui_workflow/audiogen-workflow.json` (Phase 2D 삭제 — wan2.6-flash 네이티브 오디오 사용으로 별도 합성 불필요), `deploy/runpod-video/`, `data/`, `output/`, `logs/`, `images/`(런타임 산출물), `venv/`, `.env`
+   - **추가 DROP (구현 단계 확정)**: `config/lora_presets.json` (Phase 2B B6에서 `pose_motion_presets.py` LoRA 로딩 단순화 후 fork 코드 어디에서도 참조 안 함 — 원래 계획은 COPY+STRIP 이었음), `config/dasiwa_aio_defaults.json` (Phase 2A A3에서 DaSiWa 코드 경로가 삭제되어 묵시적으로 DROP — 원래 계획은 COPY+STRIP 이었음)
    - **복사 + rename + strip**: `src/wan_nsfw_i2v_prompting_guide.md` → `src/wan_i2v_prompting_guide.md` (NSFW 섹션만 삭제, 일반 가이드 유지)
 
 9. **Grok 시스템 프롬프트 외부화**: 원본은 `grok.py` 내부에 5개 프롬프트 상수가 하드코드되어 있다 — 이를 JSON 파일로 추출해 런타임에 로드하도록 한다. 코드를 안 건드리고도 프롬프트 튜닝이 가능해진다.
@@ -85,9 +86,22 @@
 
 ## 현재 단계
 
-**Phase 0 — Discovery (진행 중)**: 원본 코드베이스의 NSFW 의존성 인벤토리 작성.
+**Phase 0 — Discovery (완료)**: 원본 코드베이스의 NSFW 의존성 인벤토리 작성.
 - ✅ NSFW 인벤토리 문서 작성 → [NSFW_INVENTORY.md](NSFW_INVENTORY.md)
-- ⏳ 다음: 사용자 검토 후 fork 작업 우선순위 확정 → Phase 1 착수
+- ✅ 사용자 검토 후 fork 작업 우선순위 확정 → Phase 1 ~ 2D 진행
+
+## Implementation Status (진행 상황)
+
+> 본 섹션은 계획 문서(이 CLAUDE.md, NSFW_INVENTORY.md)가 작성된 이후 실제로 구현된 단계를 기록한다. 위쪽 결정 사항은 *계획*, 아래 표는 *실행 결과*.
+
+| Phase | 상태 | 커밋 | 내용 |
+|---|---|---|---|
+| Phase 1 | ✅ 완료 | `b607910` | fork 골격 (디렉터리 / 미이관 항목 / `ella-chat-publish.service` rename) |
+| Phase 2A | ✅ 완료 | `16ced9b` | 독립 모듈 재작성 (history.py, trait_pools.py, comfyui.py, video.py, video_context.py, prompt.py, A3에서 DaSiWa 경로 삭제) |
+| Phase 2B | ✅ 완료 | `69f98a4` | 핸들러 레이어 + 잔존 정리 (handlers_*, grok.py 외부화, B6: `pose_motion_presets.py` LoRA 로딩 드롭) |
+| Phase 2C | ✅ 완료 | `efa9bf8` | 통합 수정 + config 잔재 (C4: `lora_presets.json` 참조 0건 검증, C6: `dasiwa_aio_defaults.json` 참조 0건 검증) + 서브 디렉터리 CLAUDE.md |
+| Phase 2D | 🔄 진행 중 | — | 최종 잔재 정리 (D3에서 `comfyui_workflow/audiogen-workflow.json` 삭제), 본 D4 문서 동기화 |
+| **Pending** | 🔜 | — | SFW 캐릭터 카드 신규 작성 (`behaviors/`, `persona/`, `images/`), end-to-end 테스트 |
 
 ## NSFW 인벤토리 요약
 
@@ -101,7 +115,7 @@
 5. **`src/prompt.py`** (749 LOC, 26 매치) — arousal 임계값 분기, **Layered Lust** 3-layer 구조, arousal speech/response — ✂️ STRIP
 6. **`src/trait_pools.py`** (818 LOC, 50 매치) — BODY_NSFW_* 5개 상수(60+ 태그), NSFW 씬 로더/롤러, FORCE_NSFW_SCENE — ✂️ STRIP
 7. **`config/system_prompt.json`** master_prompt — Section 2(PHOTO 행위 묘사), 5(PHYSICAL REALISM NSFW), 5-1(CLIMAX/RELIEF) — ♻️ REWRITE
-8. **`config/lora_presets.json`** — NSFW 전용 LoRA preset 다수 — ✂️ STRIP
+8. **`config/lora_presets.json`** — NSFW 전용 LoRA preset 다수 — ~~✂️ STRIP~~ → 🚫 **DROP** (Phase 2B B6 이후 fork 코드에서 참조 0건 — 미이관 확정)
 
 ### 전체 삭제 대상 (DROP, fork에 미이관)
 - `config/nsfw_scenes.json` (488 lines, 100% NSFW 씬 카탈로그) + `.bak`
@@ -149,7 +163,7 @@
 11. **`handlers_main.py` 복사 → `/scene` admin 명령에서 NSFW 분기 제거**
 12. **`prompt.py` 복사 → arousal 분기 / Layered Lust / arousal speech 제거**, `IMAGE_AUTONOMY`는 fixation 기반 단일 분기로 단순화
 13. **SFW 캐릭터 카드 신규 작성** (`behaviors/`, `persona/`, `images/` — NEW): `arousal_speech`/`arousal_response`/`heat_cycle`/`curse_heat`/`body_nsfw` 필드 미존재
-14. **`config/lora_presets.json` 복사 → NSFW 전용 LoRA preset 삭제**, 유틸성(스타일/조명/품질) 만 유지
+14. ~~`config/lora_presets.json` 복사 → NSFW 전용 LoRA preset 삭제, 유틸성(스타일/조명/품질) 만 유지~~ → **Phase 2B B6 결과 DROP 확정**: B6에서 `pose_motion_presets.py`가 LoRA 로딩 자체를 드롭하면서 fork 코드에 `lora_presets.json`을 참조하는 곳이 없음(Phase 2C C4 검증). 파일 미이관.
 15. **`config/sfw_scenes.json` 복사 → 한 줄씩 audit**, 경계 항목(suggest/tease/lingerie-focused) 톤다운 또는 제거
 16. `.env.example` 복사 → `POSE_CLASSIFIER_*`, `FORCE_NSFW_SCENE`, `CIVITAI_API_TOKEN` 제거; `VIDEO_MODEL` 기본값 갱신
 17. End-to-end SFW 테스트 + NSFW 트리거 negative 테스트 (예: "옷 벗어줘", "야한 사진" 입력 시 SFW로 강건히 거절/우회)
