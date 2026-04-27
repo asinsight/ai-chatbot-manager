@@ -1,0 +1,21 @@
+{
+  "_doc": "Canonical user-profile keys. LLM-extracted keys are mapped via aliases to the canonical form (dict key). New aliases can be added here without code changes.",
+  "canonical_keys": {
+    "name": ["name", "user_name", "real_name"],
+    "age": ["age", "user_age", "birthday"],
+    "nickname": ["nickname", "pet_name", "call_me"],
+    "job": ["job", "occupation", "work", "profession", "career", "studies", "major"],
+    "location": ["location", "city", "address", "region", "hometown", "country"],
+    "food": ["food", "favorite_food", "recent_meal", "favorite_dish", "meal", "cuisine"],
+    "music": ["music", "music_taste", "favorite_music", "favorite_song", "favorite_artist", "favorite_band"],
+    "hobby": ["hobby", "hobbies", "interest", "interests", "passion"],
+    "family": ["family", "siblings", "parents", "children", "marital_status"],
+    "pets": ["pets", "pet"],
+    "dream": ["dream", "dreams", "goal", "goals", "aspiration", "ambition"],
+    "origin": ["origin", "background", "birthplace"],
+    "partner_status": ["partner_status", "relationship_status", "dating_status"],
+    "favorite_team": ["favorite_team", "sports_team"],
+    "likes": ["likes", "favorite_things"],
+    "dislikes": ["dislikes", "hates"]
+  }
+}

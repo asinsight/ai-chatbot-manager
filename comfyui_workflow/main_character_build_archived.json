@@ -1,0 +1,223 @@
+{
+  "2": {
+    "inputs": {
+      "ckpt_name": "illustrious/oneObsession_v20Bold.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "4": {
+    "inputs": {
+      "text": "%prompt%",
+      "clip": [
+        "131",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Positive"
+    }
+  },
+  "5": {
+    "inputs": {
+      "text": "%negative_prompt%",
+      "clip": [
+        "131",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Negative"
+    }
+  },
+  "30": {
+    "inputs": {
+      "filename_prefix": "ella_closeup",
+      "images": [
+        "117",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "93": {
+    "inputs": {
+      "weight": 0.8,
+      "weight_faceidv2": 0.8,
+      "weight_type": "linear",
+      "combine_embeds": "concat",
+      "start_at": 0,
+      "end_at": 1,
+      "embeds_scaling": "V only",
+      "model": [
+        "94",
+        0
+      ],
+      "ipadapter": [
+        "94",
+        1
+      ],
+      "image": [
+        "95",
+        0
+      ]
+    },
+    "class_type": "IPAdapterFaceID",
+    "_meta": {
+      "title": "IPAdapter FaceID"
+    }
+  },
+  "94": {
+    "inputs": {
+      "preset": "FACEID PLUS V2",
+      "lora_strength": 0.8,
+      "provider": "CUDA",
+      "model": [
+        "131",
+        0
+      ]
+    },
+    "class_type": "IPAdapterUnifiedLoaderFaceID",
+    "_meta": {
+      "title": "IPAdapter Unified Loader FaceID"
+    }
+  },
+  "95": {
+    "inputs": {
+      "image": "char05.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "117": {
+    "inputs": {
+      "samples": [
+        "119",
+        0
+      ],
+      "vae": [
+        "2",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "118": {
+    "inputs": {
+      "width": 768,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "119": {
+    "inputs": {
+      "seed": 1125248151356181,
+      "steps": 28,
+      "cfg": 6,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": [
+        "93",
+        0
+      ],
+      "positive": [
+        "4",
+        0
+      ],
+      "negative": [
+        "5",
+        0
+      ],
+      "latent_image": [
+        "118",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "131": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "lora_1": {
+        "on": true,
+        "lora": "illustrious/style/Erotic_style_3.safetensors",
+        "strength": 0.7
+      },
+      "lora_2": {
+        "on": true,
+        "lora": "illustrious/body/IL20-NP43i.safetensors",
+        "strength": 0.7
+      },
+      "lora_3": {
+        "on": false,
+        "lora": "illustrious/body/IL20-NP43i.safetensors",
+        "strength": 0.7
+      },
+      "lora_4": {
+        "on": false,
+        "lora": "illustrious/pose/missionary_raisedlegs_ill.safetensors",
+        "strength": 0.7
+      },
+      "lora_5": {
+        "on": false,
+        "lora": "illustrious/pose/Doggystyle_All_Angles_ILLUSTRIOUS-000001.safetensors",
+        "strength": 0.7
+      },
+      "lora_6": {
+        "on": false,
+        "lora": "illustrious/body/Breast_size_slider-V2_alpha1.0_rank4_noxattn_last.safetensors",
+        "strength": 1
+      },
+      "lora_7": {
+        "on": false,
+        "lora": "illustrious/body/illustrious_excessive_pubic_hair_peek_v1.01-lbw.safetensors",
+        "strength": 0.7
+      },
+      "lora_8": {
+        "on": false,
+        "lora": "illustrious/body/vaginal_gaping-v3-ixl-concept-soralz.safetensors",
+        "strength": 0.7
+      },
+      "lora_9": {
+        "on": false,
+        "lora": "illustrious/performance/dmd2_sdxl_4step_lora_fp16.safetensors",
+        "strength": 0.7
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "2",
+        0
+      ],
+      "clip": [
+        "2",
+        1
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "Power Lora Loader (rgthree)"
+    }
+  }
+}

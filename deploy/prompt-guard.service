@@ -1,0 +1,16 @@
+[Unit]
+Description=Prompt Injection Guard API (deberta-v3-base-prompt-injection-v2)
+After=network.target
+
+[Service]
+Type=simple
+User=swiri021
+WorkingDirectory=/home/swiri021/unsloth/tools
+ExecStart=/home/swiri021/unsloth/venv/bin/python prompt_guard_server.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
