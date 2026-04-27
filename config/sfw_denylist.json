@@ -1,0 +1,26 @@
+{
+  "_doc": "SFW outfit-state and response keyword denylist. Used by handlers_char.py outfit parser to silently drop illegal LLM emissions. Keywords are case-insensitive, matched as whole words inside [OUTFIT: ...] values.",
+  "outfit_state_keywords": [
+    "nude",
+    "naked",
+    "topless",
+    "bottomless",
+    "underwear_only",
+    "underwear only",
+    "undressed",
+    "stripped",
+    "lingerie_only",
+    "lingerie only",
+    "panties_only",
+    "panties only",
+    "bra_only",
+    "bra only"
+  ],
+  "outfit_state_keywords_ko": [
+    "나체",
+    "알몸",
+    "탈의",
+    "벗은",
+    "노출"
+  ]
+}

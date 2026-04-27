@@ -4,9 +4,11 @@
 """
 
 import asyncio
+import json
 import logging
 import os
 import re
+from pathlib import Path
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ChatAction
@@ -44,6 +46,32 @@ MAIN_BOT_USERNAME = os.getenv("MAIN_BOT_USERNAME", "")
 # 티어 제한 설정 (env로 조정 가능)
 FREE_CHAR_IDS = [c.strip() for c in os.getenv("FREE_CHAR_IDS", "char06").split(",")]
 FREE_MAX_TURNS = int(os.getenv("FREE_MAX_TURNS", "30"))
+
+# SFW denylist — defense-in-depth for [OUTFIT: ...] parser.
+# Keyword literals live in config/sfw_denylist.json (not in code) so PMs can
+# tune the list without editing Python. If the LLM emits an outfit value
+# containing a denied token despite the system prompt's full-clothing
+# invariant, the parser silently drops it instead of persisting it.
+_SFW_DENYLIST_PATH = Path(__file__).resolve().parent.parent / "config" / "sfw_denylist.json"
+_DENIED_OUTFIT_TOKENS: frozenset[str] = frozenset()
+try:
+    with open(_SFW_DENYLIST_PATH, "r", encoding="utf-8") as _f:
+        _denylist = json.load(_f)
+    _DENIED_OUTFIT_TOKENS = frozenset(
+        k.lower().strip()
+        for k in (
+            _denylist.get("outfit_state_keywords", [])
+            + _denylist.get("outfit_state_keywords_ko", [])
+        )
+        if isinstance(k, str) and k.strip()
+    )
+    logger.info(
+        "SFW denylist loaded: %d outfit-state tokens",
+        len(_DENIED_OUTFIT_TOKENS),
+    )
+except Exception as _exc:
+    logger.warning("sfw_denylist.json load failed (%s) — proceeding without denylist", _exc)
+
 
 # P10 Phase 2 — Location research in-flight dedup (두 번 빠르게 요청되지 않도록)
 _location_research_inflight: set[str] = set()
@@ -88,12 +116,42 @@ def _parse_outfit_signal(text: str) -> str | None:
 
     SFW invariant (config/grok_prompts.json): clothing is always full and
     intact — the LLM should never emit a state-style outfit (e.g. partial
-    undress). If one slips through, it flows into the standard Grok tag
-    converter and gets persisted as a normal full-set; no NSFW state
-    machinery exists to interpret it specially.
+    undress). Defense-in-depth: if the extracted value contains any token
+    from config/sfw_denylist.json (whole-token match against the
+    comma-split tag list, OR substring match for compound phrases like
+    "underwear only"), the whole emission is silently dropped — we do
+    NOT cherry-pick "safe" sub-tags out of a CSV that contains a denied
+    one. Otherwise the value flows into the standard Grok tag converter.
     """
     match = re.search(r"\[OUTFIT:\s*(.+?)\]", text, re.IGNORECASE)
-    return match.group(1).strip() if match else None
+    if not match:
+        return None
+    raw = match.group(1).strip()
+    if not raw:
+        return None
+
+    if _DENIED_OUTFIT_TOKENS:
+        lowered = raw.lower()
+        # Whole-tag check on the CSV-split list: catches single-word
+        # state tokens that appear as their own comma-separated entry.
+        for tag in _split_tags(lowered):
+            if tag in _DENIED_OUTFIT_TOKENS:
+                logger.debug(
+                    "[OUTFIT] denied token in tag list — dropping emission: %r",
+                    raw,
+                )
+                return None
+        # Substring check: catches multi-word state phrases and tokens
+        # embedded inside a longer value without comma separation.
+        for token in _DENIED_OUTFIT_TOKENS:
+            if token in lowered:
+                logger.debug(
+                    "[OUTFIT] denied substring %r — dropping emission: %r",
+                    token, raw,
+                )
+                return None
+
+    return raw
 
 
 def _split_tags(text: str) -> list[str]:
