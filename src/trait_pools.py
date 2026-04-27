@@ -254,7 +254,6 @@ CLOTHING_SETS = {
     "maid_classic": "maid_headdress, maid_apron, black_dress, white_apron, frills, thighhighs, white_thighhighs, puffy_sleeves, maid",
     "maid_cafe": "maid_headdress, pink_dress, white_apron, frills, kneehighs, mary_janes, maid, frilled_apron",
     "waitress": "waitress, white_blouse, black_skirt, apron, name_tag, flats, frills, maid_apron",
-    "naked_apron": "naked_apron, apron, bare_shoulders, bare_legs, side_tie_apron, naked_apron, frills",
 
     # ── Fantasy / Cosplay (판타지/코스프레) ──
     "fantasy_mage": "robe, hooded_robe, staff, thigh_boots, corset, belt, magic",
@@ -262,7 +261,6 @@ CLOTHING_SETS = {
     "fantasy_elf": "white_dress, leaf_ornament, cape, sandals, pointed_ears, elf",
     "fantasy_demon": "black_corset, torn_cape, thigh_boots, horns, demon_tail, succubus",
     "vampire_dress": "vampire, gothic_dress, red_eyes, choker, cape, high_heels, black_gloves",
-    "succubus_outfit": "succubus, leotard, demon_wings, demon_tail, demon_horns, thighhighs, elbow_gloves",
     "princess_dress": "princess, tiara, ball_gown, white_dress, elbow_gloves, jewelry, high_heels",
     "witch": "black_robe, belt, thigh_boots, staff, cape, witch",
     "steampunk": "steampunk, corset, goggles, top_hat, gears, thigh_boots, gloves, steampunk",
@@ -287,15 +285,12 @@ CLOTHING_SETS = {
 
     # ── Sleepwear / Loungewear (잠옷/홈웨어) ──
     "sleepwear_cute": "pajamas, oversized_shirt, shorts, bare_legs, pajama_shirt",
-    "sleepwear_sexy": "babydoll, negligee, see-through, lace_trim, bare_legs, lingerie",
-    "sweater_virgin_killer": "virgin_killer_sweater, backless_outfit, sideboob, bare_legs, virgin_killer_sweater",
 
     # ── Idol / Stage / Performer (아이돌/무대) ──
     "idol_stage": "idol_clothes, frills, miniskirt, thighhighs, gloves, hair_ornament, idol, stage",
     "cheerleader": "cheerleader, crop_top, pleated_skirt, pompoms, sneakers, hair_ribbon",
     "dancer_ballet": "ballerina, leotard, tutu, ballet_slippers, hair_bun, tights",
     "belly_dancer": "belly_dancer, bra, harem_pants, veil, navel, barefoot, jewelry, armlet",
-    "stripper": "stripper, micro_bikini, platform_heels, choker, garter_belt, fishnet_thighhighs",
 
     # ── Sports / Gym (스포츠/체육) ──
     "gym_wear": "sports_bra, bike_shorts, sneakers, sweatband, athletic",
@@ -306,21 +301,16 @@ CLOTHING_SETS = {
     # ── Uniforms / Roleplay (유니폼/역할놀이) ──
     "nurse": "nurse_cap, white_dress, apron, thighhighs, white_thighhighs, nurse",
     "bunny_girl": "bunny_ears, playboy_bunny, wrist_cuffs, pantyhose, black_pantyhose, bow_tie, high_heels",
-    "cat_keyhole": "cat_lingerie, keyhole_bra, cat_ears, choker, thighhighs, paw_gloves",
     "police_uniform": "police, police_uniform, police_hat, badge, miniskirt, thighhighs, boots",
     "military": "military_uniform, beret, boots, belt, medals, gloves, camouflage",
     "racing_queen": "race_queen, bodysuit, thighhighs, high_heels, gloves, race_queen",
     "pirate": "pirate, pirate_hat, eyepatch, torn_shirt, corset, thigh_boots, belt",
 
-    # ── Special / Extreme / Revealing (특수/노출) ──
-    "apron_naked": "naked_apron, apron, bare_shoulders, bare_legs, side_tie_apron",
-    "lingerie_dress": "lingerie, see-through_dress, lace, garter_belt, thighhighs, high_heels",
+    # ── Special / Form-Fitting (특수/타이트) ──
     "tight_dress": "tight_dress, pencil_dress, cleavage, high_heels, necklace, bodycon_dress",
     "backless_dress": "backless_dress, bare_back, halterneck, high_heels, hair_up",
     "slit_dress": "dress, side_slit, thigh_strap, high_heels, necklace",
     "mini_skirt_set": "miniskirt, tank_top, navel, thighhighs, boots",
-    "leotard_fishnet": "leotard, fishnet_pantyhose, high_heels, choker, wrist_cuffs",
-    "bondage_harness": "bondage, harness, leather_straps, choker, thighhighs, high_heels",
 
     # ── Seasonal / Festival / Costume (계절/축제/코스튬) ──
     "santa_costume": "santa_costume, red_dress, fur_trim, santa_hat, thighhighs, boots",
@@ -353,12 +343,10 @@ UNDERWEAR_SETS = {
     "sexy_red": "red_panties, red_bra, lace_panties, highleg_panties, lace_trim",
     "thong": "thong, strapless_bra, garter_belt, lace_trim",
     "highleg": "highleg_panties, sports_bra, side-tie_panties",
-    "sheer": "see-through_panties, see-through_bra, transparent_lingerie, mesh",
     "matching_blue": "blue_panties, blue_bra, lace_trim, bow",
     "matching_purple": "purple_panties, purple_bra, satin, lace_trim, frills",
     "shimapan": "shimapan, striped_panties, blue_and_white_striped, frilled_panties",
     "babydoll_set": "babydoll, pink_babydoll, see-through_babydoll, matching_panties, lace_trim",
-    "bodystocking": "bodystocking, black_bodystocking, fishnet_bodystocking, see-through",
     "bandeau": "bandeau, strapless, low-rise_panties, lace_trim",
     "ribbon_wrap": "ribbon_bra, ribbon_panties, lots_of_ribbons, bow, gift_wrap, frills",
 
@@ -394,12 +382,6 @@ UNDERWEAR_SETS = {
     "leopard_print": "leopard_print_panties, leopard_print_bra, animal_print",
     "print_set": "print_panties, print_bra, frills",
     "floral_lace": "floral_lace_panties, floral_lace_bra, embroidery, lace_trim",
-
-    # ── Sheer / Fishnet / Mesh ──
-    "sheer_white": "sheer_white_panties, sheer_white_bra, see-through, transparent_lingerie",
-    "sheer_black": "sheer_black_panties, sheer_black_bra, see-through, mesh",
-    "fishnet_set": "fishnet_bra, fishnet_panties, fishnet, garter_belt, see-through",
-    "mesh_set": "mesh_bra, mesh_panties, sheer, see-through",
 
     # ── Material & Special ──
     "latex_set": "latex_bra, latex_panties, latex, glossy, shiny_clothes, tight",

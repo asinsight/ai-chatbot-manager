@@ -45,7 +45,7 @@ RUNPOD_API_BASE = "https://api.runpod.ai/v2"
 
 # 글로벌 embedding prefix (모든 모델 공통)
 EMBEDDING_POS_PREFIX = "embedding:illustrious/lazypos"
-EMBEDDING_NEG_PREFIX = "embedding:illustrious/lazy-nsfw, embedding:illustrious/lazyneg, embedding:illustrious/lazyhand"
+EMBEDDING_NEG_PREFIX = "embedding:illustrious/lazynsfw, embedding:illustrious/lazyneg, embedding:illustrious/lazyhand"
 
 # 모델별 프롬프트 prefix
 MODEL_PREFIXES = {
