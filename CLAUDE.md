@@ -107,7 +107,8 @@
 | Lighting purge | ✅ 완료 | `af6a3f0` | 이미지 배경 green leak 수정 + LLM thought token sanitizer |
 | LoRA empty | ✅ 완료 | `271f2d5` | ComfyUI 워크플로우 LoRA 슬롯 모두 제거 |
 | Plan v2 | ✅ 완료 | `b11108e` | Next.js 풀스택 admin 플랫폼 plan |
-| **Platform M0+** | 🔜 다음 | — | 로컬 Admin 웹앱 구현 (M0 → M5) — 자세한 진행 상황은 [STATUS.md](STATUS.md) 참조 |
+| **Platform M0** | ✅ 완료 (develop 대기) | `feat/feature_M0_admin_skeleton` | Next.js 14 scaffold + sidebar + bot-process.ts + 5 API routes + Dashboard UI. 9 시나리오 모두 PASS. |
+| **Platform M1+** | 🔜 다음 | — | `.env` 편집기 + Connections (M1) → 캐릭터 CRUD / 워크플로우 / 로그 (M2-M5) — 자세한 진행 상황은 [STATUS.md](STATUS.md) 참조 |
 
 ## 작업 워크플로우 (Git Branching + 문서 갱신)
 
