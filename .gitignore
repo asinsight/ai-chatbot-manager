@@ -5,6 +5,6 @@ __pycache__/
 *.pyc
 *.bak
 .DS_Store
-logs/
-output/
-run/
+/logs/
+/output/
+/run/
