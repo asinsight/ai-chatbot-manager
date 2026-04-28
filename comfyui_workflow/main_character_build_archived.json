@@ -160,51 +160,6 @@
       "PowerLoraLoaderHeaderWidget": {
         "type": "PowerLoraLoaderHeaderWidget"
       },
-      "lora_1": {
-        "on": true,
-        "lora": "illustrious/style/Erotic_style_3.safetensors",
-        "strength": 0.7
-      },
-      "lora_2": {
-        "on": true,
-        "lora": "illustrious/body/IL20-NP43i.safetensors",
-        "strength": 0.7
-      },
-      "lora_3": {
-        "on": false,
-        "lora": "illustrious/body/IL20-NP43i.safetensors",
-        "strength": 0.7
-      },
-      "lora_4": {
-        "on": false,
-        "lora": "illustrious/pose/missionary_raisedlegs_ill.safetensors",
-        "strength": 0.7
-      },
-      "lora_5": {
-        "on": false,
-        "lora": "illustrious/pose/Doggystyle_All_Angles_ILLUSTRIOUS-000001.safetensors",
-        "strength": 0.7
-      },
-      "lora_6": {
-        "on": false,
-        "lora": "illustrious/body/Breast_size_slider-V2_alpha1.0_rank4_noxattn_last.safetensors",
-        "strength": 1
-      },
-      "lora_7": {
-        "on": false,
-        "lora": "illustrious/body/illustrious_excessive_pubic_hair_peek_v1.01-lbw.safetensors",
-        "strength": 0.7
-      },
-      "lora_8": {
-        "on": false,
-        "lora": "illustrious/body/vaginal_gaping-v3-ixl-concept-soralz.safetensors",
-        "strength": 0.7
-      },
-      "lora_9": {
-        "on": false,
-        "lora": "illustrious/performance/dmd2_sdxl_4step_lora_fp16.safetensors",
-        "strength": 0.7
-      },
       "➕ Add Lora": "",
       "model": [
         "2",

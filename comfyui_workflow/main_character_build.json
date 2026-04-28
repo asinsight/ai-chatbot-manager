@@ -109,16 +109,6 @@
       "PowerLoraLoaderHeaderWidget": {
         "type": "PowerLoraLoaderHeaderWidget"
       },
-      "lora_1": {
-        "on": true,
-        "lora": "illustrious/style/AddMicroDetails_Illustrious_v5.safetensors",
-        "strength": 0.5
-      },
-      "lora_2": {
-        "on": false,
-        "lora": "illustrious/pose/Pearly_fisting_illustrious.safetensors",
-        "strength": 0.8
-      },
       "➕ Add Lora": "",
       "model": [
         "2",

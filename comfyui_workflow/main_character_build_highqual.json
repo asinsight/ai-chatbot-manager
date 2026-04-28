@@ -185,21 +185,6 @@
       "PowerLoraLoaderHeaderWidget": {
         "type": "PowerLoraLoaderHeaderWidget"
       },
-      "lora_1": {
-        "on": false,
-        "lora": "illustrious/style/AddMicroDetails_Illustrious_v5.safetensors",
-        "strength": 0.7
-      },
-      "lora_2": {
-        "on": false,
-        "lora": "illustrious/style/TrendCraft_The_Peoples_Style_Detailer-v2.4I-5_18_2025-Illustrious.safetensors",
-        "strength": 0.4
-      },
-      "lora_3": {
-        "on": false,
-        "lora": "illustrious/pose/Pearly_fisting_illustrious.safetensors",
-        "strength": 0.8
-      },
       "➕ Add Lora": "",
       "model": [
         "2",
@@ -334,7 +319,7 @@
       "cfg": 6,
       "sampler_name": "dpmpp_2m",
       "scheduler": "karras",
-      "denoise": 0.20,
+      "denoise": 0.2,
       "feather": 15,
       "noise_mask": true,
       "force_inpaint": true,
