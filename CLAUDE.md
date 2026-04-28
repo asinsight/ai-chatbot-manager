@@ -100,8 +100,47 @@
 | Phase 2A | ✅ 완료 | `16ced9b` | 독립 모듈 재작성 (history.py, trait_pools.py, comfyui.py, video.py, video_context.py, prompt.py, A3에서 DaSiWa 경로 삭제) |
 | Phase 2B | ✅ 완료 | `69f98a4` | 핸들러 레이어 + 잔존 정리 (handlers_*, grok.py 외부화, B6: `pose_motion_presets.py` LoRA 로딩 드롭) |
 | Phase 2C | ✅ 완료 | `efa9bf8` | 통합 수정 + config 잔재 (C4: `lora_presets.json` 참조 0건 검증, C6: `dasiwa_aio_defaults.json` 참조 0건 검증) + 서브 디렉터리 CLAUDE.md |
-| Phase 2D | 🔄 진행 중 | — | 최종 잔재 정리 (D3에서 `comfyui_workflow/audiogen-workflow.json` 삭제), 본 D4 문서 동기화 |
-| **Pending** | 🔜 | — | SFW 캐릭터 카드 신규 작성 (`behaviors/`, `persona/`, `images/`), end-to-end 테스트 |
+| Phase 2D | ✅ 완료 | `f9e83cf` | 최종 잔재 정리 (D3에서 `comfyui_workflow/audiogen-workflow.json` 삭제) |
+| Phase 3-5 | ✅ 완료 | `cf12855` | Denylist + SFW 캐릭터 카드 8명 + docs SFW 갱신 |
+| char09 추가 | ✅ 완료 | `8e3423a` | 오하늘 (수줍은 꽃집 점원) |
+| Phase 6 | ✅ 완료 | `4eb3068` | env secrets + 결제 시스템 제거 |
+| Lighting purge | ✅ 완료 | `af6a3f0` | 이미지 배경 green leak 수정 + LLM thought token sanitizer |
+| LoRA empty | ✅ 완료 | `271f2d5` | ComfyUI 워크플로우 LoRA 슬롯 모두 제거 |
+| Plan v2 | ✅ 완료 | `b11108e` | Next.js 풀스택 admin 플랫폼 plan |
+| **Platform M0+** | 🔜 다음 | — | 로컬 Admin 웹앱 구현 (M0 → M5) — 자세한 진행 상황은 [STATUS.md](STATUS.md) 참조 |
+
+## 작업 워크플로우 (Git Branching + 문서 갱신)
+
+### 브랜치 전략
+```
+main         ◄─ 안정. 항상 동작하는 최신 상태. 모든 폴더의 CLAUDE.md 가 최신 갱신됨.
+  └ develop  ◄─ 통합. feature 브랜치들의 머지 대상.
+      └ feat/feature_<name>   ◄─ 단일 feature/마일스톤 작업 공간.
+```
+
+### feature 작업 절차
+1. `develop` 에서 `feat/feature_<name>` 브랜치 생성 (예: `feat/feature_M0_admin_skeleton`)
+2. 해당 feature 의 plan 을 MD 파일로 작성 (예: `docs/features/M0_admin_skeleton.md`) — 시작 전 PM 사인오프
+3. plan 따라 작업 진행 + 커밋
+4. 테스트 완료 후 `develop` 으로 머지 (PR 또는 직접 merge)
+5. 마일스톤/단계 묶음이 끝나면 `develop` → `main` 머지
+
+### main 머지 시 의무 갱신 (자동)
+PR 또는 머지 직전, **반드시** 다음을 갱신한 commit 을 추가한 뒤 머지:
+- **루트 [CLAUDE.md](CLAUDE.md)** — Implementation Status 표 + 추가된 결정 사항
+- **루트 [STATUS.md](STATUS.md)** — 진행 현황 (현재 phase, 완료/진행/대기, 마지막 갱신 시각)
+- **각 폴더의 CLAUDE.md** — 그 폴더 안에서 변경된 모듈/파일을 반영
+  - 대상: `src/CLAUDE.md`, `config/CLAUDE.md`, `deploy/CLAUDE.md`, `comfyui_workflow/CLAUDE.md`, `behaviors/CLAUDE.md`, `persona/CLAUDE.md`, `images/CLAUDE.md`, `docs/CLAUDE.md`, `scripts/CLAUDE.md`, `tools/CLAUDE.md`, (그리고 `platform/CLAUDE.md` 가 생기는 즉시 추가)
+- **계획 문서 (해당 시)** — `plan.md` 의 결정 항목 / 마일스톤 상태 갱신
+
+### feature 브랜치 안에서의 STATUS.md
+- 매 의미있는 단계 완료마다 STATUS.md 갱신 + commit
+- "진행 중"/"완료"/"블로커" 상태를 명확히
+- PM 결정이 필요한 항목은 STATUS.md 의 "결정 대기" 섹션에 누적
+
+### 자동화 후보 (M0 이후 검토)
+- git `pre-merge` / GitHub Actions: main 푸시 시 CLAUDE.md 갱신 누락 여부 검사
+- 현재는 메인 클로드가 매 main 머지 시 의식적으로 처리
 
 ## NSFW 인벤토리 요약
 
