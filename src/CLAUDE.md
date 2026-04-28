@@ -8,7 +8,7 @@ This directory holds the runtime Python modules for `ella-chat-publish`. The for
 
 ## Telegram handlers
 
-- **`handlers_main.py`** — Top-level commands (`/start`, `/help`, `/scene` admin, character selection menu, billing/tier UI). Routes free-text input to `handlers_char.py` or `handlers_imagegen.py` via `intent_router.py`.
+- **`handlers_main.py`** — Top-level commands (`/start`, `/help`, `/scene` admin, character selection menu). Routes free-text input to `handlers_char.py` or `handlers_imagegen.py` via `intent_router.py`.
 - **`handlers_char.py`** — Character chat loop. Builds the system prompt from `prompt.py`, calls `llm.py`, parses `[STAT:]` tokens to update fixation/mood/location through `history.py`, and exposes the 📷 send-photo button when fixation crosses the threshold (the original arousal gate has been rebound to fixation; arousal does not exist in this fork).
 - **`handlers_imagegen.py`** — Image-generation flows: `/random` SFW scene roll, `/edit` partial edits, character-card image rendering. Calls `grok.py` to compose Danbooru tags, then `comfyui.py` to render. There is no `/random NSFW`, no `body_nsfw` merge, and no NSFW LoRA override.
 - **`handlers_common.py`** — Shared button/callback helpers used by both char and imagegen handlers (image-action keyboards, message edits, error replies).
@@ -28,7 +28,7 @@ This directory holds the runtime Python modules for `ella-chat-publish`. The for
 ## Data layer
 
 - **`history.py`** — SQLite layer. Owns three tables of interest:
-  - `sessions` — Telegram chat history, billing tier, paid token balance.
+  - `chat_history` / `user_settings` / `usage` — Telegram chat history and onboarding/usage tracking. There is **no** tier column, no `payments` table, no `coupons` table — the open-source build has no billing.
   - `character_stats` — per-(user, character) state. Columns are **`fixation INTEGER`**, **`mood TEXT`**, **`location TEXT`**. There is **no** `arousal`, no `body_nsfw_json`, no `heat_active`, no decay job.
   - `saved_characters` — user-customized character snapshots.
   - `STAT_DELTAS` only includes `{"fixation": {"up": 5, "down": -5}}`.

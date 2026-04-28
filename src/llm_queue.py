@@ -1,8 +1,7 @@
 """LLM 요청 큐 — Priority Queue + Semaphore로 동시 실행 제한.
 
 우선순위:
-  0 (HIGH):   Premium 유저 대화
-  1 (NORMAL): 일반 유저 대화
+  1 (NORMAL): 유저 대화
   2 (LOW):    요약/추출 (백그라운드)
 """
 
@@ -87,9 +86,7 @@ class LLMQueue:
         if task_type in ("summary", "extract"):
             priority = PRIORITY_LOW
         else:
-            from src.history import get_user_tier
-            tier = get_user_tier(user_id) if user_id else "free"
-            priority = PRIORITY_HIGH if tier == "premium" else PRIORITY_NORMAL
+            priority = PRIORITY_NORMAL
 
         future = asyncio.get_event_loop().create_future()
         item = QueueItem(

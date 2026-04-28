@@ -19,9 +19,9 @@ from telegram.ext import (
     filters,
 )
 
-from src.handlers_common import check_admin, check_image_limit, check_video_limit, notify_admins_video
+from src.handlers_common import check_admin, notify_admins_video
 from src.history import (
-    is_onboarded, get_user_tier, increment_usage,
+    is_onboarded, increment_usage,
     increment_daily_images, increment_daily_videos,
     is_valid_saved_char_name, save_character, list_saved_characters,
     get_saved_character_by_name, get_saved_character_by_slot,
@@ -84,13 +84,13 @@ _HELP_TEXT = (
     "/reset — 세션 초기화 (HQ/모델 설정은 유지)\n"
     "/seed — 마지막 사용 시드 확인\n"
     "/model — 모델 변경 (변경 시 로딩 시간 추가)\n"
-    "/hq on|off — 고화질 모드 토글 (Premium 전용)\n"
+    "/hq on|off — 고화질 모드 토글\n"
     "/random — 🎲 랜덤 SFW 이미지 생성\n"
     "/chars — 저장된 캐릭터 목록 (🗑️ 삭제 버튼 포함)\n"
     "/cancel — 저장 중인 작업 취소"
 )
 
-_VIDEO_CAPTION_PREMIUM = (
+_VIDEO_CAPTION = (
     "🎬 버튼을 눌러 자동 모션 영상 생성"
 )
 
@@ -252,7 +252,7 @@ async def imagegen_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def imagegen_hq(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/hq on|off|status — 고화질 모드 토글 (Premium 전용)."""
+    """/hq on|off|status — 고화질 모드 토글."""
     user_id = update.effective_user.id
     args = [a.lower() for a in (context.args or [])]
 
@@ -262,13 +262,6 @@ async def imagegen_hq(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if args[0] == "on":
-        tier = get_user_tier(user_id)
-        if tier != "premium" and not check_admin(user_id):
-            await update.message.reply_text(
-                "_(고화질(HQ) 모드는 Premium 구독자 전용입니다.)_",
-                parse_mode="Markdown",
-            )
-            return
         context.user_data["hq_mode"] = True
         await update.message.reply_text("✅ HQ 모드 ON — 이후 이미지는 고화질 워크플로우로 생성됩니다.")
         logger.info("이미지봇 HQ ON: user=%s", user_id)
@@ -294,15 +287,11 @@ async def _send_image_with_video_option(
     extra_caption: str = "",
     scene_key: str | None = None,
 ) -> None:
-    """이미지 전송 + Premium/Admin이면 🎬 버튼 부착.
+    """이미지 전송 + 🎬 영상 생성 버튼 부착.
 
-    - Premium/Admin: store_video_context → 🎬 버튼, 파일은 TTL cleanup에 위임
-    - 비 Premium: 버튼 없이 전송 후 즉시 os.unlink
-    세션에 last_image_path / last_korean_description / last_danbooru_tags / last_video_ctx_id 기록.
+    파일은 video_context TTL cleanup에 위임한다. 세션에 last_image_path /
+    last_korean_description / last_danbooru_tags / last_video_ctx_id 기록.
     """
-    tier = get_user_tier(user_id)
-    is_premium = tier == "premium" or check_admin(user_id)
-
     # 이전 ctx 정리
     old_ctx = context.user_data.get("last_video_ctx_id")
     if old_ctx:
@@ -314,40 +303,27 @@ async def _send_image_with_video_option(
         except OSError:
             pass
 
-    if is_premium:
-        ctx_id = store_video_context(
-            user_id=user_id,
-            char_id="imagegen",
-            image_path=image_path,
-            description=description,
-            danbooru_tags=danbooru_tags,
-            scene_key=scene_key,
-        )
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{ctx_id}"),
-            InlineKeyboardButton("💾 캐릭터 저장", callback_data="savechar:init"),
-        ]])
-        caption = _VIDEO_CAPTION_PREMIUM
-        if extra_caption:
-            caption = f"{extra_caption}\n{caption}"
-        with open(image_path, "rb") as f:
-            await target_message.reply_photo(photo=f, caption=caption, reply_markup=keyboard)
-        context.user_data["last_video_ctx_id"] = ctx_id
-    else:
-        # Free/Standard: 💾 저장 버튼만 (영상 불가)
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("💾 캐릭터 저장", callback_data="savechar:init"),
-        ]])
-        with open(image_path, "rb") as f:
-            await target_message.reply_photo(photo=f, caption=extra_caption or None, reply_markup=keyboard)
-        try:
-            os.unlink(image_path)
-        except OSError:
-            pass
-        context.user_data["last_video_ctx_id"] = None
+    ctx_id = store_video_context(
+        user_id=user_id,
+        char_id="imagegen",
+        image_path=image_path,
+        description=description,
+        danbooru_tags=danbooru_tags,
+        scene_key=scene_key,
+    )
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{ctx_id}"),
+        InlineKeyboardButton("💾 캐릭터 저장", callback_data="savechar:init"),
+    ]])
+    caption = _VIDEO_CAPTION
+    if extra_caption:
+        caption = f"{extra_caption}\n{caption}"
+    with open(image_path, "rb") as f:
+        await target_message.reply_photo(photo=f, caption=caption, reply_markup=keyboard)
+    context.user_data["last_video_ctx_id"] = ctx_id
 
     # 세션 저장 — 한글 수정 재활용 (이전 이미지 기반 수정)
-    context.user_data["last_image_path"] = image_path if is_premium else None
+    context.user_data["last_image_path"] = image_path
     context.user_data["last_korean_description"] = description
     context.user_data["last_danbooru_tags"] = danbooru_tags
 
@@ -370,13 +346,7 @@ async def imagegen_seed(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def imagegen_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/model [번호] — 모델 변경 또는 현재 모델 확인 (Premium + Admin 전용)."""
-    user_id = update.effective_user.id
-    tier = get_user_tier(user_id)
-    if tier != "premium" and not check_admin(user_id):
-        await update.message.reply_text("_(모델 변경은 Premium 구독자 전용입니다.)_", parse_mode="Markdown")
-        return
-
+    """/model [번호] — 모델 변경 또는 현재 모델 확인."""
     args = context.args or []
     current_key = context.user_data.get("selected_model", DEFAULT_MODEL_KEY)
     current_model = AVAILABLE_MODELS[current_key]
@@ -621,23 +591,6 @@ async def imagegen_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("_(요청이 너무 빠릅니다. 잠시 후 다시 시도해주세요.)_", parse_mode="Markdown")
         return
 
-    # 티어별 이미지 한도 체크
-    tier = get_user_tier(user_id)
-    limit_msg = check_image_limit(user_id, tier)
-    if limit_msg:
-        await update.message.reply_text(limit_msg, parse_mode="Markdown")
-        return
-
-    # HQ 워크플로우 티어 체크 (Premium + Admin만)
-    # 실행 시점에 티어가 떨어졌다면 세션 토글도 강제 해제
-    if use_hq and tier not in ("premium",) and not check_admin(user_id):
-        context.user_data["hq_mode"] = False
-        await update.message.reply_text(
-            "_(고화질(HQ) 모드는 Premium 구독자 전용입니다. HQ OFF로 전환했습니다.)_",
-            parse_mode="Markdown",
-        )
-        use_hq = False
-
     # ComfyUI 큐 체크
     queue_status = await check_queue()
     total_queued = queue_status.get("running", 0) + queue_status.get("pending", 0)
@@ -838,22 +791,8 @@ async def random_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 이미지 한도 체크
-    tier = get_user_tier(user_id)
-    limit_msg = check_image_limit(user_id, tier)
-    if limit_msg:
-        await query.message.reply_text(limit_msg, parse_mode="Markdown")
-        return
-
-    # HQ 모드 — 세션 토글에서 읽음 + 실행 시점 재검증
+    # HQ 모드 — 세션 토글에서 읽음
     use_hq = bool(context.user_data.get("hq_mode", False))
-    if use_hq and tier not in ("premium",) and not check_admin(user_id):
-        context.user_data["hq_mode"] = False
-        use_hq = False
-        await query.message.reply_text(
-            "_(고화질(HQ) 모드는 Premium 구독자 전용입니다. HQ OFF로 전환했습니다.)_",
-            parse_mode="Markdown",
-        )
 
     # ComfyUI 큐 체크
     queue_status = await check_queue()
@@ -941,7 +880,7 @@ async def random_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # 4) 전송 (+ 🎬 버튼, Premium/Admin)
+        # 4) 전송 (+ 🎬 버튼)
         scene_desc = tags.get("scene_description", "random_sfw")
         await _send_image_with_video_option(
             target_message=query.message,
@@ -1170,16 +1109,6 @@ async def imagegen_video_callback(update: Update, context: ContextTypes.DEFAULT_
         return
 
     user_id = ctx["user_id"]
-    tier = get_user_tier(user_id)
-
-    if tier != "premium" and not check_admin(user_id):
-        await query.message.reply_text("_(영상 생성은 Premium 구독자 전용입니다.)_", parse_mode="Markdown")
-        return
-
-    limit_msg = check_video_limit(user_id, tier)
-    if limit_msg:
-        await query.message.reply_text(limit_msg)
-        return
 
     # 버튼 상태 → 생성 중
     try:

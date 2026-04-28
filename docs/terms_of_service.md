@@ -61,17 +61,7 @@ The following actions are prohibited:
 - You can request deletion of all your personal data using the `/deletedata` command.
 - Data is not sold or shared with third parties.
 
-## 6. 결제 및 환불 / Payment and Refunds
-
-- 유료 서비스는 Telegram Stars를 통해 결제됩니다.
-- 구독은 기간제이며, 기간 만료 시 자동으로 무료 티어로 전환됩니다.
-- 환불 정책은 Telegram Stars의 정책을 따릅니다.
-
-- Paid services are billed through Telegram Stars.
-- Subscriptions are time-based and automatically revert to the free tier upon expiration.
-- Refund policies follow Telegram Stars' policies.
-
-## 7. 면책 조항 / Disclaimer
+## 6. 면책 조항 / Disclaimer
 
 - 서비스 제공자는 AI가 생성한 콘텐츠의 정확성, 적절성을 보장하지 않습니다.
 - 서비스는 "있는 그대로(as-is)" 제공되며, 명시적 또는 묵시적 보증 없이 제공됩니다.
@@ -81,7 +71,7 @@ The following actions are prohibited:
 - The service is provided "as-is" without any express or implied warranties.
 - We are not liable for service interruptions, data loss, or similar issues.
 
-## 8. 약관 변경 / Changes to Terms
+## 7. 약관 변경 / Changes to Terms
 
 - 약관은 사전 통지 없이 변경될 수 있습니다.
 - 변경된 약관은 서비스 이용 시 적용됩니다.
@@ -89,7 +79,7 @@ The following actions are prohibited:
 - Terms may be changed without prior notice.
 - Updated terms apply upon continued use of the service.
 
-## 9. 문의 / Contact
+## 8. 문의 / Contact
 
 서비스 관련 문의는 서비스 내 관리자에게 연락해 주세요.
 For inquiries, please contact the administrator within the service.

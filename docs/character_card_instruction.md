@@ -427,7 +427,6 @@ fixation 값에 따라 어떤 말투·행동을 해야 하는지 **티어별 조
 - [ ] **GB10 배포 시**: `PROD_CHAR_BOT_char{NN}` / `PROD_CHAR_USERNAME_char{NN}` 를 GB10 `.env`에 추가
 - [ ] **GB10 배포 시**: Mac `.env`에서 `TEST_CHAR_BOT_char{NN}` 주석 처리 (토큰 충돌 방지)
 - [ ] `SEARCH_EXCLUDED_CHARS` 업데이트 (판타지 세계관이라 웹 검색 부적합한 경우)
-- [ ] `FREE_CHAR_IDS` 검토 (Free 티어 접근 허용 여부)
 
 ### 자동 처리 (수동 작업 불필요)
 - 봇 등록: `bot.py`가 `char{NN}.json` 패턴으로 자동 로드

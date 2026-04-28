@@ -8,10 +8,9 @@
 
 llm_queue API 노트:
     `LLMQueue.enqueue()`는 priority 인자를 직접 받지 않고 `task_type`과 `user_id`로
-    내부 매핑한다 (`chat`이면 tier 기반 HIGH/NORMAL, `summary`/`extract`이면 LOW).
+    내부 매핑한다 (`chat`이면 NORMAL, `summary`/`extract`이면 LOW).
     라우터는 캐릭터 대화와 동일한 chat 큐를 쓰지만, 라우터 호출 자체는 짧고
-    deterministic (max_tokens=200, JSON 분류) 이라 NORMAL/HIGH 어디든 무방하다.
-    호출 측에서 user_id를 넘기면 premium은 HIGH, 일반은 NORMAL이 된다.
+    deterministic (max_tokens=200, JSON 분류) 이라 큐 부하에 영향이 적다.
 """
 
 import json
@@ -114,7 +113,7 @@ async def analyze_input_intent(
         text: @name 토큰 strip 후의 자유 텍스트
         has_saved_char_ref: @name으로 저장 캐릭터를 참조했는지
         has_last_tags: 이전 이미지가 세션에 있는지 (modify mode 가능 여부)
-        user_id: 큐 priority 산정용 (premium=HIGH, 그 외=NORMAL)
+        user_id: 큐 큐잉용 (현재 NORMAL 단일 우선순위)
 
     Returns:
         {intent: str, scene_description: str, edit_clause: str}
@@ -150,7 +149,7 @@ async def analyze_input_intent(
     ]
 
     try:
-        # task_type="chat" — premium 유저는 HIGH, 그 외 NORMAL.
+        # task_type="chat" — NORMAL priority.
         # max_tokens 작게: JSON 분류 결과만 받으면 됨.
         response = await llm_queue.enqueue(
             messages=messages,

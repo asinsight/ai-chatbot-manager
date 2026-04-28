@@ -169,13 +169,10 @@ def init_db() -> None:
         # 마이그레이션: user_settings 확장
         for col_sql in [
             "ALTER TABLE user_settings ADD COLUMN username TEXT",
-            "ALTER TABLE user_settings ADD COLUMN tier TEXT DEFAULT 'free'",
             "ALTER TABLE user_settings ADD COLUMN age_verified BOOLEAN DEFAULT 0",
             "ALTER TABLE user_settings ADD COLUMN terms_agreed BOOLEAN DEFAULT 0",
             "ALTER TABLE user_settings ADD COLUMN is_admin BOOLEAN DEFAULT 0",
             "ALTER TABLE user_settings ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-            "ALTER TABLE user_settings ADD COLUMN tier_started TIMESTAMP",
-            "ALTER TABLE user_settings ADD COLUMN tier_expires TIMESTAMP",
         ]:
             try:
                 cursor.execute(col_sql)
@@ -196,21 +193,6 @@ def init_db() -> None:
             """
         )
 
-        # --- payments 테이블 ---
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS payments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                telegram_id INTEGER NOT NULL,
-                stars_amount INTEGER NOT NULL,
-                tier_granted TEXT NOT NULL,
-                days_granted INTEGER NOT NULL,
-                paid_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                telegram_charge_id TEXT
-            )
-            """
-        )
-
         # --- user_outfit 테이블 ---
         cursor.execute(
             """
@@ -222,33 +204,6 @@ def init_db() -> None:
                 source TEXT DEFAULT 'preset',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (telegram_id, character_id)
-            )
-            """
-        )
-
-        # --- 쿠폰 테이블 ---
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS coupons (
-                code TEXT PRIMARY KEY,
-                tier TEXT NOT NULL,
-                days INTEGER NOT NULL,
-                max_uses INTEGER NOT NULL DEFAULT 0,
-                used_count INTEGER NOT NULL DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP
-            )
-            """
-        )
-
-        # --- 쿠폰 사용 기록 (1인 1회) ---
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS coupon_redemptions (
-                code TEXT NOT NULL,
-                telegram_id INTEGER NOT NULL,
-                redeemed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (code, telegram_id)
             )
             """
         )
@@ -284,12 +239,6 @@ def init_db() -> None:
         # usage_daily에 videos 컬럼 마이그레이션
         try:
             cursor.execute("ALTER TABLE usage_daily ADD COLUMN videos INTEGER DEFAULT 0")
-        except Exception:
-            pass  # 이미 존재
-
-        # usage_daily에 turns 컬럼 마이그레이션 (Free 티어 일일 턴 제한)
-        try:
-            cursor.execute("ALTER TABLE usage_daily ADD COLUMN turns INTEGER DEFAULT 0")
         except Exception:
             pass  # 이미 존재
 
@@ -717,42 +666,6 @@ def set_admin(user_id: int, admin: bool) -> None:
         conn.close()
 
 
-# ── 티어 ──
-
-
-def get_user_tier(user_id: int) -> str:
-    """유저의 티어를 반환한다. 미설정 시 'free'."""
-    conn = _get_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT tier FROM user_settings WHERE user_id = ?",
-            (user_id,),
-        )
-        row = cursor.fetchone()
-        return row[0] if row else "free"
-    finally:
-        conn.close()
-
-
-def set_user_tier(user_id: int, tier: str, days: int) -> None:
-    """유저의 티어를 설정한다."""
-    conn = _get_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO user_settings (user_id, tier, tier_started, tier_expires) "
-            "VALUES (?, ?, CURRENT_TIMESTAMP, datetime('now', '+' || ? || ' days')) "
-            "ON CONFLICT(user_id) DO UPDATE SET "
-            "tier = excluded.tier, tier_started = CURRENT_TIMESTAMP, "
-            "tier_expires = datetime(MAX(COALESCE(user_settings.tier_expires, '2000-01-01'), datetime('now')), '+' || ? || ' days')",
-            (user_id, tier, days, days),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-
 # ── Usage 추적 ──
 
 
@@ -826,40 +739,6 @@ def increment_daily_images(user_id: int) -> None:
         conn.close()
 
 
-def get_daily_turn_count(user_id: int) -> int:
-    """오늘의 대화 턴 사용량을 반환한다 (Free 티어 일일 제한용)."""
-    from datetime import datetime
-    today = datetime.now().strftime("%Y-%m-%d")
-    conn = _get_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT turns FROM usage_daily WHERE telegram_id = ? AND date = ?",
-            (user_id, today),
-        )
-        row = cursor.fetchone()
-        return row[0] if row and row[0] is not None else 0
-    finally:
-        conn.close()
-
-
-def increment_daily_turns(user_id: int) -> None:
-    """오늘의 대화 턴 사용량을 1 증가시킨다."""
-    from datetime import datetime
-    today = datetime.now().strftime("%Y-%m-%d")
-    conn = _get_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO usage_daily (telegram_id, date, turns) VALUES (?, ?, 1) "
-            "ON CONFLICT(telegram_id, date) DO UPDATE SET turns = turns + 1",
-            (user_id, today),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-
 def get_daily_video_count(user_id: int) -> int:
     """오늘의 비디오 사용량을 반환한다."""
     from datetime import datetime
@@ -894,24 +773,6 @@ def increment_daily_videos(user_id: int) -> None:
         conn.close()
 
 
-# ── 결제 ──
-
-
-def save_payment(user_id: int, stars: int, tier: str, days: int, charge_id: str) -> None:
-    """결제 내역을 저장한다."""
-    conn = _get_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO payments (telegram_id, stars_amount, tier_granted, days_granted, telegram_charge_id) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (user_id, stars, tier, days, charge_id),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-
 # ── 통계 ──
 
 
@@ -922,14 +783,8 @@ def get_stats() -> dict:
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM user_settings")
         total_users = cursor.fetchone()[0]
-        cursor.execute("SELECT tier, COUNT(*) FROM user_settings GROUP BY tier")
-        tier_counts = {row[0]: row[1] for row in cursor.fetchall()}
-        cursor.execute("SELECT COUNT(*) FROM payments")
-        total_payments = cursor.fetchone()[0]
         return {
             "total_users": total_users,
-            "tier_counts": tier_counts,
-            "total_payments": total_payments,
         }
     finally:
         conn.close()
@@ -1392,136 +1247,6 @@ def _migrate_saved_chars_v3() -> None:
         conn.close()
 
 
-# ── 쿠폰 ──
-
-
-def create_coupon(code: str, tier: str, days: int, max_uses: int = 0, expires_at: str | None = None) -> None:
-    """쿠폰을 생성한다. max_uses=0이면 무제한."""
-    conn = _get_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO coupons (code, tier, days, max_uses, expires_at) VALUES (?, ?, ?, ?, ?)",
-            (code, tier, days, max_uses, expires_at),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def get_coupon(code: str) -> dict | None:
-    """쿠폰 정보를 반환한다. 없으면 None."""
-    conn = _get_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT code, tier, days, max_uses, used_count, created_at, expires_at FROM coupons WHERE code = ?",
-            (code,),
-        )
-        row = cursor.fetchone()
-        if row:
-            return {
-                "code": row[0], "tier": row[1], "days": row[2],
-                "max_uses": row[3], "used_count": row[4],
-                "created_at": row[5], "expires_at": row[6],
-            }
-        return None
-    finally:
-        conn.close()
-
-
-def list_coupons() -> list[dict]:
-    """전체 쿠폰 목록을 반환한다."""
-    conn = _get_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT code, tier, days, max_uses, used_count, created_at, expires_at FROM coupons ORDER BY created_at DESC"
-        )
-        return [
-            {
-                "code": row[0], "tier": row[1], "days": row[2],
-                "max_uses": row[3], "used_count": row[4],
-                "created_at": row[5], "expires_at": row[6],
-            }
-            for row in cursor.fetchall()
-        ]
-    finally:
-        conn.close()
-
-
-def delete_coupon(code: str) -> bool:
-    """쿠폰을 삭제한다. 삭제 성공 시 True."""
-    conn = _get_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM coupons WHERE code = ?", (code,))
-        deleted = cursor.rowcount > 0
-        conn.commit()
-        return deleted
-    finally:
-        conn.close()
-
-
-def redeem_coupon(code: str, user_id: int) -> tuple[bool, str]:
-    """쿠폰을 사용한다. 원자적 검증 + 사용.
-
-    Returns:
-        (True, "premium 5일 부여") 또는 (False, "에러 메시지")
-    """
-    conn = _get_connection()
-    try:
-        cursor = conn.cursor()
-        # 쿠폰 존재 확인
-        cursor.execute(
-            "SELECT tier, days, max_uses, used_count, expires_at FROM coupons WHERE code = ?",
-            (code,),
-        )
-        row = cursor.fetchone()
-        if not row:
-            return False, "유효하지 않은 쿠폰 코드입니다."
-
-        tier, days, max_uses, used_count, expires_at = row
-
-        # 만료 확인
-        if expires_at:
-            cursor.execute("SELECT datetime('now') > ?", (expires_at,))
-            if cursor.fetchone()[0]:
-                return False, "만료된 쿠폰입니다."
-
-        # 사용 횟수 확인
-        if max_uses > 0 and used_count >= max_uses:
-            return False, "쿠폰 사용 횟수가 초과되었습니다."
-
-        # 1인 1회 확인
-        cursor.execute(
-            "SELECT 1 FROM coupon_redemptions WHERE code = ? AND telegram_id = ?",
-            (code, user_id),
-        )
-        if cursor.fetchone():
-            return False, "이미 사용한 쿠폰입니다."
-
-        # 사용 처리
-        cursor.execute(
-            "UPDATE coupons SET used_count = used_count + 1 WHERE code = ?",
-            (code,),
-        )
-        cursor.execute(
-            "INSERT INTO coupon_redemptions (code, telegram_id) VALUES (?, ?)",
-            (code, user_id),
-        )
-        conn.commit()
-
-        # 티어 부여 (별도 커넥션 사용하는 set_user_tier 호출)
-        conn.close()
-        set_user_tier(user_id, tier, days)
-
-        return True, f"{tier.capitalize()} {days}일이 부여되었습니다."
-    except Exception:
-        conn.close()
-        raise
-
-
 # ── 캐릭터 수치 (메모리 캐시 + 지연 DB 쓰기) ──
 
 # 메모리 캐시: {(user_id, char_id): {"fixation": int, "mood": str, "location": str, "_dirty": bool, "_last_activity": float}}
@@ -1716,8 +1441,6 @@ def _schedule_flush(user_id: int, character_id: str) -> None:
 
 def delete_all_user_data(user_id: int) -> dict:
     """유저의 모든 데이터를 삭제한다. (GDPR /deletedata)
-
-    payments, coupon_redemptions는 보존 (법적 보관 + 중복 방지).
 
     Returns:
         삭제된 행 수 딕셔너리

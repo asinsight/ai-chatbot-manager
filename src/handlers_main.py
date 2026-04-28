@@ -9,10 +9,9 @@ import os
 from pathlib import Path
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram import LabeledPrice
-from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, PreCheckoutQueryHandler, filters
+from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes
 
-from src.history import get_full_profile, set_profile, set_user_tier, get_user_tier, get_usage, get_stats, _get_connection, is_onboarded, set_onboarded, save_payment, create_coupon, list_coupons, delete_coupon, redeem_coupon, delete_all_user_data
+from src.history import get_full_profile, set_profile, get_stats, _get_connection, is_onboarded, set_onboarded, delete_all_user_data
 from src.handlers_common import check_admin
 from src.rate_limiter import rate_limiter
 from src.input_filter import check_regex, strip_signals
@@ -23,19 +22,9 @@ logger = logging.getLogger(__name__)
 TOS_URL = "https://telegra.ph/Ella-AI-%EC%9D%B4%EC%9A%A9%EC%95%BD%EA%B4%80--Terms-of-Service-04-07"
 PRIVACY_URL = "https://telegra.ph/Ella-AI-개인정보-처리방침--Privacy-Policy-04-09"
 
-# 구독 상품 설정 (env로 조정 가능)
-STANDARD_STARS = int(os.getenv("STANDARD_STARS", "250"))
-STANDARD_DAYS = int(os.getenv("STANDARD_DAYS", "30"))
-PREMIUM_STARS = int(os.getenv("PREMIUM_STARS", "700"))
-PREMIUM_DAYS = int(os.getenv("PREMIUM_DAYS", "30"))
-
-
-FREE_CHAR_IDS = [c.strip() for c in os.getenv("FREE_CHAR_IDS", "char06").split(",")]
-FREE_MAX_TURNS = int(os.getenv("FREE_MAX_TURNS", "30"))
-
 
 # 캐릭터 표시 순서 (persona에 profile_summary_ko가 없어도 이 순서로 나열)
-# 일반(1~6) → char09 (박수연) → char10 (서유진) → 판타지/premium(7, 8) → 이미지 생성기
+# 일반(1~6) → char09 (박수연) → char10 (서유진) → 판타지(7, 8) → 이미지 생성기
 _CHAR_ORDER = ["char01", "char02", "char03", "char04", "char05", "char06", "char09", "char10", "char07", "char08", "imagegen"]
 
 # imagegen은 persona 파일이 없으므로 메인 봇에서 직접 캡션 정의
@@ -67,24 +56,15 @@ def _build_character_descriptions(characters: dict) -> str:
     return "\n\n".join(lines)
 
 
-def _build_character_keyboard(characters: dict, tier: str = "free") -> InlineKeyboardMarkup | None:
-    """캐릭터 봇 링크 인라인 키보드를 생성한다. Free 유저는 잠금 표시."""
+def _build_character_keyboard(characters: dict) -> InlineKeyboardMarkup | None:
+    """캐릭터 봇 링크 인라인 키보드를 생성한다."""
     keyboard = []
     for char_id, char_data in characters.items():
         bot_username = os.getenv(f"CHAR_USERNAME_{char_id}", "")
         if not bot_username:
             continue
         name = char_data.get("name", char_id)
-
-        if tier == "free":
-            if char_id in FREE_CHAR_IDS:
-                label = f"{name} (Free 하루 {FREE_MAX_TURNS}턴)"
-                keyboard.append([InlineKeyboardButton(label, url=f"https://t.me/{bot_username}")])
-            else:
-                label = f"🔒 {name} (구독 필요)"
-                keyboard.append([InlineKeyboardButton(label, callback_data=f"locked_{char_id}")])
-        else:
-            keyboard.append([InlineKeyboardButton(name, url=f"https://t.me/{bot_username}")])
+        keyboard.append([InlineKeyboardButton(name, url=f"https://t.me/{bot_username}")])
 
     # 이미지 생성기 버튼
     imagegen_username = os.getenv("CHAR_USERNAME_imagegen", "")
@@ -96,7 +76,7 @@ def _build_character_keyboard(characters: dict, tier: str = "free") -> InlineKey
     return InlineKeyboardMarkup(keyboard) if keyboard else None
 
 
-async def _send_character_cards(update: Update, context: ContextTypes.DEFAULT_TYPE, characters: dict, tier: str):
+async def _send_character_cards(update: Update, context: ContextTypes.DEFAULT_TYPE, characters: dict):
     """등록된 캐릭터별로 프로필 이미지 + 캡션 + 인라인 버튼을 개별 메시지로 전송한다."""
     project_root = Path(__file__).resolve().parents[1]
 
@@ -130,24 +110,14 @@ async def _send_character_cards(update: Update, context: ContextTypes.DEFAULT_TY
         name = char_data.get("name", char_id)
 
         # 인라인 버튼 조립
-        button = None
-        if tier == "free" and char_id not in FREE_CHAR_IDS and char_id != "imagegen":
-            # Free 유저 잠금 상태 — 클릭 시 안내 콜백
-            button = InlineKeyboardButton(
-                f"🔒 {name} (구독 필요)",
-                callback_data=f"locked_{char_id}",
-            )
+        if not bot_username:
+            # username이 없으면 해당 캐릭터는 스킵
+            continue
+        if char_id == "imagegen":
+            label = "🎨 이미지 생성 시작"
         else:
-            if not bot_username:
-                # username이 없으면 해당 캐릭터는 스킵
-                continue
-            if char_id == "imagegen":
-                label = "🎨 이미지 생성 시작"
-            elif tier == "free" and char_id in FREE_CHAR_IDS:
-                label = f"💬 대화 시작 (Free 하루 {FREE_MAX_TURNS}턴)"
-            else:
-                label = "💬 대화 시작"
-            button = InlineKeyboardButton(label, url=f"https://t.me/{bot_username}")
+            label = "💬 대화 시작"
+        button = InlineKeyboardButton(label, url=f"https://t.me/{bot_username}")
 
         reply_markup = InlineKeyboardMarkup([[button]])
 
@@ -175,12 +145,6 @@ async def _send_character_cards(update: Update, context: ContextTypes.DEFAULT_TY
 
         # rate limit 회피
         await asyncio.sleep(0.3)
-
-
-async def locked_char_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """잠긴 캐릭터 클릭 시 안내."""
-    query = update.callback_query
-    await query.answer("이 캐릭터는 프리미엄 구독이 필요합니다. / Premium subscription required.", show_alert=True)
 
 
 async def main_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -214,16 +178,12 @@ async def main_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _send_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """온보딩 완료 유저에게 환영 메시지를 전송한다."""
     user_id = update.effective_user.id if update.effective_user else 0
-    tier = get_user_tier(user_id)
     characters = context.bot_data.get("characters", {})
     text = (
         "안녕하세요! Ella AI 캐릭터 챗봇입니다.\n\n"
         "📋 사용 가능한 기능:\n"
         "/char — 캐릭터 선택\n"
         "/profile — 내 프로필 설정/조회\n"
-        "/subscribe — 구독 (Standard / Premium)\n"
-        "/redeem — 쿠폰 코드 사용\n"
-        "/tier — 내 구독 상태\n"
         "/privacy — 개인정보 처리방침\n"
         "/deletedata — 내 데이터 삭제\n"
     )
@@ -237,7 +197,7 @@ async def _send_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "\n아래에서 캐릭터를 선택하세요 ⬇️\n"
     )
     await update.effective_chat.send_message(text)
-    await _send_character_cards(update, context, characters, tier)
+    await _send_character_cards(update, context, characters)
 
 
 async def onboard_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -261,18 +221,13 @@ async def onboard_main_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def char_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/char — 캐릭터 선택 메뉴. 티어에 따라 잠금/해금 표시."""
-    user_id = update.effective_user.id
+    """/char — 캐릭터 선택 메뉴."""
     characters = context.bot_data.get("characters", {})
-    tier = get_user_tier(user_id)
-    # Admin은 항상 전체 접근
-    if check_admin(user_id):
-        tier = "premium"
     if not characters:
         await update.message.reply_text("등록된 캐릭터 봇이 없습니다.")
         return
     await update.message.reply_text("캐릭터를 선택하세요:")
-    await _send_character_cards(update, context, characters, tier)
+    await _send_character_cards(update, context, characters)
 
 
 async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -342,51 +297,11 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     text = (
         "🔧 Admin 메뉴:\n\n"
-        "/premium <user_id> <days> — 유저 프리미엄 부여\n"
-        "/tier <user_id> — 유저 티어 확인\n"
         "/stats — 전체 통계\n"
         "/blocked — 차단 유저 목록\n"
         "/unblock <user_id> — 차단 해제\n"
-        "/coupon create|list|delete — 쿠폰 관리\n"
-        "/refund <user_id> <charge_id> — 환불\n"
-        "/balance — 봇 Stars 잔액 조회\n"
-        "/withdraw — Stars 인출 (Fragment.com)\n"
         "/runpod on|off|status — RunPod 관리\n"
         "/runpod_video on|off|status — RunPod 비디오 관리"
-    )
-    await update.message.reply_text(text)
-
-
-async def premium_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/premium <user_id> <days> — 유저에게 프리미엄 부여."""
-    if not check_admin(update.effective_user.id):
-        return
-    args = context.args or []
-    if len(args) < 1:
-        await update.message.reply_text("사용법: /premium <user_id> [days]\n기본 30일")
-        return
-    target_id = int(args[0])
-    days = int(args[1]) if len(args) > 1 else 30
-    set_user_tier(target_id, "premium", days)
-    await update.message.reply_text(f"✅ 유저 {target_id} → premium ({days}일)")
-    logger.info("Admin이 유저 %s에게 premium %d일 부여", target_id, days)
-
-
-async def tier_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/tier [user_id] — 티어 확인."""
-    args = context.args or []
-    if args and check_admin(update.effective_user.id):
-        target_id = int(args[0])
-    else:
-        target_id = update.effective_user.id
-    tier = get_user_tier(target_id)
-    usage = get_usage(target_id)
-    text = (
-        f"👤 유저: {target_id}\n"
-        f"📊 티어: {tier}\n"
-        f"💬 이번 달 대화: {usage['turns']}턴\n"
-        f"🖼 이번 달 이미지: {usage['images']}장\n"
-        f"🎬 이번 달 동영상: {usage['videos']}개"
     )
     await update.message.reply_text(text)
 
@@ -396,12 +311,9 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_admin(update.effective_user.id):
         return
     stats = get_stats()
-    tier_lines = [f"  {t}: {c}명" for t, c in stats["tier_counts"].items()]
     text = (
         f"📊 전체 통계:\n\n"
-        f"👥 총 유저: {stats['total_users']}명\n"
-        f"📋 티어별:\n" + "\n".join(tier_lines) + "\n"
-        f"💳 총 결제: {stats['total_payments']}건"
+        f"👥 총 유저: {stats['total_users']}명"
     )
     await update.message.reply_text(text)
 
@@ -438,266 +350,6 @@ async def blocked_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text)
 
 
-async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/subscribe — 구독 상품 선택."""
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(
-            f"Standard — {STANDARD_STARS} Stars / {STANDARD_DAYS}일",
-            callback_data="buy_standard",
-        )],
-        [InlineKeyboardButton(
-            f"Premium — {PREMIUM_STARS} Stars / {PREMIUM_DAYS}일",
-            callback_data="buy_premium",
-        )],
-    ])
-    text = (
-        "📋 구독 상품을 선택하세요:\n\n"
-        f"⭐ Standard ({STANDARD_STARS} Stars)\n"
-        "  • 전체 캐릭터 오픈\n"
-        "  • 무제한 대화\n"
-        f"  • 이미지 {os.getenv('STANDARD_MAX_IMAGES', '30')}장/월, {os.getenv('STANDARD_DAILY_IMAGES', '5')}장/일\n\n"
-        f"💎 Premium ({PREMIUM_STARS} Stars)\n"
-        "  • 전체 캐릭터 오픈\n"
-        "  • 무제한 대화\n"
-        f"  • 이미지 {os.getenv('PREMIUM_MAX_IMAGES', '60')}장/월, {os.getenv('PREMIUM_DAILY_IMAGES', '10')}장/일\n"
-        "  • 우선 응답"
-    )
-    await update.message.reply_text(text, reply_markup=keyboard)
-
-
-async def buy_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """구독 구매 콜백 — send_invoice 호출."""
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-
-    if query.data == "buy_standard":
-        title = f"Standard Subscription ({STANDARD_DAYS} days)"
-        description = "All characters, unlimited chat, monthly image quota"
-        amount = STANDARD_STARS
-        payload = f"sub_standard_{user_id}"
-    elif query.data == "buy_premium":
-        title = f"Premium Subscription ({PREMIUM_DAYS} days)"
-        description = "All characters, unlimited chat, unlimited images, priority response"
-        amount = PREMIUM_STARS
-        payload = f"sub_premium_{user_id}"
-    else:
-        return
-
-    await context.bot.send_invoice(
-        chat_id=query.message.chat_id,
-        title=title,
-        description=description,
-        payload=payload,
-        provider_token="",
-        currency="XTR",
-        prices=[LabeledPrice(title, amount)],
-    )
-
-
-async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """PreCheckoutQuery — 10초 내 응답 필수."""
-    query = update.pre_checkout_query
-    if query.invoice_payload.startswith("sub_"):
-        await query.answer(ok=True)
-    else:
-        await query.answer(ok=False, error_message="Invalid payment. Please try again.")
-
-
-async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """결제 성공 — 티어 변경 + DB 저장."""
-    payment = update.message.successful_payment
-    user_id = update.effective_user.id
-    charge_id = payment.telegram_payment_charge_id
-    amount = payment.total_amount
-
-    # payload에서 plan 파싱
-    parts = payment.invoice_payload.split("_")
-    plan = parts[1] if len(parts) >= 2 else "unknown"
-
-    if plan == "standard":
-        days = STANDARD_DAYS
-    elif plan == "premium":
-        days = PREMIUM_DAYS
-    else:
-        days = 30
-
-    # DB 저장 + 티어 변경
-    save_payment(user_id, amount, plan, days, charge_id)
-    set_user_tier(user_id, plan, days)
-
-    logger.info("결제 성공: user=%s plan=%s stars=%d days=%d charge=%s",
-                user_id, plan, amount, days, charge_id)
-
-    await update.message.reply_text(
-        f"✅ 결제 완료! {amount} Stars\n"
-        f"📋 플랜: {plan.capitalize()} ({days}일)\n\n"
-        "감사합니다! 모든 기능이 활성화되었습니다."
-    )
-
-
-async def refund_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/refund <user_id> <charge_id> — 환불 (Admin 전용)."""
-    if not check_admin(update.effective_user.id):
-        return
-    args = context.args or []
-    if len(args) < 2:
-        await update.message.reply_text("사용법: /refund <user_id> <telegram_charge_id>")
-        return
-    target_id = int(args[0])
-    charge_id = args[1]
-    try:
-        await context.bot.refund_star_payment(
-            user_id=target_id,
-            telegram_payment_charge_id=charge_id,
-        )
-        await update.message.reply_text(f"✅ 환불 완료: user={target_id}")
-        logger.info("환불 완료: user=%s charge=%s", target_id, charge_id)
-    except Exception as e:
-        await update.message.reply_text(f"환불 실패: {e}")
-
-
-async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/balance — 봇 Stars 잔액 조회 (Admin 전용)."""
-    if not check_admin(update.effective_user.id):
-        return
-    try:
-        result = await context.bot.get_star_transactions(limit=100)
-        total = 0
-        for t in result.transactions:
-            if hasattr(t, "source") and t.source:
-                total += t.amount  # 수입
-            elif hasattr(t, "receiver") and t.receiver:
-                total -= t.amount  # 환불/출금
-        await update.message.reply_text(
-            f"⭐ 봇 Stars 잔액: {total} Stars\n"
-            f"📋 총 거래 수: {len(result.transactions)}건"
-        )
-    except Exception as e:
-        await update.message.reply_text(f"잔액 조회 실패: {e}")
-
-
-async def withdraw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/withdraw — Stars 인출 URL 생성 (Admin 전용).
-
-    주의: 최소 1,000 Stars + 수령 후 21일 경과 필요.
-    """
-    if not check_admin(update.effective_user.id):
-        return
-    try:
-        # getStarRevenueWithdrawalUrl은 아직 python-telegram-bot에 없을 수 있음
-        # 직접 API 호출
-        import httpx
-        bot_token = context.bot.token
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                f"https://api.telegram.org/bot{bot_token}/getStarRevenueWithdrawalUrl",
-                json={"user_id": update.effective_user.id},
-            )
-            data = resp.json()
-            if data.get("ok"):
-                url = data["result"]["url"]
-                await update.message.reply_text(f"⭐ Stars 인출 페이지:\n{url}")
-            else:
-                error = data.get("description", "Unknown error")
-                await update.message.reply_text(f"인출 불가: {error}")
-    except Exception as e:
-        await update.message.reply_text(f"인출 요청 실패: {e}")
-        logger.error("Stars 인출 요청 실패: %s", e)
-
-
-async def coupon_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/coupon create|list|delete — 쿠폰 관리 (Admin 전용)."""
-    if not check_admin(update.effective_user.id):
-        return
-    args = context.args or []
-    if not args:
-        await update.message.reply_text(
-            "사용법:\n"
-            "/coupon create <code> <tier> <days> [max_uses]\n"
-            "/coupon list\n"
-            "/coupon delete <code>"
-        )
-        return
-
-    sub = args[0].lower()
-
-    if sub == "create":
-        if len(args) < 4:
-            await update.message.reply_text("사용법: /coupon create <code> <tier> <days> [max_uses]")
-            return
-        code = args[1].upper()
-        tier = args[2].lower()
-        if tier not in ("standard", "premium"):
-            await update.message.reply_text("tier는 standard 또는 premium만 가능합니다.")
-            return
-        days = int(args[3])
-        max_uses = int(args[4]) if len(args) > 4 else 0
-        try:
-            create_coupon(code, tier, days, max_uses)
-            max_text = f"최대 {max_uses}회" if max_uses > 0 else "무제한"
-            await update.message.reply_text(
-                f"✅ 쿠폰 생성 완료\n"
-                f"코드: {code}\n"
-                f"티어: {tier} / {days}일\n"
-                f"사용: {max_text}"
-            )
-            logger.info("쿠폰 생성: code=%s tier=%s days=%d max=%d", code, tier, days, max_uses)
-        except Exception as e:
-            await update.message.reply_text(f"쿠폰 생성 실패: {e}")
-
-    elif sub == "list":
-        coupons = list_coupons()
-        if not coupons:
-            await update.message.reply_text("등록된 쿠폰이 없습니다.")
-            return
-        lines = []
-        for c in coupons:
-            max_text = f"{c['used_count']}/{c['max_uses']}" if c["max_uses"] > 0 else f"{c['used_count']}/∞"
-            exp = c["expires_at"] or "없음"
-            lines.append(f"• {c['code']} — {c['tier']} {c['days']}일 ({max_text}) 만료: {exp}")
-        await update.message.reply_text("📋 쿠폰 목록:\n\n" + "\n".join(lines))
-
-    elif sub == "delete":
-        if len(args) < 2:
-            await update.message.reply_text("사용법: /coupon delete <code>")
-            return
-        code = args[1].upper()
-        if delete_coupon(code):
-            await update.message.reply_text(f"✅ 쿠폰 {code} 삭제 완료")
-            logger.info("쿠폰 삭제: code=%s", code)
-        else:
-            await update.message.reply_text(f"쿠폰 {code}를 찾을 수 없습니다.")
-
-    else:
-        await update.message.reply_text("사용법: /coupon create|list|delete")
-
-
-async def redeem_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/redeem <code> — 쿠폰 코드 사용."""
-    user_id = update.effective_user.id
-
-    # 온보딩 체크
-    if not is_onboarded(user_id):
-        await update.message.reply_text("먼저 /start로 서비스에 가입해주세요.")
-        return
-
-    args = context.args or []
-    if not args:
-        await update.message.reply_text("사용법: /redeem <쿠폰코드>")
-        return
-
-    code = args[0].upper()
-    success, message = redeem_coupon(code, user_id)
-
-    if success:
-        await update.message.reply_text(f"✅ 쿠폰 적용! {message}")
-        logger.info("쿠폰 사용: user=%s code=%s result=%s", user_id, code, message)
-    else:
-        await update.message.reply_text(f"❌ {message}")
-        logger.info("쿠폰 사용 실패: user=%s code=%s reason=%s", user_id, code, message)
-
-
 async def deletedata_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/deletedata — 개인정보 삭제 요청."""
     keyboard = InlineKeyboardMarkup([
@@ -716,8 +368,7 @@ async def deletedata_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         "• 의상 설정\n"
         "• 사용량 기록\n"
         "• 계정 설정 (온보딩 초기화)\n\n"
-        "⚠️ 이 작업은 되돌릴 수 없습니다.\n"
-        "결제 기록은 법적 보관 의무에 따라 보존됩니다.",
+        "⚠️ 이 작업은 되돌릴 수 없습니다.",
         reply_markup=keyboard,
     )
 
@@ -1001,9 +652,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/start — 서비스 시작\n"
         "/char — 캐릭터 선택\n"
         "/profile — 내 프로필 설정/조회\n"
-        "/subscribe — 구독 (Standard / Premium)\n"
-        "/redeem — 쿠폰 코드 사용\n"
-        "/tier — 내 구독 상태\n"
         "/privacy — 개인정보 처리방침\n"
         "/deletedata — 내 데이터 삭제\n"
         "/help — 도움말\n"
@@ -1025,24 +673,12 @@ def register_main_handlers(app):
     app.add_handler(CommandHandler("char", char_command))
     app.add_handler(CommandHandler("profile", profile_command))
     app.add_handler(CommandHandler("admin", admin_command))
-    app.add_handler(CommandHandler("premium", premium_command))
-    app.add_handler(CommandHandler("tier", tier_command))
     app.add_handler(CommandHandler("stats", stats_command))
     app.add_handler(CommandHandler("blocked", blocked_command))
     app.add_handler(CommandHandler("unblock", unblock_command))
-    app.add_handler(CallbackQueryHandler(locked_char_callback, pattern="^locked_"))
-    app.add_handler(CommandHandler("subscribe", subscribe_command))
-    app.add_handler(CallbackQueryHandler(buy_callback, pattern="^buy_"))
-    app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    app.add_handler(CommandHandler("refund", refund_command))
-    app.add_handler(CommandHandler("coupon", coupon_command))
-    app.add_handler(CommandHandler("redeem", redeem_command))
-    app.add_handler(CommandHandler("balance", balance_command))
     app.add_handler(CommandHandler("deletedata", deletedata_command))
     app.add_handler(CallbackQueryHandler(deletedata_callback, pattern="^deletedata_"))
     app.add_handler(CommandHandler("privacy", privacy_command))
-    app.add_handler(CommandHandler("withdraw", withdraw_command))
     app.add_handler(CommandHandler("runpod", runpod_command))
     app.add_handler(CommandHandler("runpod_video", runpod_video_command))
     app.add_handler(CommandHandler("search", search_command))

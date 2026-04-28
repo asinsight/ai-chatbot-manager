@@ -8,7 +8,6 @@ from src.history import (
     clear_history, get_message_count, get_latest_summary, save_summary,
     delete_old_messages, get_full_profile, set_profile, get_memories,
     save_memory, delete_oldest_events, _get_connection,
-    get_usage, get_daily_image_count, get_daily_video_count,
 )
 from src.summary import summarize_messages, extract_memory_and_profile
 from src.input_filter import strip_signals
@@ -87,73 +86,6 @@ async def notify_admins_video(
                 logger.warning("admin video notify 실패: admin=%s err=%s", aid, _e)
 
 logger = logging.getLogger(__name__)
-
-# 티어별 이미지 한도 상수
-FREE_MAX_IMAGES = int(os.getenv("FREE_MAX_IMAGES", "2"))  # 0 = 완전 차단, 1+ = 월 N장 허용
-STANDARD_MAX_IMAGES = int(os.getenv("STANDARD_MAX_IMAGES", "30"))
-PREMIUM_MAX_IMAGES = int(os.getenv("PREMIUM_MAX_IMAGES", "60"))
-STANDARD_DAILY_IMAGES = int(os.getenv("STANDARD_DAILY_IMAGES", "5"))
-PREMIUM_DAILY_IMAGES = int(os.getenv("PREMIUM_DAILY_IMAGES", "10"))
-
-# 티어별 비디오 한도 상수
-FREE_MAX_VIDEOS = int(os.getenv("FREE_MAX_VIDEOS", "0"))
-STANDARD_MAX_VIDEOS = int(os.getenv("STANDARD_MAX_VIDEOS", "0"))
-PREMIUM_MAX_VIDEOS = int(os.getenv("PREMIUM_MAX_VIDEOS", "10"))
-STANDARD_DAILY_VIDEOS = int(os.getenv("STANDARD_DAILY_VIDEOS", "0"))
-PREMIUM_DAILY_VIDEOS = int(os.getenv("PREMIUM_DAILY_VIDEOS", "5"))
-
-
-def check_image_limit(user_id: int, tier: str) -> str | None:
-    """이미지 한도 체크. 초과 시 안내 메시지 반환, 통과 시 None.
-
-    Admin 유저는 항상 None (바이패스).
-    """
-    if check_admin(user_id):
-        return None
-
-    if tier == "free":
-        if FREE_MAX_IMAGES <= 0:
-            return "_(무료 이미지 기능이 비활성화되어 있습니다.)_"
-        usage = get_usage(user_id)
-        if usage["images"] >= FREE_MAX_IMAGES:
-            return f"_(무료 이미지 한도({FREE_MAX_IMAGES}장)에 도달했습니다. 더 많은 이미지를 원하시면 구독해주세요!)_"
-    elif tier in ("standard", "premium"):
-        # 일일 한도 체크
-        daily_limit = STANDARD_DAILY_IMAGES if tier == "standard" else PREMIUM_DAILY_IMAGES
-        daily_count = get_daily_image_count(user_id)
-        if daily_limit > 0 and daily_count >= daily_limit:
-            return f"_(오늘 이미지 한도({daily_limit}장)에 도달했습니다. 내일 다시 이용해주세요!)_"
-        # 월별 한도 체크
-        monthly_limit = STANDARD_MAX_IMAGES if tier == "standard" else PREMIUM_MAX_IMAGES
-        if monthly_limit > 0:
-            usage = get_usage(user_id)
-            if usage["images"] >= monthly_limit:
-                return f"_(이번 달 이미지 한도({monthly_limit}장)에 도달했습니다. 구독을 업그레이드하거나 다음 달에 이용해주세요!)_"
-    return None
-
-
-def check_video_limit(user_id: int, tier: str) -> str | None:
-    """비디오 한도 체크. None이면 OK, 문자열이면 차단 메시지."""
-    if check_admin(user_id):
-        return None
-
-    usage = get_usage(user_id)
-    monthly_videos = usage.get("videos", 0)
-
-    if tier == "free":
-        if FREE_MAX_VIDEOS <= 0 or monthly_videos >= FREE_MAX_VIDEOS:
-            return "🎬 영상 생성은 Premium 전용 기능이에요!\n/subscribe 로 구독해보세요 ✨"
-    elif tier == "standard":
-        if STANDARD_MAX_VIDEOS <= 0 or monthly_videos >= STANDARD_MAX_VIDEOS:
-            return "🎬 영상 생성은 Premium 전용 기능이에요!\n/subscribe 로 업그레이드해보세요 ✨"
-    elif tier == "premium":
-        if monthly_videos >= PREMIUM_MAX_VIDEOS:
-            return f"🎬 이번 달 영상 한도({PREMIUM_MAX_VIDEOS}개)를 다 사용했어요. 다음 달에 다시 만나요!"
-        daily = get_daily_video_count(user_id)
-        if daily >= PREMIUM_DAILY_VIDEOS:
-            return f"🎬 오늘 영상 한도({PREMIUM_DAILY_VIDEOS}개)를 다 사용했어요. 내일 다시 만나요!"
-
-    return None
 
 
 def _get_character(context, user_id):

@@ -14,14 +14,13 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ChatAction
 from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
-from src.handlers_common import _get_character, _run_summary, check_admin, check_image_limit, check_video_limit, notify_admins_video
+from src.handlers_common import _get_character, _run_summary, check_admin, notify_admins_video
 from src.history import (
     save_message, get_history, get_message_count,
     get_full_profile, get_memories, get_latest_summary, clear_history,
-    is_onboarded, get_user_tier, get_usage, increment_usage,
+    is_onboarded, get_usage, increment_usage,
     get_outfit, set_outfit, reset_outfit,
     increment_daily_images, increment_daily_videos,
-    get_daily_turn_count, increment_daily_turns,
     get_character_stats, update_character_stats,
     increment_total_turns, _stats_cache, _schedule_flush,
     _normalize_location_key,
@@ -42,10 +41,6 @@ from src.video_context import (
 logger = logging.getLogger(__name__)
 
 MAIN_BOT_USERNAME = os.getenv("MAIN_BOT_USERNAME", "")
-
-# 티어 제한 설정 (env로 조정 가능)
-FREE_CHAR_IDS = [c.strip() for c in os.getenv("FREE_CHAR_IDS", "char06").split(",")]
-FREE_MAX_TURNS = int(os.getenv("FREE_MAX_TURNS", "30"))
 
 # SFW denylist — defense-in-depth for [OUTFIT: ...] parser.
 # Keyword literals live in config/sfw_denylist.json (not in code) so PMs can
@@ -216,19 +211,6 @@ async def char_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text)
         return
 
-    # 티어별 캐릭터 접근 제한
-    tier = get_user_tier(user_id)
-    if tier == "free" and char_id not in FREE_CHAR_IDS:
-        main_link = f"https://t.me/{MAIN_BOT_USERNAME}" if MAIN_BOT_USERNAME else ""
-        text = (
-            "이 캐릭터는 프리미엄 구독이 필요합니다.\n"
-            "This character requires a premium subscription."
-        )
-        if main_link:
-            text += f"\n\n👉 {main_link}"
-        await update.message.reply_text(text)
-        return
-
     # first_mes 전송
     first_mes = character.get("first_mes", "")
     if first_mes:
@@ -280,28 +262,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     char_id, character = _get_character(context, user_id)
-
-    # 티어별 캐릭터 접근 제한
-    tier = get_user_tier(user_id)
-    if tier == "free" and char_id not in FREE_CHAR_IDS:
-        await update.message.reply_text("이 캐릭터는 프리미엄 구독이 필요합니다.\nThis character requires a premium subscription.")
-        return
-
-    # Free 턴 제한 (일일 — 자정 리셋)
-    if tier == "free":
-        daily_turns = get_daily_turn_count(user_id)
-        if daily_turns >= FREE_MAX_TURNS:
-            main_link = f"https://t.me/{MAIN_BOT_USERNAME}" if MAIN_BOT_USERNAME else ""
-            text = (
-                f"오늘 무료 대화 {FREE_MAX_TURNS}턴을 모두 사용했어요.\n"
-                "내일 자정에 리셋되며, 프리미엄으로 업그레이드하면 무제한 대화가 가능합니다!\n\n"
-                f"You've used all {FREE_MAX_TURNS} free turns for today.\n"
-                "Resets at midnight. Upgrade to premium for unlimited conversations!"
-            )
-            if main_link:
-                text += f"\n\n👉 {main_link}"
-            await update.message.reply_text(text)
-            return
 
     system_config = context.bot_data.get("system_config")
 
@@ -539,7 +499,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_message(user_id, "assistant", clean_reply if clean_reply else reply, character_id=char_id)
     # 턴 카운트 (유저 메시지 1회 = 1턴) — total_turns는 이미 수신 시 증가
     increment_usage(user_id, "turns")  # 월간 통계 (Admin /stats)
-    increment_daily_turns(user_id)  # 일일 카운터 (Free 티어 게이팅)
 
     # 의상 변경 감지 — LLM의 [OUTFIT: ...] 시그널 파싱
     # 이미지 생성 전에 처리해야 현재 이미지에도 반영됨
@@ -571,16 +530,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             set_outfit(user_id, char_id, outfit_raw, "", source="custom")
             current_outfit_override = {"clothing": outfit_raw, "underwear": ""}
             logger.info("의상 변경 저장 (원본, 유저 %s, %s): %s", user_id, char_id, outfit_raw)
-
-    # 티어별 이미지 제한 (Admin은 바이패스)
-    if image_match or force_image:
-        limit_msg = check_image_limit(user_id, tier)
-        if limit_msg:
-            # 한도 초과 시 이미지 스킵 (대화 응답은 계속 진행)
-            logger.info("이미지 한도 초과 — 스킵: user=%s, tier=%s", user_id, tier)
-            await update.message.reply_text(limit_msg, parse_mode="Markdown")
-            image_match = None
-            force_image = False
 
     # 캐릭터 외 이미지 요청 차단
     if (image_match or force_image) and is_non_character_image_request(user_text):
@@ -664,23 +613,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     except Exception as e:
                         logger.error("이미지 타임아웃 Admin 알림 실패: %s", e)
                 elif image_path:
-                    # Premium 유저: 🎬 영상 생성 버튼 표시 (이미지 파일은 비디오 컨텍스트에서 관리)
-                    tier = get_user_tier(user_id)
-                    if tier == "premium" or check_admin(user_id):
-                        video_ctx_id = _store_video_context(
-                            user_id, char_id, image_path, image_description,
-                            danbooru_tags=tags["pos_prompt"],
-                        )
-                        keyboard = InlineKeyboardMarkup([[
-                            InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{video_ctx_id}")
-                        ]])
-                        with open(image_path, "rb") as photo_file:
-                            await update.message.reply_photo(photo=photo_file, reply_markup=keyboard)
-                        # 이미지 파일은 비디오 컨텍스트에서 관리 (TTL 후 자동 삭제)
-                    else:
-                        with open(image_path, "rb") as photo_file:
-                            await update.message.reply_photo(photo=photo_file)
-                        os.unlink(image_path)
+                    # 🎬 영상 생성 버튼 표시 (이미지 파일은 비디오 컨텍스트에서 관리, TTL 후 자동 삭제)
+                    video_ctx_id = _store_video_context(
+                        user_id, char_id, image_path, image_description,
+                        danbooru_tags=tags["pos_prompt"],
+                    )
+                    keyboard = InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{video_ctx_id}")
+                    ]])
+                    with open(image_path, "rb") as photo_file:
+                        await update.message.reply_photo(photo=photo_file, reply_markup=keyboard)
                     save_message(user_id, "assistant", f"(IMAGE_SENT: {image_description})", character_id=char_id)
                     increment_usage(user_id, "images")
                     increment_daily_images(user_id)
@@ -951,13 +893,6 @@ async def capture_scene_callback(update: Update, context: ContextTypes.DEFAULT_T
     character = context.bot_data.get("character", {})
     char_name = character.get("name", char_id)
 
-    # 티어/한도 체크
-    tier = get_user_tier(user_id)
-    limit_msg = check_image_limit(user_id, tier)
-    if limit_msg:
-        await query.edit_message_reply_markup(reply_markup=None)
-        return
-
     # 버튼 제거 + 진행 표시
     await query.edit_message_reply_markup(reply_markup=None)
 
@@ -1026,21 +961,15 @@ async def capture_scene_callback(update: Update, context: ContextTypes.DEFAULT_T
         upload_task.cancel()
 
         if image_path and image_path not in ("QUEUE_FULL", "TIMEOUT"):
-            tier = get_user_tier(user_id)
-            if tier == "premium" or check_admin(user_id):
-                video_ctx_id = _store_video_context(
-                    user_id, char_id, image_path, scene_desc,
-                    danbooru_tags=tags["pos_prompt"],
-                )
-                keyboard = InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{video_ctx_id}")
-                ]])
-                with open(image_path, "rb") as photo:
-                    await context.bot.send_photo(chat_id=chat_id, photo=photo, reply_markup=keyboard)
-            else:
-                with open(image_path, "rb") as photo:
-                    await context.bot.send_photo(chat_id=chat_id, photo=photo)
-                os.remove(image_path)
+            video_ctx_id = _store_video_context(
+                user_id, char_id, image_path, scene_desc,
+                danbooru_tags=tags["pos_prompt"],
+            )
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{video_ctx_id}")
+            ]])
+            with open(image_path, "rb") as photo:
+                await context.bot.send_photo(chat_id=chat_id, photo=photo, reply_markup=keyboard)
             increment_usage(user_id, "images")
             increment_daily_images(user_id)
         elif image_path == "TIMEOUT":
@@ -1068,13 +997,6 @@ async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     user_id = ctx["user_id"]
     char_id = ctx["char_id"]
-    tier = get_user_tier(user_id)
-
-    # 한도 체크
-    limit_msg = check_video_limit(user_id, tier)
-    if limit_msg:
-        await query.message.reply_text(limit_msg)
-        return
 
     # 버튼 → "생성 중..." 으로 교체
     await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[
