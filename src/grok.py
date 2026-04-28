@@ -450,7 +450,7 @@ async def generate_danbooru_tags_random(
             "LOCKED: person_tags + pose + camera. "
             "INFERRED (read clues, generate your own fitting tags): location, weather, time of day, concrete props, mood, expression, clothing state. "
             "Read activity_tags as a DESCRIPTION of the situation (e.g., if it says `night_sky, stars, telescope`, infer nighttime outdoor stargazing → generate YOUR OWN tags like `night, starry_sky, tripod`; if it says `picnic_blanket, basket, fruit, outdoors`, infer casual outdoor meal → generate fitting tags like `picnic_blanket, basket, fruit`). "
-            "DEFAULT: DO NOT add any lighting/atmosphere tag. The SDXL checkpoint handles lighting implicitly from location and time-of-day. Add a lighting tag ONLY if the scene type is lighting-defined (stage_lights for concert, studio_lights for photoshoot, blue_lighting for aquarium, neon_lights for amusement park, disco_ball for nightclub) — otherwise OMIT lighting tags entirely. See the LIGHTING RULE in the system prompt.\n\n"
+            "ABSOLUTE: NEVER emit any lighting / atmosphere / color-grading / illumination / glow / shadow tag in the positive prompt. Use only location and time-of-day tags — the SDXL checkpoint handles lighting implicitly. See the LIGHTING RULE in the system prompt.\n\n"
         )
 
     user_message = (
@@ -1027,7 +1027,7 @@ async def _compose_video_prompt(
             f"{motion_override.strip()}\n\n"
             "The user has explicitly specified the motion. "
             "Translate/refine this into an i2v-safe English prompt, but RESPECT the user's intent. "
-            "Apply guide rules for camera, lighting, anchor preservation. "
+            "Apply guide rules for camera and anchor preservation. "
             "This override REPLACES preset.primary as the motion source. "
             "All motion must remain SFW (gentle, fully clothed, non-sexual)."
         )

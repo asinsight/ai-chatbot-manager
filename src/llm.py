@@ -1,5 +1,28 @@
 import os
+import re
 import httpx
+
+
+# Strip thought / channel / harmony special tokens that some LLMs leak into output.
+# Covers <|channel|>...<|message|>, <think>...</think>, <thought>...</thought>,
+# and any bare <|...|> Harmony-style markers that survive the chat template.
+_THOUGHT_BLOCK = re.compile(
+    r"<\|channel\|>.*?(?:<\|message\|>|<\|return\|>|<\|end\|>|$)",
+    re.DOTALL | re.IGNORECASE,
+)
+_THINK_BLOCK = re.compile(r"<think(?:ing)?>.*?</think(?:ing)?>", re.DOTALL | re.IGNORECASE)
+_THOUGHT_BLOCK2 = re.compile(r"<thought>.*?</thought>", re.DOTALL | re.IGNORECASE)
+_HARMONY_TOKEN = re.compile(r"<\|[^|<>]{0,40}\|>")
+
+
+def _sanitize_llm_output(text: str) -> str:
+    if not text:
+        return text
+    text = _THOUGHT_BLOCK.sub("", text)
+    text = _THINK_BLOCK.sub("", text)
+    text = _THOUGHT_BLOCK2.sub("", text)
+    text = _HARMONY_TOKEN.sub("", text)
+    return text.strip()
 
 
 async def chat_completion(messages: list[dict], max_tokens: int = 250) -> str:
@@ -21,7 +44,7 @@ async def chat_completion(messages: list[dict], max_tokens: int = 250) -> str:
             )
             resp.raise_for_status()
             data = resp.json()
-            return data["choices"][0]["message"]["content"]
+            return _sanitize_llm_output(data["choices"][0]["message"]["content"])
     except httpx.HTTPStatusError as e:
         import logging
         logging.getLogger(__name__).error("LLM HTTP 에러: status=%s body=%s", e.response.status_code, e.response.text[:500])

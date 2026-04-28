@@ -88,7 +88,7 @@ Every primary motion clause MUST be followed by 1-2 secondary sensory details. S
 
 **Secondary layers to append after each primary motion**:
 - **Muscle / tension**: `shoulders rolling with subtle muscular tension`, `fingers flexing and releasing`, `toes curling`, `knuckles whitening as she grips`
-- **Skin / texture**: `skin catching the warm light`, `cheeks lightly flushed`, `goosebumps forming`, `light sheen on her forehead`
+- **Skin / texture**: `cheeks lightly flushed`, `goosebumps forming`, `faint sheen on her forehead`, `subtle skin texture across her cheek`
 - **Hair / fabric motion**: `loose strands swaying with each breath`, `sleeve fabric rippling as she moves`, `a stray lock falling across her cheek`
 - **Micro-reaction**: `eyelashes fluttering`, `lips parting on a soft breath`, `eyes softening into focus`, `fingers twitching against the cup`
 - **Hair / fabric drape**: `hair settling against her shoulder`, `scarf shifting with the breeze`, `loose strands swaying with each step`
@@ -136,7 +136,7 @@ WAN 2.2 re-renders faces/features every frame. Without explicit anchors in the m
 **Rule**: Include 1-2 identity anchor tokens from `static_appearance` (especially eye color + hair color/length) as a DECLARATIVE CLAUSE at the END of the motion_prompt, not mixed into motion descriptions.
 
 **Placement (end of prompt, declarative)**:
-> "...shoulders rolling steadily, fingers grazing the cup. **Red long hair, blue eyes, soft cheeks.** Fixed lens, soft window light."
+> "...shoulders rolling steadily, fingers grazing the cup. **Red long hair, blue eyes, soft cheeks.** Fixed lens."
 
 **Forbidden placement (do NOT mix into motion)**:
 > "her blue eyes flutter as shoulders roll" — eye color phrased with motion verb causes WAN to re-render eyes during motion, triggering drift.
@@ -174,25 +174,13 @@ Combine at most 3 of these, nothing else:
 - `subtle weight shift`
 - `lips part slightly`
 
-## Lighting & Atmosphere Vocabulary
+## Lighting & Atmosphere — ABSOLUTE PROHIBITION
 
-### Light source (pick ONE)
-daylight, artificial light, moonlight, practical light, firelight, fluorescent light, overcast light, mixed light, sunlight.
+NEVER emit any lighting / atmosphere / illumination / glow / shadow / time-of-day / color-grading clause in `motion_prompt`. Lighting is handled implicitly by the source image and the WAN 2.2 checkpoint — explicit lighting phrasing causes color drift and frame-to-frame mismatch.
 
-### Light quality
-soft light, hard light, top light, side light, backlight, bottom light, rim light, silhouette, low contrast, high contrast.
+This includes (non-exhaustive — treat as illustrative): `daylight`, `sunlight`, `moonlight`, `firelight`, `fluorescent light`, `practical light`, `overcast light`, `mixed light`, `soft light`, `hard light`, `top light`, `side light`, `backlight`, `bottom light`, `rim light`, `silhouette`, `low contrast`, `high contrast`, `daytime`, `nighttime`, `dusk`, `sunset`, `dawn`, `sunrise`, `golden hour`, `warm tone`, `cool tone`, `high saturation`, `low saturation`, `soft window light`, `ambient light`, `mood light`, `candlelight`, `glow`, `shadow`.
 
-### Time of day
-daytime, nighttime, dusk, sunset, dawn, sunrise.
-
-### Color tone
-warm tone, cool tone, high saturation, low saturation.
-
-### i2v constraints
-- Pick ONE light source per prompt. Multi-source phrasing causes color and mood drift across frames.
-- Prefer `soft light` with single-source phrasing for identity stability.
-- Avoid `high contrast` and `hard light` on faces — drives identity drift.
-- Only include lighting when the environment clearly supports it; otherwise omit and let the image carry the look.
+If the image already shows a clear lighting condition, the renderer reproduces it from the source frame — you do NOT need to (and MUST NOT) name it.
 
 ## Expressions
 
@@ -213,9 +201,9 @@ warm tone, cool tone, high saturation, low saturation.
 
 | Problem | Cause | Fix |
 | --- | --- | --- |
-| Identity drift (face morphs into different person) | Camera movement, hard light, multi-light sources | `fixed lens`, `soft light`, single source |
+| Identity drift (face morphs into different person) | Camera movement, lighting clauses in prompt | `fixed lens`, NO lighting clause (let the image carry the look) |
 | Jitter / flicker | Too many verbs, conflicting intensities | Steady verbs only, one rhythm, short duration |
-| Lighting mismatch across frames | Multi-source phrasing | Single light source, single time-of-day |
+| Lighting mismatch across frames | Naming lighting in motion_prompt at all | NEVER emit lighting / time-of-day / atmosphere clauses |
 | Stylization conflict (anime tongue on photo skin) | Mixed style cues | Keep realism on faces, remove stylized descriptors |
 | Camera over-movement | Orbit > 20°, handheld shake | Reduce to `small orbit 10-20°` or `fixed lens` |
 | Facial warping | Any push-in + expression change | `fixed lens` + micro-motion only |
@@ -246,7 +234,7 @@ warm tone, cool tone, high saturation, low saturation.
 
 1. Read Analyzer JSON + preset + (optional) chat-intent hint + mood.
 2. Start from `preset.primary`. Inject `motion_hints` sentences directly — weave them into the flow, preserving their concrete motion verbs and body-part language (do NOT rephrase them into tags or abstract descriptions). **CRITICAL — LAYERING**: For each primary motion clause from `motion_hints`, append 1-2 secondary sensory details from the `Detail Density` categories (muscle/tension, skin/texture, micro-reaction, hair/fabric). A flat single-layer clause renders as static, lifeless motion in WAN 2.2; multi-layer clauses render as embodied, richly visible motion. **FACE**: Include 1-2 facial micro-motion clauses per the `Face Motion` section (eyelashes fluttering / jaw tensing / brows twitching / etc.) — must MATCH starting image's expression, NEVER escalate or change expression. `anchor_risk=high` or close-up → 1 face clause max. If `motion_hints` is empty, use `preset.ambient_fallback` instead (max 3 clauses) — but still apply layering + face rule. In all cases, ensure no output clause contradicts `pose_state` (e.g., if `pose_state` contains `seated`, never write "subject stands up"; if it contains `lying_on_back`, never write "rolls over and sits up"). `pose_state` tags are IMMOVABLE anchors — the frozen body configuration stays put while motion happens within that configuration.
-3. Append an environment-derived lighting/time clause (soft light + single source preferred). Omit if the image already speaks for itself.
+3. NEVER append a lighting / time-of-day / atmosphere clause — the source image and checkpoint already carry the look. Skip directly to the camera clause.
 4. Append camera clause: `fixed lens` if `anchor_risk=high`; else `preset.camera` (default `fixed lens, slow push-in`).
 5. **IDENTITY ANCHOR**: Append 1-2 identity anchor tokens from `static_appearance` (eye color + hair color/length) as a DECLARATIVE CLAUSE AT THE END (not mixed into motion verbs). See `Identity Anchors` section. This prevents eye/hair drift across frames.
 6. Target 100-160 words; compress if over 200. Use budget on sensory detail layering (Detail Density section), not on new actions.

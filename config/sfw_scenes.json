@@ -105,7 +105,7 @@
     ],
     "activity_tags": "outdoors, wind_lift, floating_hair",
     "expression_hint": "bright_smile, laughing, closed_eyes",
-    "notes": "Outdoor daylight scene. Capture motion of hair/clothing."
+    "notes": "Outdoor scene. Capture motion of hair/clothing."
   },
   "bed_relaxing": {
     "label": "Relaxing in bed (fully clothed)",
@@ -212,7 +212,7 @@
     ],
     "activity_tags": "desk, chair, notebook, pencil, blackboard, window",
     "expression_hint": "focused, bored_expression, gentle_smile, daydreaming",
-    "notes": "Classroom daylight. Student uniform OK if provided."
+    "notes": "Classroom scene. Student uniform OK if provided."
   },
   "selfie_casual": {
     "label": "Taking a casual selfie",
@@ -302,7 +302,7 @@
     ],
     "activity_tags": "wind, sky, dress_flutter",
     "expression_hint": "closed_eyes, bright_smile, laughing, happy",
-    "notes": "Dreamlike vibe. Dress/skirt motion from wind. Natural light."
+    "notes": "Dreamlike vibe. Dress/skirt motion from wind."
   },
   "rainy_day_umbrella": {
     "label": "Walking in the rain with an umbrella",
@@ -365,7 +365,7 @@
     "notes": "Cold breath mist visible. Winter coat, scarf, beanie. Snow falling."
   },
   "rooftop_sunset": {
-    "label": "Rooftop at sunset with city view",
+    "label": "Rooftop with city view",
     "person_tags": "1girl, solo",
     "pose_pool": [
       "standing",
@@ -386,13 +386,13 @@
     ],
     "location_pool": [
       "rooftop",
-      "rooftop_sunset",
       "city_rooftop",
-      "apartment_rooftop"
+      "apartment_rooftop",
+      "high_rise_rooftop"
     ],
     "activity_tags": "cityscape, skyline, wind, hair_blowing",
     "expression_hint": "contemplative, soft_smile, closed_eyes, serene",
-    "notes": "Golden-hour warm light. Wind in hair. Contemplative mood."
+    "notes": "Wind in hair. Contemplative mood."
   },
   "train_window": {
     "label": "Looking out a train window",
@@ -449,7 +449,7 @@
     ],
     "activity_tags": "convenience_store, shelves, drink_cooler, snack, plastic_bag",
     "expression_hint": "casual, bored_expression, slight_smile, focused",
-    "notes": "Late-night slice-of-life vibe. 'fluorescent' 태그 제거 (SDXL이 green tint로 학습되어 color bleed 유발) — 중립 white_lighting으로 대체."
+    "notes": "Late-night slice-of-life vibe."
   },
   "picnic_outdoor": {
     "label": "Picnic on grass with basket",
@@ -651,7 +651,7 @@
     "notes": "Casual loungewear — sweater + pants or modest pajama set. No robe-only / oversized-shirt-only framing. Golden morning sun."
   },
   "festival_summer": {
-    "label": "Summer festival (yukata / fireworks)",
+    "label": "Summer festival (yukata)",
     "person_tags": "1girl, solo",
     "pose_pool": [
       "walking",
@@ -674,12 +674,12 @@
       "summer_festival",
       "matsuri",
       "shrine_approach",
-      "fireworks_display",
+      "festival_grounds",
       "night_festival"
     ],
-    "activity_tags": "yukata, paper_fan, lanterns, festival_stalls, goldfish_scooping, taiyaki",
+    "activity_tags": "yukata, paper_fan, festival_stalls, goldfish_scooping, taiyaki",
     "expression_hint": "bright_smile, laughing, wonder, shy_smile, happy",
-    "notes": "Yukata or summer dress. Lantern-lit atmosphere. Fireworks optional in background."
+    "notes": "Yukata or summer dress at a night festival."
   },
   "drawing_sketching": {
     "label": "Drawing or sketching at a desk",
@@ -902,9 +902,9 @@
       "crowd",
       "stage_view"
     ],
-    "activity_tags": "glowstick, crowd, audience",
+    "activity_tags": "crowd, audience",
     "expression_hint": "bright_smile, open_mouth, excited, closed_eyes",
-    "notes": "Music fan experience. Stage lights OK but balanced (no neon bleed)."
+    "notes": "Music fan experience at a concert hall or music venue."
   },
   "morning_jog": {
     "label": "Morning jogging / running outdoors",
@@ -1154,9 +1154,9 @@
       "autumn_forest_path",
       "leaves_covered_path"
     ],
-    "activity_tags": "autumn_leaves, maple_leaves, falling_leaves, scarf, warm_clothing, golden_hour",
+    "activity_tags": "autumn_leaves, maple_leaves, falling_leaves, scarf, warm_clothing",
     "expression_hint": "bright_smile, closed_eyes, wonder, gentle_smile",
-    "notes": "Warm autumn palette (orange/red/yellow) naturally balanced."
+    "notes": "Warm autumn palette (orange/red/yellow) — naturally balanced."
   },
   "lake_dock": {
     "label": "Sitting on a lake dock",
@@ -1212,7 +1212,7 @@
     ],
     "activity_tags": "microphone, karaoke_screen, couch, tambourine, soft_drinks",
     "expression_hint": "bright_smile, open_mouth, singing, excited, closed_eyes",
-    "notes": "Fun, energetic. Colored mood lights OK but balanced."
+    "notes": "Fun, energetic."
   },
   "coffee_shop_work": {
     "label": "Working remotely at a coffee shop",
@@ -1334,6 +1334,6 @@
     ],
     "activity_tags": "cocktail_glass, wine_glass, beer_mug, bar_counter, liquor_shelf",
     "expression_hint": "slight_smile, relaxed, gentle_smile, content, contemplative",
-    "notes": "Sophisticated evening bar atmosphere. 따뜻한 앰비언트 조명 (네온 X). 성인 분위기지만 SFW (술 한잔 정도) — no sultry/bedroom-eyes/blush emphasis."
+    "notes": "성인 분위기지만 SFW (술 한잔 정도) — no sultry/bedroom-eyes/blush emphasis."
   }
 }

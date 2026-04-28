@@ -51,12 +51,12 @@ EMBEDDING_NEG_PREFIX = "embedding:illustrious/lazynsfw, embedding:illustrious/la
 MODEL_PREFIXES = {
     "illustrious/oneObsession_v20Bold.safetensors": {
         "pos": "masterpiece, best quality, amazing quality, very awa, absurdres, newest, very aesthetic, depth of field, highres",
-        "neg": "worst quality, normal quality, anatomical nonsense, bad anatomy, interlocked fingers, extra fingers, watermark, simple background, transparent, low quality, logo, text, signature",
+        "neg": "worst quality, normal quality, anatomical nonsense, bad anatomy, interlocked fingers, extra fingers, watermark, low quality, logo, text, signature",
     },
     "illustrious/JANKUTrainedChenkinNoobai_v777.safetensors": {
         # NoobAI/JANKU 권장 quality trigger (Civitai 모델 카드 + NoobAI 공식 가이드)
         "pos": "masterpiece, best quality, amazing quality, newest, absurdres, very aesthetic, highres, year 2026",
-        "neg": "worst quality, low quality, lowres, bad anatomy, bad hands, mutated hands, watermark, signature, logo, text, simple background",
+        "neg": "worst quality, low quality, lowres, bad anatomy, bad hands, mutated hands, watermark, signature, logo, text",
     },
 }
 
