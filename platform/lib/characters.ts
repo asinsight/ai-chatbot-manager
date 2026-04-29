@@ -203,6 +203,24 @@ export async function writeCharacter(
       { code: "INVALID_CARD" },
     );
   }
+  // ajv enforces that required keys are PRESENT, not non-empty. Empty strings
+  // for the 4 prompt-critical keys would produce an unusable card, so reject
+  // those at the code layer.
+  const REQUIRED_NON_EMPTY = [
+    "name",
+    "description",
+    "first_mes",
+    "system_prompt",
+  ] as const;
+  for (const k of REQUIRED_NON_EMPTY) {
+    const v = card.persona[k];
+    if (typeof v !== "string" || v.trim() === "") {
+      throw Object.assign(
+        new Error(`required field is empty: persona.${k}`),
+        { code: "INVALID_CARD" },
+      );
+    }
+  }
   const personaFile = FILE_FOR("persona", charId);
   const behaviorsFile = FILE_FOR("behaviors", charId);
   const imagesFile = FILE_FOR("images", charId);

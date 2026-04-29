@@ -13,6 +13,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 
+import { BotTokensForm } from "./bot-tokens-form";
 import { PersonaForm } from "./persona-form";
 import { BehaviorsForm } from "./behaviors-form";
 import { ImagesForm } from "./images-form";
@@ -26,6 +27,45 @@ type CharacterCard = {
   images: Record<string, unknown>;
 };
 
+type DraftBlob = {
+  ts: number;
+  card: CharacterCard;
+};
+
+function draftKey(charId: string): string {
+  return `char-draft-${charId}`;
+}
+
+function readDraft(charId: string): DraftBlob | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(draftKey(charId));
+    if (!raw) return null;
+    return JSON.parse(raw) as DraftBlob;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(charId: string, card: CharacterCard): void {
+  try {
+    window.localStorage.setItem(
+      draftKey(charId),
+      JSON.stringify({ ts: Date.now(), card }),
+    );
+  } catch {
+    // quota exceeded — ignore (drafts are best-effort)
+  }
+}
+
+function clearDraft(charId: string): void {
+  try {
+    window.localStorage.removeItem(draftKey(charId));
+  } catch {
+    // ignore
+  }
+}
+
 export function CharacterEditor({ charId }: { charId: string }) {
   const router = useRouter();
   const [original, setOriginal] = useState<CharacterCard | null>(null);
@@ -33,6 +73,7 @@ export function CharacterEditor({ charId }: { charId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<"form" | "raw">("form");
+  const [pendingRestore, setPendingRestore] = useState<DraftBlob | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -45,7 +86,18 @@ export function CharacterEditor({ charId }: { charId: string }) {
       }
       const card = (await res.json()) as CharacterCard;
       setOriginal(card);
-      setDraft(card);
+      // Probe for an unsaved draft. Show restore banner if it differs from disk.
+      const stored = readDraft(charId);
+      if (
+        stored &&
+        JSON.stringify(stored.card) !== JSON.stringify(card)
+      ) {
+        setPendingRestore(stored);
+        setDraft(card); // start from disk; user picks restore via banner
+      } else {
+        if (stored) clearDraft(charId);
+        setDraft(card);
+      }
       setError(null);
     } catch (err) {
       setError((err as Error).message);
@@ -55,6 +107,17 @@ export function CharacterEditor({ charId }: { charId: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Persist draft to localStorage whenever it diverges from original.
+  useEffect(() => {
+    if (!original || !draft) return;
+    if (JSON.stringify(original) === JSON.stringify(draft)) {
+      clearDraft(charId);
+      return;
+    }
+    const id = setTimeout(() => writeDraft(charId, draft), 400);
+    return () => clearTimeout(id);
+  }, [charId, draft, original]);
 
   const dirty = original && draft
     ? JSON.stringify(original.persona) !== JSON.stringify(draft.persona) ||
@@ -90,6 +153,7 @@ export function CharacterEditor({ charId }: { charId: string }) {
         },
         duration: 8000,
       });
+      clearDraft(charId);
       await load();
     } catch (err) {
       toast.error("Save failed", { description: (err as Error).message });
@@ -141,13 +205,44 @@ export function CharacterEditor({ charId }: { charId: string }) {
         {charName && <> · {charName}</>}
         {dirty && (
           <span className="ml-2 inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700 dark:text-amber-400">
-            ● dirty
+            ● dirty (auto-saved as draft)
           </span>
         )}
       </div>
 
+      {pendingRestore && (
+        <div className="flex items-center justify-between rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
+          <span className="text-amber-700 dark:text-amber-400">
+            Unsaved draft from{" "}
+            {new Date(pendingRestore.ts).toLocaleString()} found.
+          </span>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                clearDraft(charId);
+                setPendingRestore(null);
+              }}
+            >
+              Discard
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setDraft(pendingRestore.card);
+                setPendingRestore(null);
+              }}
+            >
+              Restore draft
+            </Button>
+          </div>
+        </div>
+      )}
+
       {mode === "form" ? (
         <FormMode
+          charId={charId}
           draft={draft}
           onChange={setDraft}
           charName={charName}
@@ -160,10 +255,12 @@ export function CharacterEditor({ charId }: { charId: string }) {
 }
 
 function FormMode({
+  charId,
   draft,
   onChange,
   charName,
 }: {
+  charId: string;
   draft: CharacterCard;
   onChange: (next: CharacterCard) => void;
   charName: string;
@@ -174,6 +271,7 @@ function FormMode({
         <TabsTrigger value="persona">Persona</TabsTrigger>
         <TabsTrigger value="behaviors">Behaviors</TabsTrigger>
         <TabsTrigger value="images">Images</TabsTrigger>
+        <TabsTrigger value="bot-tokens">Bot tokens</TabsTrigger>
       </TabsList>
 
       <TabsContent value="persona">
@@ -210,6 +308,10 @@ function FormMode({
           value={draft.images}
           onChange={(images) => onChange({ ...draft, images })}
         />
+      </TabsContent>
+
+      <TabsContent value="bot-tokens">
+        <BotTokensForm charId={charId} />
       </TabsContent>
     </Tabs>
   );
