@@ -3,15 +3,15 @@
 > 작업 진행 상황 실시간 트래커. 매 의미있는 단계마다 갱신.
 > 자세한 결정 사항·아키텍처는 [CLAUDE.md](CLAUDE.md) / [plan.md](plan.md) / [NSFW_INVENTORY.md](NSFW_INVENTORY.md) 참고.
 
-**마지막 갱신**: 2026-04-27 (정책 셋업 + main 안정)
+**마지막 갱신**: 2026-04-27 (Platform M0 구현 + 9 시나리오 통과 / develop 머지 대기)
 
 ---
 
 ## 현재 상태
 
-- **브랜치**: `main` (안정)
-- **다음 작업**: Platform M0 — Admin 웹앱 골격 (Next.js 풀스택)
-- **진행 중**: 없음 (M0 시작 신호 대기)
+- **브랜치**: `feat/feature_M0_admin_skeleton`
+- **다음 작업**: Platform M1 — `.env` 편집기 + Connections 페이지 (4개 endpoint ping)
+- **진행 중**: M0 develop 머지 대기 (테스트 9 시나리오 모두 통과)
 - **블로커**: 없음
 
 ---
@@ -20,6 +20,7 @@
 
 | 일자 | 단계 | 브랜치 | 머지 커밋 | 핵심 |
 |---|---|---|---|---|
+| 2026-04-27 | Platform M0 — Admin 골격 | `feat/feature_M0_admin_skeleton` | (develop 대기) | Next.js 14 scaffold + sidebar + bot-process.ts + 5 API routes + Dashboard UI (status card + log tail). 9 시나리오 모두 PASS |
 | 2026-04-27 | Plan v2 + 정책 셋업 | main 직접 | `b11108e` 외 | Next.js 풀스택 plan 확정, git workflow 정책 추가, STATUS.md 시작 |
 | 2026-04-27 | LoRA 슬롯 제거 | main 직접 | `271f2d5` | 3개 ComfyUI 워크플로우 LoRA 14개 슬롯 모두 제거 (archived 의 NSFW LoRA 9개 포함) |
 | 2026-04-27 | Lighting purge | main 직접 | `af6a3f0` | 이미지 배경 green leak 수정 (lighting 태그 ABSOLUTE 금지) + LLM `<\|channel\|>` 토큰 sanitizer |
@@ -36,46 +37,45 @@
 
 ---
 
-## 다음 단계 — Platform M0 (Next.js admin 웹앱 골격)
+## M0 머지 체크리스트 (develop ← feat/feature_M0_admin_skeleton)
+
+- [x] 9 시나리오 수동 테스트 PASS (cold start / start / stop / restart / logs / stale-PID self-heal / double-start 409 / 127.0.0.1 binding / Next.js kill 후 봇 생존)
+- [x] `npx tsc --noEmit` — 0 에러
+- [x] `platform/CLAUDE.md` 신규 작성
+- [x] STATUS.md 갱신 (본 commit)
+- [ ] develop 머지 후 platform/CLAUDE.md 의 "현재 마일스톤" 표 그대로 유지 (M1 시작 시 갱신)
+
+---
+
+## 다음 단계 — Platform M1 (`.env` 편집기 + Connections)
 
 ### Plan
-[plan.md §8 M0](plan.md) 참고. 본 마일스톤 시작 시 별도 feature plan MD 를 `docs/features/M0_admin_skeleton.md` 에 작성.
+[plan.md §8 M1](plan.md). M1 시작 시 별도 feature plan MD 를 `docs/features/M1_env_connections.md` 에 작성.
 
 ### 브랜치 흐름
 ```
-main
-  └ develop (M0 부터 도입)
-      └ feat/feature_M0_admin_skeleton
+develop
+  └ feat/feature_M1_env_connections
 ```
 
 ### Deliverable (요약)
-- `platform/` Next.js 프로젝트 초기화 (`create-next-app` + TypeScript + Tailwind)
-- shadcn/ui 컴포넌트 설치 + 기본 layout (Sidebar + Header + Main)
-- Dashboard 페이지: 봇 status 카드 + Start/Stop/Restart 버튼 + uptime + bot count
-- `lib/bot-process.ts` (Node `child_process.spawn` + PID file 추적)
-- `app/api/bot/{status,start,stop,restart}/route.ts`
-- 로그 tail (M5 까지는 polling — `GET /api/bot/logs?tail=500`)
-- 첫 commit: `chore: scaffold platform/ Next.js app`
-
-### 테스트 시나리오
-- `cd platform && npm run dev` → http://127.0.0.1:9000
-- Start 버튼 → 봇 PID 표시 → 텔레그램 봇 응답 확인
-- Stop 버튼 → 봇 종료
-- Restart 버튼 → 5초 안에 재기동
-- 봇 stdout/stderr 가 `logs/bot.log` 에 누적
+- `.env` 편집기 — 라인 보존 파서, 카테고리 tabs, 시크릿 마스킹
+- Connections 페이지 — ComfyUI / OpenWebUI / Grok / Prompt Guard ping
+- `platform.sqlite` `connection_check` 테이블
+- Dashboard 에 "Connections health" 요약 카드
 
 ### 일정 (예상)
-- 1.5–2일
+- 2–2.5일
 
 ---
 
 ## 결정 대기 (PM 답변 받으면 진행)
 
-### M0 시작 시 확인할 항목
-- [ ] 현재 텔레그램 봇 (PID 92612) 처리 — admin 에서 띄울지, 그대로 두고 admin 따로 시도할지
-- [ ] M0 시작 신호
+### M1 시작 시 확인할 항목
+- [ ] M1 착수 신호 / 우선순위 (현재는 "M0 머지 후 M1 진행" 가정)
+- [ ] `platform.sqlite` 위치 — `platform/data/platform.sqlite` (gitignore) 가정으로 진행해도 OK?
 
-### 별도 PR 후보 (M0 진행 중 결정 가능)
+### 별도 PR 후보 (M1+ 진행 중 결정 가능)
 - [ ] `GROK_BASE_URL` env 변수 추가 + `src/grok.py` 한 줄 수정 (Connections 페이지 Grok URL 편집 지원)
 - [ ] `config/video_models.json` 신규 + `src/video.py` 한 줄 수정 (비디오 모델 카탈로그 + dropdown — plan §9.9)
 - [ ] Prompt Guard 토큰 추가 (서버에 인증 도입 시)
@@ -93,15 +93,15 @@ main 머지 시 갱신 의무. 현재 상태:
 | `config/` | ✅ | Phase 2C C9 작성 |
 | `deploy/` | ✅ | Phase 2C C9 작성 |
 | `comfyui_workflow/` | ✅ | Phase 2C C9 작성, audiogen-workflow.json drop 반영됨 (Phase 2D D3) |
-| `behaviors/` | ❌ | 작성 필요 — SFW 캐릭터 카드 8개 (char01-char09) |
-| `persona/` | ❌ | 작성 필요 — 동일 |
-| `images/` | ❌ | 작성 필요 — 동일 |
-| `docs/` | ❌ | 작성 필요 — 4개 문서 안내 |
-| `scripts/` | ❌ | 작성 필요 — 현재 비어있음 (`.gitkeep` 만) |
-| `tools/` | ❌ | 작성 필요 — 현재 비어있음 (`.gitkeep` 만) |
+| `behaviors/` | ✅ | 9 SFW 캐릭터 카드 안내 (정책 셋업 commit 에서 작성) |
+| `persona/` | ✅ | 동일 |
+| `images/` | ✅ | 동일 |
+| `docs/` | ✅ | 동일 |
+| `scripts/` | ✅ | 현재 비어있음 (`.gitkeep` 만) |
+| `tools/` | ✅ | 동일 |
 | `jobs/` | ❌ | (비어있음 — 미작성 OK) |
 | `world_info/` | ❌ | (비어있음 — 미작성 OK) |
-| `platform/` | — | M0 에서 신설 시 함께 추가 |
+| `platform/` | ✅ | M0 에서 신규 작성 |
 
 ---
 
