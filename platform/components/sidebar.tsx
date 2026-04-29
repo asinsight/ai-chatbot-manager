@@ -24,8 +24,8 @@ type NavItem = {
 
 const items: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, enabled: true },
-  { href: "/connections", label: "Connections", icon: Network, enabled: false },
-  { href: "/env", label: "Env", icon: Settings2, enabled: false },
+  { href: "/connections", label: "Connections", icon: Network, enabled: true },
+  { href: "/env", label: "Env", icon: Settings2, enabled: true },
   { href: "/prompts", label: "Prompts", icon: FileText, enabled: false },
   { href: "/characters", label: "Characters", icon: Users, enabled: false },
   { href: "/config", label: "Image Config", icon: ImageIcon, enabled: false },

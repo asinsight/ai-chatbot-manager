@@ -1,0 +1,248 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Eye, EyeOff, Lock, Save, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+
+type EnvVar = {
+  key: string;
+  value: string;
+  comment: string | null;
+  is_secret: boolean;
+  editable: boolean;
+};
+
+type EnvCategory = {
+  id: string;
+  label: string;
+  vars: EnvVar[];
+};
+
+type EnvData = { categories: EnvCategory[] };
+
+function maskValue(v: string): string {
+  if (!v) return "";
+  if (v.length <= 4) return "••••";
+  return `••••••${v.slice(-4)}`;
+}
+
+export function EnvForm() {
+  const [data, setData] = useState<EnvData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/env", { cache: "no-store" });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `status ${res.status}`);
+      }
+      const json = (await res.json()) as EnvData;
+      setData(json);
+      setEdits({});
+      if (!activeTab && json.categories[0]) setActiveTab(json.categories[0].id);
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const dirtyKeys = useMemo(() => Object.keys(edits), [edits]);
+
+  const handleChange = (key: string, original: string, next: string) => {
+    setEdits((prev) => {
+      const copy = { ...prev };
+      if (next === original) delete copy[key];
+      else copy[key] = next;
+      return copy;
+    });
+  };
+
+  const submit = useCallback(async () => {
+    if (dirtyKeys.length === 0) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/env", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ updates: edits }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        backup_path?: string;
+        error?: string;
+        code?: string;
+      };
+      if (!res.ok) {
+        throw new Error(body.error ?? `status ${res.status}`);
+      }
+      const backupName = body.backup_path?.split("/").pop() ?? "(backup ok)";
+      toast.success(
+        `${dirtyKeys.length}개 변수 저장됨. 봇을 재시작해야 적용됩니다.`,
+        {
+          description: `백업: ${backupName}`,
+          duration: 8000,
+          action: {
+            label: "Dashboard 이동",
+            onClick: () => {
+              window.location.href = "/dashboard";
+            },
+          },
+        },
+      );
+      await refresh();
+    } catch (err) {
+      toast.error("저장 실패", { description: (err as Error).message });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [dirtyKeys.length, edits, refresh]);
+
+  if (error) {
+    return <div className="text-sm text-destructive">로드 실패: {error}</div>;
+  }
+  if (!data) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> 로드 중…
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {dirtyKeys.length === 0
+            ? `루트 .env (${data.categories.reduce((n, c) => n + c.vars.length, 0)} 변수)`
+            : `변경된 키 ${dirtyKeys.length}개: ${dirtyKeys.join(", ")}`}
+        </p>
+        <Button
+          size="sm"
+          onClick={submit}
+          disabled={dirtyKeys.length === 0 || submitting}
+        >
+          {submitting ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            <Save />
+          )}
+          저장
+        </Button>
+      </div>
+
+      <Tabs
+        value={activeTab ?? data.categories[0]?.id}
+        onValueChange={setActiveTab}
+      >
+        <TabsList className="flex h-auto flex-wrap justify-start">
+          {data.categories.map((c) => {
+            const dirtyInCat = c.vars.filter((v) => v.key in edits).length;
+            return (
+              <TabsTrigger key={c.id} value={c.id}>
+                {c.label}
+                {dirtyInCat > 0 && (
+                  <span className="ml-2 inline-block h-2 w-2 rounded-full bg-amber-500" />
+                )}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+        {data.categories.map((c) => (
+          <TabsContent key={c.id} value={c.id}>
+            <div className="space-y-5">
+              {c.vars.map((v) => {
+                const current = edits[v.key] ?? v.value;
+                const isRevealed = revealed[v.key];
+                const showMasked = v.is_secret && !isRevealed;
+                return (
+                  <div key={v.key} className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor={v.key} className="font-mono text-xs">
+                        {v.key}
+                      </Label>
+                      {!v.editable && (
+                        <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                          <Lock className="h-3 w-3" /> read-only
+                        </span>
+                      )}
+                      {v.is_secret && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                          secret
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id={v.key}
+                        type={showMasked ? "password" : "text"}
+                        value={
+                          showMasked && current === v.value
+                            ? maskValue(v.value)
+                            : current
+                        }
+                        readOnly={showMasked && current === v.value}
+                        disabled={!v.editable}
+                        onChange={(e) =>
+                          handleChange(v.key, v.value, e.target.value)
+                        }
+                        className="font-mono text-xs"
+                      />
+                      {v.is_secret && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() =>
+                            setRevealed((p) => ({
+                              ...p,
+                              [v.key]: !p[v.key],
+                            }))
+                          }
+                          aria-label={isRevealed ? "Hide value" : "Reveal value"}
+                        >
+                          {isRevealed ? <EyeOff /> : <Eye />}
+                        </Button>
+                      )}
+                    </div>
+                    {v.comment && (
+                      <p className="text-xs text-muted-foreground">
+                        {v.comment}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </TabsContent>
+        ))}
+      </Tabs>
+
+      {dirtyKeys.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          변경 후 적용하려면 <Link href="/dashboard" className="underline">Dashboard</Link>{" "}
+          에서 봇을 재시작하세요.
+        </p>
+      )}
+    </div>
+  );
+}
