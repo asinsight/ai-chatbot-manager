@@ -1,6 +1,6 @@
-"""메인 봇 핸들러 — 온보딩, 프로필 관리, 관리자 커맨드.
+"""Main bot handlers — onboarding, profile management, admin commands.
 
-대화/채팅 처리는 하지 않는다. 캐릭터 봇(handlers_char.py)에서 처리.
+Does not handle chat/conversation; that lives in the character bot (handlers_char.py).
 """
 
 import asyncio
@@ -19,34 +19,34 @@ import src.comfyui as comfyui
 import src.grok_search as grok_search
 
 logger = logging.getLogger(__name__)
-TOS_URL = "https://telegra.ph/Ella-AI-%EC%9D%B4%EC%9A%A9%EC%95%BD%EA%B4%80--Terms-of-Service-04-07"
-PRIVACY_URL = "https://telegra.ph/Ella-AI-개인정보-처리방침--Privacy-Policy-04-09"
+TOS_URL = ""  # set this to a Terms-of-Service URL appropriate for your deployment
+PRIVACY_URL = ""  # set this to a privacy-policy URL appropriate for your deployment
 
 
-# 캐릭터 표시 순서 (persona에 profile_summary_ko가 없어도 이 순서로 나열)
-# 일반(1~6) → char09 (박수연) → char10 (서유진) → 판타지(7, 8) → 이미지 생성기
-_CHAR_ORDER = ["char01", "char02", "char03", "char04", "char05", "char06", "char09", "char10", "char07", "char08", "imagegen"]
+# Character display order (used as the listing order even when persona has no profile_summary_ko)
+# Sample fork ships only char05 (Jiwon Han) + the image generator entry — char01-04 / char06-09 were dropped.
+_CHAR_ORDER = ["char05", "imagegen"]
 
-# imagegen은 persona 파일이 없으므로 메인 봇에서 직접 캡션 정의
-_IMAGEGEN_SUMMARY = "🎨 이미지 생성기\n한글로 설명하면 AI가 이미지를 만들어줍니다. 캐릭터 이름을 넣으면 해당 캐릭터로 생성!"
+# imagegen has no persona file, so the main bot defines its caption directly
+_IMAGEGEN_SUMMARY = "🎨 Image Generator\nDescribe what you want in plain English and the AI will draw it. Mention a character name to generate them!"
 
 
 def _get_char_summary(char_id: str, characters: dict) -> str | None:
-    """캐릭터 한국어 프로필 소개를 가져온다. persona의 profile_summary_ko 우선, imagegen은 특수 처리."""
+    """Fetch the character profile summary. Prefers persona's profile_summary_ko; imagegen is special-cased."""
     if char_id == "imagegen":
         return _IMAGEGEN_SUMMARY
     cd = characters.get(char_id, {})
     summary = cd.get("profile_summary_ko")
     if summary:
         return summary
-    # fallback: name + description 첫 줄
+    # fallback: name + first line of description
     name = cd.get("name", char_id)
     desc = (cd.get("description") or "").strip().split("\n")[0][:200]
     return f"{name}\n{desc}" if desc else name
 
 
 def _build_character_descriptions(characters: dict) -> str:
-    """등록된 캐릭터들의 한국어 소개 텍스트를 생성한다. (레거시)"""
+    """Build the joined character intro text for registered characters. (legacy)"""
     lines = []
     for char_id in characters:
         summary = _get_char_summary(char_id, characters)
@@ -57,7 +57,7 @@ def _build_character_descriptions(characters: dict) -> str:
 
 
 def _build_character_keyboard(characters: dict) -> InlineKeyboardMarkup | None:
-    """캐릭터 봇 링크 인라인 키보드를 생성한다."""
+    """Build an inline keyboard with character bot links."""
     keyboard = []
     for char_id, char_data in characters.items():
         bot_username = os.getenv(f"CHAR_USERNAME_{char_id}", "")
@@ -66,23 +66,23 @@ def _build_character_keyboard(characters: dict) -> InlineKeyboardMarkup | None:
         name = char_data.get("name", char_id)
         keyboard.append([InlineKeyboardButton(name, url=f"https://t.me/{bot_username}")])
 
-    # 이미지 생성기 버튼
+    # Image generator button
     imagegen_username = os.getenv("CHAR_USERNAME_imagegen", "")
     if imagegen_username:
         keyboard.append([InlineKeyboardButton(
-            "🎨 이미지 생성기", url=f"https://t.me/{imagegen_username}"
+            "🎨 Image Generator", url=f"https://t.me/{imagegen_username}"
         )])
 
     return InlineKeyboardMarkup(keyboard) if keyboard else None
 
 
 async def _send_character_cards(update: Update, context: ContextTypes.DEFAULT_TYPE, characters: dict):
-    """등록된 캐릭터별로 프로필 이미지 + 캡션 + 인라인 버튼을 개별 메시지로 전송한다."""
+    """For each registered character, send a separate message with profile image + caption + inline button."""
     project_root = Path(__file__).resolve().parents[1]
 
-    # 노출 대상 캐릭터 목록 조립:
-    # 1) _CHAR_ORDER 순서 유지 (char01~08, imagegen) — 등록된 것만
-    # 2) 그 외 characters dict에 있고 CHAR_USERNAME이 설정된 캐릭터 (test 환경의 char_test 등)
+    # Build the list of characters to expose:
+    # 1) Preserve _CHAR_ORDER (char01~08, imagegen) — only registered ones
+    # 2) Plus any other characters in `characters` that have CHAR_USERNAME set (e.g. char_test in dev)
     char_ids: list[str] = []
     seen: set[str] = set()
     for cid in _CHAR_ORDER:
@@ -96,32 +96,32 @@ async def _send_character_cards(update: Update, context: ContextTypes.DEFAULT_TY
             seen.add(cid)
 
     for char_id in char_ids:
-        # imagegen은 characters dict에 없어도 허용 (별도 봇이므로 username만 확인)
+        # Allow imagegen even if it's not in the characters dict (it's a separate bot — only username is needed)
         if char_id != "imagegen" and char_id not in characters:
             continue
 
         bot_username = os.getenv(f"CHAR_USERNAME_{char_id}", "")
 
-        # 캡션: persona의 profile_summary_ko (imagegen은 _IMAGEGEN_SUMMARY)
+        # Caption: persona's profile_summary_ko (or _IMAGEGEN_SUMMARY for imagegen)
         summary = _get_char_summary(char_id, characters)
 
-        # 캐릭터 메타 (이름 추출용)
+        # Character metadata (for name extraction)
         char_data = characters.get(char_id, {})
         name = char_data.get("name", char_id)
 
-        # 인라인 버튼 조립
+        # Inline button assembly
         if not bot_username:
-            # username이 없으면 해당 캐릭터는 스킵
+            # No username configured -> skip this character
             continue
         if char_id == "imagegen":
-            label = "🎨 이미지 생성 시작"
+            label = "🎨 Start Image Generation"
         else:
-            label = "💬 대화 시작"
+            label = "💬 Start Chat"
         button = InlineKeyboardButton(label, url=f"https://t.me/{bot_username}")
 
         reply_markup = InlineKeyboardMarkup([[button]])
 
-        # 프로필 이미지 경로
+        # Profile image path
         image_path = project_root / "images" / "profile" / f"{char_id}.png"
 
         try:
@@ -133,132 +133,128 @@ async def _send_character_cards(update: Update, context: ContextTypes.DEFAULT_TY
                         reply_markup=reply_markup,
                     )
             else:
-                # 이미지가 없으면 텍스트로 fallback
+                # No image available — fallback to text
                 await update.effective_chat.send_message(summary, reply_markup=reply_markup)
         except Exception as e:
-            logger.warning("캐릭터 카드 전송 실패 (%s): %s", char_id, e)
-            # 실패 시에도 텍스트로 최소 노출
+            logger.warning("character card send failed (%s): %s", char_id, e)
+            # On failure, still try to surface a text message
             try:
                 await update.effective_chat.send_message(summary, reply_markup=reply_markup)
             except Exception:
                 pass
 
-        # rate limit 회피
+        # Avoid rate limits
         await asyncio.sleep(0.3)
 
 
 async def main_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/start 커맨드 — 온보딩 게이트 + 환영 메시지 + 캐릭터 봇 링크."""
+    """/start command — onboarding gate + welcome message + character bot links."""
     user_id = update.effective_user.id
 
-    # 온보딩 완료 → 환영 메시지
+    # Already onboarded -> welcome message
     if is_onboarded(user_id):
         await _send_welcome(update, context)
         return
 
-    # 온보딩 게이트
+    # Onboarding gate
     text = (
-        "⚠️ 이 서비스는 19세 이상 이용 가능합니다.\n"
-        "서비스를 이용하려면 아래에 동의해 주세요.\n\n"
         "⚠️ This service is for users aged 19 and above.\n"
         "Please agree to the terms below to continue.\n\n"
-        "• 본 서비스는 AI 캐릭터 챗봇이며 성인 콘텐츠를 포함할 수 있습니다.\n"
         "• This service is an AI character chatbot that may contain adult content.\n\n"
-        f"📋 이용약관 / Terms of Service:\n{TOS_URL}"
+        f"📋 Terms of Service:\n{TOS_URL}"
     )
     keyboard = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("✅ 동의합니다 / I Agree", callback_data="onboard_agree"),
-            InlineKeyboardButton("❌ 거부 / Decline", callback_data="onboard_decline"),
+            InlineKeyboardButton("✅ I Agree", callback_data="onboard_agree"),
+            InlineKeyboardButton("❌ Decline", callback_data="onboard_decline"),
         ]
     ])
     await update.message.reply_text(text, reply_markup=keyboard)
 
 
 async def _send_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """온보딩 완료 유저에게 환영 메시지를 전송한다."""
+    """Send the welcome message to onboarded users."""
     user_id = update.effective_user.id if update.effective_user else 0
     characters = context.bot_data.get("characters", {})
     text = (
-        "안녕하세요! Ella AI 캐릭터 챗봇입니다.\n\n"
-        "📋 사용 가능한 기능:\n"
-        "/char — 캐릭터 선택\n"
-        "/profile — 내 프로필 설정/조회\n"
-        "/privacy — 개인정보 처리방침\n"
-        "/deletedata — 내 데이터 삭제\n"
+        "Hello! This is the Ella AI character chatbot.\n\n"
+        "📋 Available commands:\n"
+        "/char — pick a character\n"
+        "/profile — view / set your profile\n"
+        "/privacy — privacy policy\n"
+        "/deletedata — delete your data\n"
     )
     if check_admin(user_id):
         text += (
             "\n🔧 Admin:\n"
-            "/admin — 관리 메뉴\n"
+            "/admin — admin menu\n"
         )
     text += (
-        "\n📩 캐릭터 제작 문의: ella.ai.project@gmail.com\n"
-        "\n아래에서 캐릭터를 선택하세요 ⬇️\n"
+        "\n📩 Character requests / inquiries: ella.ai.project@gmail.com\n"
+        "\nPick a character below ⬇️\n"
     )
     await update.effective_chat.send_message(text)
     await _send_character_cards(update, context, characters)
 
 
 async def onboard_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """메인 봇 온보딩 동의/거부 콜백."""
+    """Main bot onboarding agree/decline callback."""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
 
     if query.data == "onboard_agree":
         set_onboarded(user_id)
-        logger.info("유저 %s 온보딩 동의 완료", user_id)
-        await query.edit_message_text("✅ 동의 완료! / Agreed!")
+        logger.info("user %s onboarding accepted", user_id)
+        await query.edit_message_text("✅ Agreed!")
         await _send_welcome(update, context)
 
     elif query.data == "onboard_decline":
         await query.edit_message_text(
-            "동의하지 않으면 서비스를 이용할 수 없습니다.\n"
             "You cannot use this service without agreement.\n\n"
-            "다시 시작하려면 /start를 입력하세요."
+            "Send /start to try again."
         )
 
 
 async def char_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/char — 캐릭터 선택 메뉴."""
+    """/char — character selection menu."""
     characters = context.bot_data.get("characters", {})
     if not characters:
-        await update.message.reply_text("등록된 캐릭터 봇이 없습니다.")
+        await update.message.reply_text("No character bots are registered.")
         return
-    await update.message.reply_text("캐릭터를 선택하세요:")
+    await update.message.reply_text("Pick a character:")
     await _send_character_cards(update, context, characters)
 
 
 async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/profile 커맨드 — 글로벌 유저 프로필 조회/설정. 자유 키 지원.
+    """/profile command — view / set the global user profile. Free-form keys supported.
 
-    메인 봇에서는 항상 글로벌 스코프로 동작한다.
-    캐릭터별 프로필(nickname 등)은 캐릭터 봇에서 설정.
+    The main bot always operates in the global scope.
+    Per-character profile fields (e.g. nickname) are set from the character bot.
     """
     user_id = update.effective_user.id
     args = context.args if context.args else []
 
-    # 인자 없으면 -> 프로필 조회
+    # No args -> view profile
     if not args:
         profile = get_full_profile(user_id, "global")
         if not profile:
             await update.message.reply_text(
-                "설정된 프로필이 없습니다.\n\n"
-                "사용법: /profile 키 값\n"
-                "예시: /profile name 준희\n"
-                "/profile location 서울\n"
-                "/profile favorite_team 토트넘"
+                "No profile set yet.\n\n"
+                "Usage: /profile <key> <value>\n"
+                "Examples: /profile name Junhee\n"
+                "/profile location Seoul\n"
+                "/profile favorite_team Tottenham"
             )
             return
         lines = []
         for key, data in profile.items():
             source_tag = " (auto)" if data["source"] == "auto" else ""
             lines.append(f"• {key}: {data['value']}{source_tag}")
-        await update.message.reply_text("📋 프로필:\n" + "\n".join(lines))
+        await update.message.reply_text("📋 Profile:\n" + "\n".join(lines))
         return
 
-    # delete all -> 프로필 전체 삭제
+    # delete all -> wipe the entire profile
     key = args[0].lower()
     if key == "delete" and len(args) > 1 and args[1].lower() == "all":
         conn = _get_connection()
@@ -267,114 +263,114 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.commit()
         finally:
             conn.close()
-        await update.message.reply_text("✅ 프로필이 전부 삭제되었습니다.")
-        logger.info("유저 %s 프로필 전체 삭제", user_id)
+        await update.message.reply_text("✅ Your entire profile has been deleted.")
+        logger.info("user %s profile fully deleted", user_id)
         return
 
-    # 프로필 설정 (자유 키)
+    # Set a profile entry (free-form key)
     value = " ".join(args[1:]) if len(args) > 1 else ""
 
     if not value:
-        await update.message.reply_text(f"사용법: /profile {key} 값\n전체 삭제: /profile delete all")
+        await update.message.reply_text(f"Usage: /profile {key} <value>\nDelete all: /profile delete all")
         return
 
-    # 프로필 값 인젝션 방어
+    # Defense against injection in profile values
     value = strip_signals(value)
     blocked, pattern = check_regex(value)
     if blocked:
-        logger.warning("[security] 프로필 인젝션 차단: user=%s key=%s value=%s", user_id, key, value[:100])
-        await update.message.reply_text("프로필에 허용되지 않는 내용이 포함되어 있습니다.")
+        logger.warning("[security] profile injection blocked: user=%s key=%s value=%s", user_id, key, value[:100])
+        await update.message.reply_text("Your profile value contains content that is not allowed.")
         return
 
     set_profile(user_id, "global", key, value, source="manual")
-    await update.message.reply_text(f"✅ 글로벌 프로필 설정: {key} = {value}")
-    logger.info("유저 %s 프로필 설정: %s=%s (scope=global)", user_id, key, value)
+    await update.message.reply_text(f"✅ Global profile set: {key} = {value}")
+    logger.info("user %s profile set: %s=%s (scope=global)", user_id, key, value)
 
 
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/admin — Admin 메뉴."""
+    """/admin — Admin menu."""
     if not check_admin(update.effective_user.id):
         return
     text = (
-        "🔧 Admin 메뉴:\n\n"
-        "/stats — 전체 통계\n"
-        "/blocked — 차단 유저 목록\n"
-        "/unblock <user_id> — 차단 해제\n"
-        "/runpod on|off|status — RunPod 관리\n"
-        "/runpod_video on|off|status — RunPod 비디오 관리"
+        "🔧 Admin menu:\n\n"
+        "/stats — overall statistics\n"
+        "/blocked — list blocked users\n"
+        "/unblock <user_id> — unblock a user\n"
+        "/runpod on|off|status — manage RunPod\n"
+        "/runpod_video on|off|status — manage RunPod video"
     )
     await update.message.reply_text(text)
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/stats — 전체 통계 (Admin 전용)."""
+    """/stats — overall statistics (Admin only)."""
     if not check_admin(update.effective_user.id):
         return
     stats = get_stats()
     text = (
-        f"📊 전체 통계:\n\n"
-        f"👥 총 유저: {stats['total_users']}명"
+        f"📊 Overall stats:\n\n"
+        f"👥 Total users: {stats['total_users']}"
     )
     await update.message.reply_text(text)
 
 
 async def unblock_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/unblock <user_id> — 유저 차단 해제 (Admin 전용)."""
+    """/unblock <user_id> — unblock a user (Admin only)."""
     if not check_admin(update.effective_user.id):
         return
     args = context.args or []
     if not args:
-        await update.message.reply_text("사용법: /unblock <user_id>")
+        await update.message.reply_text("Usage: /unblock <user_id>")
         return
     target_id = int(args[0])
     if rate_limiter.unblock(target_id):
-        await update.message.reply_text(f"✅ 유저 {target_id} 차단 해제 완료")
+        await update.message.reply_text(f"✅ User {target_id} unblocked")
     else:
-        await update.message.reply_text(f"유저 {target_id}는 차단 중이 아닙니다.")
+        await update.message.reply_text(f"User {target_id} is not currently blocked.")
 
 
 async def blocked_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/blocked — 현재 차단 중인 유저 목록 (Admin 전용)."""
+    """/blocked — list currently blocked users (Admin only)."""
     if not check_admin(update.effective_user.id):
         return
     blocked = rate_limiter.get_blocked_users()
     if not blocked:
-        await update.message.reply_text("현재 차단 중인 유저가 없습니다.")
+        await update.message.reply_text("No users are currently blocked.")
         return
     lines = []
     for entry in blocked:
         mins = int(entry["remaining"] // 60)
         secs = int(entry["remaining"] % 60)
-        lines.append(f"• user {entry['user_id']} — {mins}분 {secs}초 남음")
-    text = f"🚫 차단 유저: {len(blocked)}명\n\n" + "\n".join(lines)
+        lines.append(f"• user {entry['user_id']} — {mins}m {secs}s remaining")
+    text = f"🚫 Blocked users: {len(blocked)}\n\n" + "\n".join(lines)
     await update.message.reply_text(text)
 
 
 async def deletedata_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/deletedata — 개인정보 삭제 요청."""
+    """/deletedata — request personal data deletion."""
     keyboard = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("✅ 삭제합니다", callback_data="deletedata_confirm"),
-            InlineKeyboardButton("❌ 취소", callback_data="deletedata_cancel"),
+            InlineKeyboardButton("✅ Delete", callback_data="deletedata_confirm"),
+            InlineKeyboardButton("❌ Cancel", callback_data="deletedata_cancel"),
         ]
     ])
     await update.message.reply_text(
-        "⚠️ 정말 모든 데이터를 삭제하시겠습니까?\n\n"
-        "삭제되는 항목:\n"
-        "• 모든 대화 히스토리\n"
-        "• 대화 요약\n"
-        "• 유저 프로필\n"
-        "• 장기 기억 (관계, 이벤트)\n"
-        "• 의상 설정\n"
-        "• 사용량 기록\n"
-        "• 계정 설정 (온보딩 초기화)\n\n"
-        "⚠️ 이 작업은 되돌릴 수 없습니다.",
+        "⚠️ Are you sure you want to delete all of your data?\n\n"
+        "What will be deleted:\n"
+        "• All chat history\n"
+        "• Chat summaries\n"
+        "• User profile\n"
+        "• Long-term memory (relationships, events)\n"
+        "• Outfit settings\n"
+        "• Usage records\n"
+        "• Account settings (onboarding will be reset)\n\n"
+        "⚠️ This cannot be undone.",
         reply_markup=keyboard,
     )
 
 
 async def deletedata_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """개인정보 삭제 확인/취소 콜백."""
+    """Confirm/cancel personal data deletion."""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -382,25 +378,25 @@ async def deletedata_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if query.data == "deletedata_confirm":
         deleted = delete_all_user_data(user_id)
         total = sum(deleted.values())
-        logger.info("유저 %s 데이터 삭제 완료: %s (총 %d행)", user_id, deleted, total)
+        logger.info("user %s data deletion done: %s (total %d rows)", user_id, deleted, total)
         await query.edit_message_text(
-            "✅ 모든 데이터가 삭제되었습니다.\n\n"
-            "서비스를 다시 이용하시려면 /start로 재가입해주세요."
+            "✅ All of your data has been deleted.\n\n"
+            "Send /start again to re-register if you want to use the service later."
         )
     elif query.data == "deletedata_cancel":
-        await query.edit_message_text("취소되었습니다. 데이터는 그대로 유지됩니다.")
+        await query.edit_message_text("Cancelled. Your data is unchanged.")
 
 
 async def privacy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/privacy — 개인정보 처리방침."""
+    """/privacy — privacy policy."""
     await update.message.reply_text(
-        f"📋 개인정보 처리방침 / Privacy Policy:\n{PRIVACY_URL}\n\n"
-        "데이터 삭제를 원하시면 /deletedata를 입력해주세요."
+        f"📋 Privacy Policy:\n{PRIVACY_URL}\n\n"
+        "If you'd like to delete your data, send /deletedata."
     )
 
 
 async def runpod_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/runpod on|off|status — RunPod Serverless 관리 (Admin 전용)."""
+    """/runpod on|off|status — manage RunPod Serverless (Admin only)."""
     if not check_admin(update.effective_user.id):
         return
 
@@ -408,14 +404,14 @@ async def runpod_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     subcmd = args[0].lower() if args else "status"
 
     if subcmd == "on":
-        # 1. workersMin=1 설정
-        await update.message.reply_text("RunPod 워커 시작 중...")
+        # 1. Set workersMin=1
+        await update.message.reply_text("Starting RunPod workers...")
         result = await comfyui.set_runpod_workers(1)
         if "error" in result:
-            await update.message.reply_text(f"RunPod workersMin 설정 실패: {result['error']}")
+            await update.message.reply_text(f"Failed to set RunPod workersMin: {result['error']}")
             return
 
-        # 2. 워커 준비 대기 (최대 30초, 5초 간격 폴링)
+        # 2. Wait for workers to be ready (up to 30s, polling every 5s)
         comfyui.runpod_enabled = True
         ready = False
         for _ in range(6):
@@ -429,15 +425,15 @@ async def runpod_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if ready:
             await update.message.reply_text(
-                f"✅ RunPod ON — 워커 준비 완료\n"
+                f"✅ RunPod ON — workers ready\n"
                 f"Workers: ready={workers.get('ready', 0)}, idle={workers.get('idle', 0)}, running={workers.get('running', 0)}"
             )
         else:
             health = await comfyui.check_runpod_health()
             await update.message.reply_text(
-                f"⚠️ RunPod ON — 활성화했으나 워커 아직 준비 안 됨 (cold start 중)\n"
+                f"⚠️ RunPod ON — enabled but workers not yet ready (cold start in progress)\n"
                 f"Health: {health}\n"
-                f"잠시 후 /runpod status로 확인하세요."
+                f"Try /runpod status again in a moment."
             )
 
     elif subcmd == "off":
@@ -445,14 +441,14 @@ async def runpod_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = await comfyui.set_runpod_workers(0)
         if "error" in result:
             await update.message.reply_text(
-                f"RunPod 비활성화 완료 (라우팅 OFF)\n"
-                f"⚠️ workersMin=0 설정 실패: {result['error']}"
+                f"RunPod disabled (routing OFF)\n"
+                f"⚠️ Failed to set workersMin=0: {result['error']}"
             )
         else:
-            await update.message.reply_text("✅ RunPod OFF — 라우팅 비활성화 + workersMin=0")
+            await update.message.reply_text("✅ RunPod OFF — routing disabled + workersMin=0")
 
     else:
-        # status (기본)
+        # status (default)
         enabled_str = "ON ✅" if comfyui.runpod_enabled else "OFF ❌"
         health = await comfyui.check_runpod_health()
         local_queue = await comfyui.check_queue()
@@ -470,19 +466,19 @@ async def runpod_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         text = (
-            f"🖥 RunPod 상태\n"
-            f"라우팅: {enabled_str}\n"
-            f"Endpoint: {comfyui.RUNPOD_ENDPOINT_ID or '(미설정)'}\n"
+            f"🖥 RunPod status\n"
+            f"Routing: {enabled_str}\n"
+            f"Endpoint: {comfyui.RUNPOD_ENDPOINT_ID or '(unset)'}\n"
             f"Max Queue: {comfyui.RUNPOD_MAX_QUEUE}\n\n"
             f"📡 RunPod Health:\n{runpod_status}\n\n"
-            f"🏠 GB10 로컬 ComfyUI:\n"
+            f"🏠 Local GB10 ComfyUI:\n"
             f"Running: {local_queue.get('running', '?')}, Pending: {local_queue.get('pending', '?')}"
         )
         await update.message.reply_text(text)
 
 
 async def runpod_video_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/runpod_video on|off|status — RunPod 비디오 Serverless 관리 (Admin 전용)."""
+    """/runpod_video on|off|status — manage RunPod video Serverless (Admin only)."""
     if not check_admin(update.effective_user.id):
         return
 
@@ -490,15 +486,15 @@ async def runpod_video_command(update: Update, context: ContextTypes.DEFAULT_TYP
     subcmd = args[0].lower() if args else "status"
 
     if subcmd == "on":
-        await update.message.reply_text("RunPod Video 워커 시작 중... (cold start S3 다운로드 ~3-5분)")
-        # workersMin=1로 active worker 강제 (running 상태 진입 + S3 모델 다운로드 트리거)
+        await update.message.reply_text("Starting RunPod video workers... (cold-start S3 download ~3-5 min)")
+        # Force an active worker by setting workersMin=1 (enters running state + triggers S3 model download)
         result = await comfyui.set_runpod_video_workers(1, comfyui.RUNPOD_VIDEO_MAX_WORKERS)
         if "error" in result:
-            await update.message.reply_text(f"RunPod Video 설정 실패: {result['error']}")
+            await update.message.reply_text(f"Failed to configure RunPod video: {result['error']}")
             return
 
         comfyui.runpod_video_enabled = True
-        # 워커 running 상태 대기 (최대 5분, 10초 간격 폴링)
+        # Wait for the worker to enter running state (up to 5 min, polling every 10s)
         running = False
         for _ in range(30):
             await asyncio.sleep(10)
@@ -510,16 +506,16 @@ async def runpod_video_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
         if running:
             await update.message.reply_text(
-                f"✅ RunPod Video ON — 워커 active\n"
+                f"✅ RunPod Video ON — worker active\n"
                 f"Workers: running={workers.get('running', 0)}, ready={workers.get('ready', 0)}, "
                 f"idle={workers.get('idle', 0)}, initializing={workers.get('initializing', 0)}"
             )
         else:
             health = await comfyui.check_runpod_video_health()
             await update.message.reply_text(
-                f"⚠️ RunPod Video ON — 활성화했으나 5분 내 워커 ready 안 됨 (S3 다운로드 지연 가능)\n"
+                f"⚠️ RunPod Video ON — enabled but no worker ready within 5 min (S3 download may be delayed)\n"
                 f"Health: {health}\n"
-                f"잠시 후 /runpod_video status로 확인하세요."
+                f"Try /runpod_video status again in a moment."
             )
 
     elif subcmd == "off":
@@ -527,14 +523,14 @@ async def runpod_video_command(update: Update, context: ContextTypes.DEFAULT_TYP
         result = await comfyui.set_runpod_video_workers(0, 0)
         if "error" in result:
             await update.message.reply_text(
-                f"RunPod Video 비활성화 완료 (라우팅 OFF)\n"
-                f"⚠️ workers 설정 실패: {result['error']}"
+                f"RunPod Video disabled (routing OFF)\n"
+                f"⚠️ Failed to set workers: {result['error']}"
             )
         else:
-            await update.message.reply_text("✅ RunPod Video OFF — 라우팅 비활성화 + workers=0")
+            await update.message.reply_text("✅ RunPod Video OFF — routing disabled + workers=0")
 
     else:
-        # status (기본)
+        # status (default)
         enabled_str = "ON ✅" if comfyui.runpod_video_enabled else "OFF ❌"
         health = await comfyui.check_runpod_video_health()
 
@@ -551,9 +547,9 @@ async def runpod_video_command(update: Update, context: ContextTypes.DEFAULT_TYP
             )
 
         text = (
-            f"🎬 RunPod Video 상태\n"
-            f"라우팅: {enabled_str}\n"
-            f"Endpoint: {comfyui.RUNPOD_VIDEO_ENDPOINT_ID or '(미설정)'}\n"
+            f"🎬 RunPod Video status\n"
+            f"Routing: {enabled_str}\n"
+            f"Endpoint: {comfyui.RUNPOD_VIDEO_ENDPOINT_ID or '(unset)'}\n"
             f"Max Workers: {comfyui.RUNPOD_VIDEO_MAX_WORKERS}\n\n"
             f"📡 Health:\n{runpod_status}"
         )
@@ -561,7 +557,7 @@ async def runpod_video_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/search on|off|status — Grok 인터넷 검색 on/off (Admin 전용)."""
+    """/search on|off|status — toggle Grok web search (Admin only)."""
     if not check_admin(update.effective_user.id):
         return
 
@@ -570,11 +566,11 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if subcmd == "on":
         grok_search.GROK_SEARCH_ENABLED = True
-        await update.message.reply_text("✅ Grok Search ON — 캐릭터 인터넷 검색 활성화")
+        await update.message.reply_text("✅ Grok Search ON — character web search enabled")
 
     elif subcmd == "off":
         grok_search.GROK_SEARCH_ENABLED = False
-        await update.message.reply_text("✅ Grok Search OFF — 캐릭터 인터넷 검색 비활성화")
+        await update.message.reply_text("✅ Grok Search OFF — character web search disabled")
 
     else:
         enabled_str = "ON ✅" if grok_search.GROK_SEARCH_ENABLED else "OFF ❌"
@@ -584,24 +580,24 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cache_size = len(grok_search._search_cache)
 
         text = (
-            f"🔍 Grok Search 상태\n"
-            f"검색: {enabled_str}\n"
-            f"월간 사용: {monthly_used}/{monthly_limit} ({month})\n"
-            f"캐시: {cache_size}개\n"
-            f"제외 캐릭터: {os.getenv('SEARCH_EXCLUDED_CHARS', 'char07,char08')}"
+            f"🔍 Grok Search status\n"
+            f"Search: {enabled_str}\n"
+            f"Monthly usage: {monthly_used}/{monthly_limit} ({month})\n"
+            f"Cache: {cache_size} entries\n"
+            f"Excluded characters: {os.getenv('SEARCH_EXCLUDED_CHARS', 'char07,char08')}"
         )
         await update.message.reply_text(text)
 
 
 async def scene_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/scene [key|off|list|status] — SFW 씬 강제 오버라이드 (Admin 전용 테스트용).
+    """/scene [key|off|list|status] — force a SFW scene override (Admin testing only).
 
-    씬 key가 SFW_SCENES에 있으면 SFW override로 고정한다.
+    If the scene key exists in SFW_SCENES, the SFW override is pinned to it.
 
-    - /scene list              — SFW 씬 key 나열
-    - /scene status            — 현재 오버라이드 상태
-    - /scene <sfw_key>         — 해당 SFW 씬으로 고정
-    - /scene off / clear       — 오버라이드 해제
+    - /scene list              — list SFW scene keys
+    - /scene status            — show current override
+    - /scene <sfw_key>         — pin to that SFW scene
+    - /scene off / clear       — clear override
     """
     if not check_admin(update.effective_user.id):
         return
@@ -627,8 +623,8 @@ async def scene_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if subcmd == "status":
         s_forced = trait_pools.get_forced_sfw_scene()
         lines = []
-        lines.append(f"🌸 SFW: `{s_forced}` 고정" if s_forced else "🌸 SFW: 랜덤")
-        lines.append("\n(해제하려면 /scene off)")
+        lines.append(f"🌸 SFW: pinned to `{s_forced}`" if s_forced else "🌸 SFW: random")
+        lines.append("\n(use /scene off to clear)")
         await update.message.reply_text("\n".join(lines))
         return
 
@@ -640,33 +636,33 @@ async def scene_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(("✅ SFW: " if ok else "❌ SFW: ") + msg)
     else:
         await update.message.reply_text(
-            f"❌ 알 수 없는 씬 key '{key}'. /scene list 로 확인."
+            f"❌ Unknown scene key '{key}'. Run /scene list to see available keys."
         )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/help — 커맨드 목록."""
+    """/help — command list."""
     user_id = update.effective_user.id if update.effective_user else 0
     text = (
-        "📋 커맨드 목록:\n\n"
-        "/start — 서비스 시작\n"
-        "/char — 캐릭터 선택\n"
-        "/profile — 내 프로필 설정/조회\n"
-        "/privacy — 개인정보 처리방침\n"
-        "/deletedata — 내 데이터 삭제\n"
-        "/help — 도움말\n"
+        "📋 Commands:\n\n"
+        "/start — start the service\n"
+        "/char — pick a character\n"
+        "/profile — view / set your profile\n"
+        "/privacy — privacy policy\n"
+        "/deletedata — delete your data\n"
+        "/help — this help message\n"
     )
     if check_admin(user_id):
         text += (
             "\n🔧 Admin:\n"
-            "/admin — 관리 메뉴\n"
+            "/admin — admin menu\n"
         )
-    text += "\n📩 문의: ella.ai.project@gmail.com"
+    text += "\n📩 Contact: ella.ai.project@gmail.com"
     await update.message.reply_text(text)
 
 
 def register_main_handlers(app):
-    """메인 봇에 핸들러를 등록한다."""
+    """Register handlers on the main bot."""
     app.add_handler(CommandHandler("start", main_start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CallbackQueryHandler(onboard_main_callback, pattern="^onboard_"))

@@ -24,8 +24,8 @@ type NavItem = {
 
 const items: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, enabled: true },
-  { href: "/connections", label: "Connections", icon: Network, enabled: false },
-  { href: "/env", label: "Env", icon: Settings2, enabled: false },
+  { href: "/connections", label: "Connections", icon: Network, enabled: true },
+  { href: "/env", label: "Env", icon: Settings2, enabled: true },
   { href: "/prompts", label: "Prompts", icon: FileText, enabled: false },
   { href: "/characters", label: "Characters", icon: Users, enabled: false },
   { href: "/config", label: "Image Config", icon: ImageIcon, enabled: false },
@@ -56,7 +56,7 @@ export function Sidebar() {
                   base,
                   "cursor-not-allowed text-muted-foreground/60",
                 )}
-                title="다음 마일스톤에서 활성화"
+                title="Activates in a later milestone"
               >
                 <Icon className="h-4 w-4" />
                 {item.label}

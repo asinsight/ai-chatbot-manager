@@ -16,7 +16,7 @@ SUMMARY_PROMPT = (
 )
 
 def _build_extract_prompt() -> str:
-    """EXTRACT_PROMPT를 런타임에 빌드한다 (canonical key 목록 동적 주입)."""
+    """Build EXTRACT_PROMPT at runtime (injects the canonical-key list dynamically)."""
     from src.profile_keys import get_canonical_keys
     canonical = ", ".join(get_canonical_keys())
     return f"""\
@@ -43,7 +43,7 @@ EXTRACT_FALLBACK = {"relationship": "", "events": [], "user_info": {}}
 
 
 def _format_messages(messages: list[dict]) -> str:
-    """메시지 리스트를 텍스트로 변환"""
+    """Convert a messages list into a plain-text transcript."""
     lines = []
     for msg in messages:
         role = msg.get("role", "unknown")
@@ -58,15 +58,15 @@ async def _call_provider(
     user_message: str,
     provider: str,
 ) -> str:
-    """LLM 프로바이더를 호출하여 텍스트 응답을 반환하는 공통 헬퍼.
+    """Common helper that invokes an LLM provider and returns the text response.
 
     Args:
-        system_prompt: 시스템 프롬프트
-        user_message: 유저 메시지 (대화 내용 등)
-        provider: "local" (Open WebUI) 또는 "grok"
+        system_prompt: system prompt
+        user_message: user message (e.g. the conversation transcript)
+        provider: "local" (Open WebUI) or "grok"
 
     Returns:
-        LLM 응답 텍스트. 실패 시 예외를 그대로 전파한다.
+        LLM response text. Propagates the underlying exception on failure.
     """
     if provider == "grok":
         api_key = os.getenv("GROK_API_KEY", "")
@@ -86,7 +86,7 @@ async def _call_provider(
         )
         return response.choices[0].message.content or ""
     else:
-        # local — LLM 큐 경유 (낮은 우선순위)
+        # local — go through the LLM queue (low priority)
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
@@ -95,16 +95,16 @@ async def _call_provider(
 
 
 def _parse_json(text: str) -> dict | None:
-    """LLM 응답에서 JSON 객체를 추출하여 파싱한다.
+    """Parse a JSON object out of an LLM response.
 
-    ```json ... ``` 블록 → raw { ... } 순서로 시도.
+    Tries ```json ... ``` fenced blocks first, then a raw { ... } substring.
     """
-    # ```json ... ``` 블록 추출 시도
+    # Try to extract a ```json ... ``` fenced block first
     json_block = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
     if json_block:
         text_to_parse = json_block.group(1).strip()
     else:
-        # JSON 객체 직접 추출 시도
+        # Fall back to extracting a raw JSON object directly
         json_obj = re.search(r"\{.*\}", text, re.DOTALL)
         if json_obj:
             text_to_parse = json_obj.group(0)
@@ -121,14 +121,14 @@ async def summarize_messages(
     messages: list[dict],
     provider: str | None = None,
 ) -> str:
-    """대화 히스토리를 요약한다.
+    """Summarize a conversation history.
 
     Args:
-        messages: 대화 메시지 리스트 [{"role": "user"/"assistant", "content": "..."}]
-        provider: "local" (Open WebUI) 또는 "grok". None이면 환경변수 참조.
+        messages: list of conversation messages [{"role": "user"/"assistant", "content": "..."}]
+        provider: "local" (Open WebUI) or "grok". If None, reads the env var.
 
     Returns:
-        영어 요약 문자열. 실패 시 fallback 메시지.
+        English summary string. Returns the fallback message on failure.
     """
     if provider is None:
         provider = os.getenv("SUMMARY_PROVIDER", "local")
@@ -140,21 +140,21 @@ async def summarize_messages(
 
     try:
         if provider == "grok":
-            logger.info("Grok API로 요약 생성 중 (%d개 메시지)", len(messages))
+            logger.info("summarizing via Grok API (%d messages)", len(messages))
         else:
-            logger.info("Open WebUI API로 요약 생성 중 (%d개 메시지)", len(messages))
+            logger.info("summarizing via Open WebUI API (%d messages)", len(messages))
 
         summary = await _call_provider(SUMMARY_PROMPT, text, provider)
 
         if not summary.strip():
-            logger.warning("요약 결과가 비어 있음")
+            logger.warning("summary result is empty")
             return FALLBACK_MESSAGE
 
-        logger.info("요약 생성 완료 (%d자)", len(summary))
+        logger.info("summary generated (%d chars)", len(summary))
         return summary.strip()
 
     except Exception as e:
-        logger.error("요약 생성 실패 (provider=%s): %s", provider, e)
+        logger.error("summary generation failed (provider=%s): %s", provider, e)
         return FALLBACK_MESSAGE
 
 
@@ -163,12 +163,12 @@ async def extract_memory_and_profile(
     existing_summary: str = "",
     provider: str = None,
 ) -> dict:
-    """대화에서 장기 기억(관계/이벤트)과 유저 프로필 정보를 추출한다.
+    """Extract long-term memory (relationship/events) and user profile from a conversation.
 
     Args:
-        messages: 대화 메시지 리스트 [{"role": "user"/"assistant", "content": "..."}]
-        existing_summary: 기존 요약 (있으면 컨텍스트로 앞에 추가)
-        provider: "local" (Open WebUI) 또는 "grok". None이면 환경변수 참조.
+        messages: list of conversation messages [{"role": "user"/"assistant", "content": "..."}]
+        existing_summary: previous summary (prepended as extra context if provided)
+        provider: "local" (Open WebUI) or "grok". If None, reads the env var.
 
     Returns:
         {
@@ -185,48 +185,48 @@ async def extract_memory_and_profile(
 
     text = _format_messages(messages)
 
-    # 기존 요약이 있으면 컨텍스트로 앞에 추가
+    # If a prior summary exists, prepend it as extra context
     if existing_summary:
         text = f"## Previous summary:\n{existing_summary}\n\n## Conversation:\n{text}"
 
     try:
         if provider == "grok":
-            logger.info("Grok API로 메모리/프로필 추출 중 (%d개 메시지)", len(messages))
+            logger.info("extracting memory/profile via Grok API (%d messages)", len(messages))
         else:
-            logger.info("Open WebUI API로 메모리/프로필 추출 중 (%d개 메시지)", len(messages))
+            logger.info("extracting memory/profile via Open WebUI API (%d messages)", len(messages))
 
         raw_response = await _call_provider(_build_extract_prompt(), text, provider)
 
         if not raw_response.strip():
-            logger.warning("메모리/프로필 추출 결과가 비어 있음")
+            logger.warning("memory/profile extract result is empty")
             return EXTRACT_FALLBACK.copy()
 
         parsed = _parse_json(raw_response)
         if parsed is None:
-            logger.warning("메모리/프로필 JSON 파싱 실패: %s", raw_response[:200])
+            logger.warning("memory/profile JSON parse failed: %s", raw_response[:200])
             return EXTRACT_FALLBACK.copy()
 
-        # 기대하는 키 검증 및 기본값 보장
+        # Validate expected keys and ensure defaults
         result = {
             "relationship": parsed.get("relationship", ""),
             "events": parsed.get("events", []),
             "user_info": parsed.get("user_info", {}),
         }
 
-        # relationship은 문자열이어야 함
+        # relationship must be a string
         if not isinstance(result["relationship"], str):
             result["relationship"] = ""
 
-        # events는 리스트여야 함
+        # events must be a list
         if not isinstance(result["events"], list):
             result["events"] = []
 
-        # user_info는 딕셔너리여야 함
+        # user_info must be a dict
         if not isinstance(result["user_info"], dict):
             result["user_info"] = {}
 
         logger.info(
-            "메모리/프로필 추출 완료 (relationship=%s, events=%d, user_info_keys=%d)",
+            "memory/profile extracted (relationship=%s, events=%d, user_info_keys=%d)",
             bool(result["relationship"]),
             len(result["events"]),
             len(result["user_info"]),
@@ -234,5 +234,5 @@ async def extract_memory_and_profile(
         return result
 
     except Exception as e:
-        logger.error("메모리/프로필 추출 실패 (provider=%s): %s", provider, e)
+        logger.error("memory/profile extraction failed (provider=%s): %s", provider, e)
         return EXTRACT_FALLBACK.copy()

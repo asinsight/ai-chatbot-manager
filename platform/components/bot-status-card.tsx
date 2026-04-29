@@ -108,7 +108,7 @@ export function BotStatusCard() {
           <StatusBadge state={state} />
         </div>
         <CardDescription>
-          Telegram 봇 라이프사이클 (single instance).
+          Telegram bot lifecycle (single instance).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

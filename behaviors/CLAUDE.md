@@ -6,12 +6,9 @@
 
 `charNN.json` 형식 (NN = 두 자리 0-padded). 현재 fork에 들어 있는 카드:
 
-| 파일 | 캐릭터 | Phase |
+| 파일 | 캐릭터 | 비고 |
 |---|---|---|
-| `char01.json` ~ `char08.json` | Phase 3-5에서 신규 작성된 SFW 캐릭터 8명 | 3-5 |
-| `char09.json` | 오하늘 — 수줍은 꽃집 점원 (별도 추가) | char09 추가 |
-
-새 캐릭터를 더할 때는 다음 빈 번호(`char10.json` ...)를 할당하고 `persona/`, `images/`에도 같은 번호로 동시에 만든다. `char_test`류 임시 카드는 fork에 미이관.
+| `char05.json` | Jiwon Han — 31세 임원 비서 (영어로 응답) | i18n 단계에서 char05 만 남기고 나머지 8명 (char01-04, char06-09) 모두 삭제. 추가 캐릭터는 다음 빈 번호로 등록 |
 
 ## 파일 구조
 

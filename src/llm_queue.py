@@ -1,8 +1,8 @@
-"""LLM 요청 큐 — Priority Queue + Semaphore로 동시 실행 제한.
+"""LLM request queue — Priority queue + semaphore for concurrency control.
 
-우선순위:
-  1 (NORMAL): 유저 대화
-  2 (LOW):    요약/추출 (백그라운드)
+Priorities:
+  1 (NORMAL): user-facing chat
+  2 (LOW):    summarization / extraction (background)
 """
 
 import asyncio
@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
-# 우선순위 상수
+# Priority constants
 PRIORITY_HIGH = 0
 PRIORITY_NORMAL = 1
 PRIORITY_LOW = 2
@@ -51,38 +51,38 @@ class LLMQueue:
         self._worker_task = None
 
     async def start(self):
-        """워커 루프 시작 — bot.py에서 호출."""
+        """Start the worker loop — called from bot.py."""
         self._worker_task = asyncio.create_task(self._worker())
         logger.info(
-            "[queue] 워커 시작 (max_concurrent=%d, max_queue=%d, timeout=%ds)",
+            "[queue] worker started (max_concurrent=%d, max_queue=%d, timeout=%ds)",
             self._max_concurrent, self._queue.maxsize, self._timeout,
         )
 
     async def stop(self):
-        """워커 루프 종료."""
+        """Stop the worker loop."""
         if self._worker_task:
             self._worker_task.cancel()
-            logger.info("[queue] 워커 종료")
+            logger.info("[queue] worker stopped")
 
     async def enqueue(self, messages, user_id=0, task_type="chat", max_tokens=250):
-        """요청을 큐에 추가하고 결과를 기다린다.
+        """Enqueue a request and await its result.
 
         Args:
-            messages: LLM에 보낼 메시지 리스트
-            user_id: 유저 ID (우선순위 판단용)
+            messages: list of messages to send to the LLM
+            user_id: user id (used to decide priority)
             task_type: "chat" | "summary" | "extract"
 
         Returns:
-            LLM 응답 문자열
+            LLM response string
 
         Raises:
-            QueueFullError: 큐가 가득 찼을 때
-            QueueTimeoutError: 대기 시간 초과 시
+            QueueFullError: when the queue is full
+            QueueTimeoutError: when the wait time exceeds the timeout
         """
         global _counter
         _counter += 1
 
-        # 우선순위 결정
+        # Decide priority
         if task_type in ("summary", "extract"):
             priority = PRIORITY_LOW
         else:
@@ -103,13 +103,13 @@ class LLMQueue:
             self._queue.put_nowait(item)
         except asyncio.QueueFull:
             logger.warning(
-                "[queue] 큐 풀 거부: user=%s type=%s queue_size=%d",
+                "[queue] queue full, rejected: user=%s type=%s queue_size=%d",
                 user_id, task_type, self._queue.qsize(),
             )
             raise QueueFullError()
 
         logger.info(
-            "[queue] 추가: user=%s type=%s priority=%d 대기=%d",
+            "[queue] enqueued: user=%s type=%s priority=%d pending=%d",
             user_id, task_type, priority, self._queue.qsize(),
         )
 
@@ -117,24 +117,24 @@ class LLMQueue:
             return await asyncio.wait_for(future, timeout=self._timeout)
         except asyncio.TimeoutError:
             logger.warning(
-                "[queue] 타임아웃: user=%s type=%s 대기=%.1fs",
+                "[queue] timeout: user=%s type=%s waited=%.1fs",
                 user_id, task_type, time.time() - item.enqueued_at,
             )
             raise QueueTimeoutError()
 
     async def _worker(self):
-        """큐에서 아이템을 꺼내 LLM 호출을 스케줄링한다."""
+        """Pull items off the queue and schedule LLM calls."""
         while True:
             item = await self._queue.get()
             asyncio.create_task(self._process(item))
 
     async def _process(self, item):
-        """세마포어로 동시 실행 수를 제한하여 LLM 호출."""
+        """Call the LLM with the semaphore bounding concurrency."""
         from src.llm import chat_completion
 
         wait_time = time.time() - item.enqueued_at
         logger.debug(
-            "[queue] 처리 시작: user=%s type=%s 대기=%.1fs",
+            "[queue] processing: user=%s type=%s waited=%.1fs",
             item.user_id, item.task_type, wait_time,
         )
 
@@ -146,22 +146,22 @@ class LLMQueue:
                     item.future.set_result(result)
                 elapsed = time.time() - start
                 logger.info(
-                    "[queue] 완료: user=%s type=%s priority=%d 응답=%.1fs 대기=%.1fs",
+                    "[queue] done: user=%s type=%s priority=%d resp=%.1fs waited=%.1fs",
                     item.user_id, item.task_type, item.priority, elapsed, wait_time,
                 )
             except Exception as e:
                 if not item.future.done():
                     item.future.set_exception(e)
                 logger.error(
-                    "[queue] 실패: user=%s type=%s error=%s",
+                    "[queue] failed: user=%s type=%s error=%s",
                     item.user_id, item.task_type, e,
                 )
 
     @property
     def pending(self):
-        """현재 큐 대기 수."""
+        """Current number of items pending in the queue."""
         return self._queue.qsize()
 
 
-# 싱글턴 인스턴스
+# Singleton instance
 llm_queue = LLMQueue()

@@ -68,14 +68,14 @@ export function LogTail() {
       <CardHeader>
         <CardTitle>Recent logs</CardTitle>
         <CardDescription>
-          {`logs/bot.log 의 마지막 ${TAIL}줄 · ${POLL_MS / 1000}초 polling${
-            autoScroll ? "" : " · 자동 스크롤 일시정지"
+          {`Last ${TAIL} lines of logs/bot.log · polled every ${POLL_MS / 1000}s${
+            autoScroll ? "" : " · auto-scroll paused"
           }`}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
-          <p className="mb-2 text-sm text-destructive">로그 조회 실패: {error}</p>
+          <p className="mb-2 text-sm text-destructive">Log fetch failed: {error}</p>
         )}
         {note && !error && (
           <p className="mb-2 text-sm text-muted-foreground">{note}</p>
@@ -86,7 +86,7 @@ export function LogTail() {
           className="h-[420px] overflow-auto rounded-md border bg-muted/40 p-3 text-xs leading-relaxed font-mono whitespace-pre-wrap"
         >
           {lines.length === 0 ? (
-            <span className="text-muted-foreground">로그 없음</span>
+            <span className="text-muted-foreground">No logs yet</span>
           ) : (
             lines.join("\n")
           )}

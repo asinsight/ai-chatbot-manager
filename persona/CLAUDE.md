@@ -6,10 +6,9 @@
 
 `charNN.json` (behaviors / images 와 같은 번호 공유). 현재 fork:
 
-| 파일 | 캐릭터 | Phase |
+| 파일 | 캐릭터 | 비고 |
 |---|---|---|
-| `char01.json` ~ `char08.json` | Phase 3-5에서 신규 작성된 SFW 캐릭터 8명 | 3-5 |
-| `char09.json` | 오하늘 — 수줍은 꽃집 점원 | char09 추가 |
+| `char05.json` | Jiwon Han — 31세 임원 비서 (영어로 응답) | i18n 단계에서 char05 만 남기고 나머지 (char01-04, char06-09) 모두 삭제 |
 
 ## 핵심 필드
 

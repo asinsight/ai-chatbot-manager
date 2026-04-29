@@ -107,8 +107,9 @@
 | Lighting purge | ✅ 완료 | `af6a3f0` | 이미지 배경 green leak 수정 + LLM thought token sanitizer |
 | LoRA empty | ✅ 완료 | `271f2d5` | ComfyUI 워크플로우 LoRA 슬롯 모두 제거 |
 | Plan v2 | ✅ 완료 | `b11108e` | Next.js 풀스택 admin 플랫폼 plan |
-| **Platform M0** | ✅ 완료 (develop 대기) | `feat/feature_M0_admin_skeleton` | Next.js 14 scaffold + sidebar + bot-process.ts + 5 API routes + Dashboard UI. 9 시나리오 모두 PASS. |
-| **Platform M1+** | 🔜 다음 | — | `.env` 편집기 + Connections (M1) → 캐릭터 CRUD / 워크플로우 / 로그 (M2-M5) — 자세한 진행 상황은 [STATUS.md](STATUS.md) 참조 |
+| **Platform M0** | ✅ 완료 | `7804ea1` | Next.js 14 scaffold + sidebar + bot-process.ts + 5 API routes + Dashboard UI. 9 시나리오 모두 PASS. |
+| **Platform M1 + i18n** | ✅ 완료 (develop 대기) | `feat/feature_M1_env_connections` | M1: /env 편집기 + Connections 4 endpoint Ping + Dashboard health card / 12 시나리오 PASS. i18n (PM scope D): markdown 제외 전 코드/설정/캐릭터 영어화. char05 (Jiwon Han) 만 sample 캐릭터로 잔류, char01-04 + char06-09 삭제. |
+| **Platform M2+** | 🔜 다음 | — | Prompt 편집기 (M2) → 캐릭터 CRUD / 이미지 config / 워크플로우 / 로그 (M3-M5). 자세한 진행 상황은 [STATUS.md](STATUS.md) 참조 |
 
 ## 작업 워크플로우 (Git Branching + 문서 갱신)
 

@@ -1,7 +1,8 @@
-"""SQLite 기반 유저별 채팅 히스토리 관리 모듈.
+"""SQLite-backed per-user chat history module.
 
-멀티 캐릭터 지원: character_id 컬럼으로 캐릭터별 히스토리 분리,
-user_settings 테이블로 유저별 활성 캐릭터 관리.
+Supports multiple characters: per-character history is separated by the
+character_id column, and the active character per user is tracked in
+user_settings.
 """
 
 import json
@@ -9,7 +10,7 @@ import os
 import re
 import sqlite3
 
-# ── 캐릭터 수치 시스템 상수 ──
+# ── Character stat system constants ──
 
 INITIAL_STATS = {
     "char01": {"fixation": 20, "mood": "happy"},
@@ -31,27 +32,28 @@ STAT_LIMITS = {
 STAT_RANGE = {"min": 0, "max": 100}
 
 
-# 프로젝트 루트 기준 data/chat.db 경로 계산
+# Compute data/chat.db path relative to the project root
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DATA_DIR = os.path.join(_BASE_DIR, "data")
 _DB_PATH = os.path.join(_DATA_DIR, "chat.db")
 
 
 def _get_connection() -> sqlite3.Connection:
-    """SQLite 커넥션을 반환한다."""
+    """Return a SQLite connection."""
     return sqlite3.connect(_DB_PATH)
 
 
 def init_db() -> None:
-    """DB 초기화 — data/ 디렉토리 생성, 테이블/인덱스 생성, 마이그레이션.
+    """Initialize the DB — create the data/ directory, tables/indexes, and run migrations.
 
-    bot.py 시작 시 한 번 호출한다.
+    Call this once at bot.py startup.
     """
     os.makedirs(_DATA_DIR, exist_ok=True)
 
-    # saved_characters v3 마이그레이션 (CREATE TABLE 전에 구식 schema DROP)
-    # CREATE TABLE IF NOT EXISTS는 기존 테이블이 남아있으면 no-op이라 신규 컬럼이
-    # 추가되지 않는다 — 따라서 구식 schema 감지 시 먼저 DROP한 뒤 CREATE TABLE에 위임.
+    # saved_characters v3 migration (DROP the old schema before CREATE TABLE)
+    # CREATE TABLE IF NOT EXISTS is a no-op when the table already exists, so
+    # new columns wouldn't be added. We detect the old schema, DROP it first,
+    # and let the CREATE TABLE below recreate it.
     try:
         _migrate_saved_chars_v3()
     except Exception as _mig_e:
@@ -62,10 +64,10 @@ def init_db() -> None:
     try:
         cursor = conn.cursor()
 
-        # WAL 모드 활성화
+        # Enable WAL mode
         cursor.execute("PRAGMA journal_mode=WAL")
 
-        # --- chat_history 테이블 ---
+        # --- chat_history table ---
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS chat_history (
@@ -84,16 +86,16 @@ def init_db() -> None:
             """
         )
 
-        # 마이그레이션: 기존 테이블에 character_id 컬럼 추가
+        # Migration: add character_id column to existing table
         try:
             cursor.execute(
                 "ALTER TABLE chat_history ADD COLUMN character_id TEXT DEFAULT 'default'"
             )
         except sqlite3.OperationalError:
-            # 이미 컬럼이 존재하면 무시
+            # Column already exists — ignore
             pass
 
-        # character_id 포함 복합 인덱스
+        # Composite index that includes character_id
         cursor.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_user_character
@@ -101,7 +103,7 @@ def init_db() -> None:
             """
         )
 
-        # --- user_settings 테이블 ---
+        # --- user_settings table ---
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS user_settings (
@@ -111,7 +113,7 @@ def init_db() -> None:
             """
         )
 
-        # --- chat_summary 테이블 ---
+        # --- chat_summary table ---
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS chat_summary (
@@ -131,7 +133,7 @@ def init_db() -> None:
             """
         )
 
-        # --- user_profile 테이블 ---
+        # --- user_profile table ---
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS user_profile (
@@ -146,7 +148,7 @@ def init_db() -> None:
             """
         )
 
-        # --- long_term_memory 테이블 ---
+        # --- long_term_memory table ---
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS long_term_memory (
@@ -166,7 +168,7 @@ def init_db() -> None:
             """
         )
 
-        # 마이그레이션: user_settings 확장
+        # Migration: extend user_settings
         for col_sql in [
             "ALTER TABLE user_settings ADD COLUMN username TEXT",
             "ALTER TABLE user_settings ADD COLUMN age_verified BOOLEAN DEFAULT 0",
@@ -179,7 +181,7 @@ def init_db() -> None:
             except sqlite3.OperationalError:
                 pass
 
-        # --- usage 테이블 ---
+        # --- usage table ---
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS usage (
@@ -193,7 +195,7 @@ def init_db() -> None:
             """
         )
 
-        # --- user_outfit 테이블 ---
+        # --- user_outfit table ---
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS user_outfit (
@@ -208,7 +210,7 @@ def init_db() -> None:
             """
         )
 
-        # --- 일일 이미지 사용량 ---
+        # --- Daily image usage ---
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS usage_daily (
@@ -220,7 +222,7 @@ def init_db() -> None:
             """
         )
 
-        # --- 캐릭터 수치 (character_stats) ---
+        # --- Character stats (character_stats) ---
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS character_stats (
@@ -236,13 +238,13 @@ def init_db() -> None:
             """
         )
 
-        # usage_daily에 videos 컬럼 마이그레이션
+        # Add videos column to usage_daily (migration)
         try:
             cursor.execute("ALTER TABLE usage_daily ADD COLUMN videos INTEGER DEFAULT 0")
         except Exception:
-            pass  # 이미 존재
+            pass  # already exists
 
-        # --- location_context (글로벌 로케이션 캐시, P10 Phase 2) ---
+        # --- location_context (global location cache, P10 Phase 2) ---
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS location_context (
@@ -254,8 +256,8 @@ def init_db() -> None:
             """
         )
 
-        # Pose preset usage stats — 각 pose_key(pose_motion_presets key)가 몇 번 선택됐는지
-        # (테이블 이름은 schema-level identifier라 호환 위해 lora_preset_usage 그대로 유지)
+        # Pose preset usage stats — counts how often each pose_key (pose_motion_presets key) was chosen.
+        # Table name is a schema-level identifier so we keep `lora_preset_usage` for backward compat.
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS lora_preset_usage (
@@ -266,16 +268,19 @@ def init_db() -> None:
             """
         )
 
-        # --- saved_characters (이미지 제네레이터 캐릭터 저장, Feature 1) ---
-        # 유저별 최대 3개 슬롯. 이름(영문/숫자/언더스코어) + danbooru 외형/의상 태그.
-        # seed/anchor 이미지는 저장하지 않음 (PM 결정) — 재소환 시 랜덤 시드, 태그로만 재현.
-        # nested 스키마 (P15-3 v3, images/char*.json와 동일 구조):
+        # --- saved_characters (image-generator character store, Feature 1) ---
+        # Up to 3 slots per user. Name (alphanumeric/underscore) + danbooru
+        # appearance/outfit tags.
+        # seed / anchor image are NOT stored (PM decision) — regeneration uses
+        # a random seed and reproduces the look from tags only.
+        # Nested schema (P15-3 v3, mirrors images/char*.json):
         #   appearance_tags : flat string (eye/hair/face/skin/age/species)
         #   clothing        : flat string (outerwear/shoes/accessories)
         #   underwear       : flat string (intimate wear)
         #   body_shape_json : {"size", "build", "curve", "accent", "ass"}
         #   breast_json     : {"size", "feature"}
-        # init_db 진입 직전 _migrate_saved_chars_v3가 구식 schema 감지 시 DROP 처리.
+        # _migrate_saved_chars_v3 runs just before init_db enters and DROPs
+        # the table if it detects an old schema.
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS saved_characters (
@@ -301,14 +306,14 @@ def init_db() -> None:
     finally:
         conn.close()
 
-    # 로케이션 키 정규화 마이그레이션 (idempotent)
+    # Location-key normalization migration (idempotent)
     try:
         _migrate_location_keys()
     except Exception as _mig_e:
         import logging as _logging
         _logging.getLogger(__name__).warning("Location key migration failed: %s", _mig_e)
 
-    # user_profile 키 canonicalization 마이그레이션 (idempotent)
+    # user_profile key canonicalization migration (idempotent)
     try:
         _migrate_profile_keys()
     except Exception as _mig_e:
@@ -319,7 +324,7 @@ def init_db() -> None:
 def save_message(
     user_id: int, role: str, content: str, character_id: str = "default"
 ) -> None:
-    """메시지 한 건을 히스토리에 저장한다."""
+    """Save a single message to history."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -336,17 +341,17 @@ def save_message(
 def get_history(
     user_id: int, limit: int = 20, character_id: str = "default"
 ) -> list[dict]:
-    """유저의 특정 캐릭터와의 최근 N개 메시지를 시간순(오래된 → 최신)으로 반환한다.
+    """Return the last N messages for a user/character, oldest → newest.
 
     Args:
-        user_id: 텔레그램 유저 ID
-        limit: 가져올 메시지 수. 환경변수 HISTORY_LIMIT 으로도 설정 가능.
-        character_id: 캐릭터 ID. 기본값 'default'.
+        user_id: Telegram user id
+        limit: number of messages to fetch. Overridable via HISTORY_LIMIT env var.
+        character_id: character id. Defaults to 'default'.
 
     Returns:
         [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}, ...]
     """
-    # 환경변수가 설정되어 있으면 기본값 대신 사용
+    # If HISTORY_LIMIT env var is set, use it instead of the default
     env_limit = os.environ.get("HISTORY_LIMIT")
     if env_limit is not None and limit == 20:
         limit = int(env_limit)
@@ -354,7 +359,7 @@ def get_history(
     conn = _get_connection()
     try:
         cursor = conn.cursor()
-        # 최신 N개를 가져온 뒤 시간순으로 정렬
+        # Fetch the latest N rows then sort chronologically
         cursor.execute(
             """
             SELECT role, content FROM (
@@ -375,12 +380,12 @@ def get_history(
 
 
 def clear_history(user_id: int, character_id: str | None = None) -> None:
-    """유저의 히스토리를 삭제한다. (/clear 커맨드용)
+    """Clear a user's history (used by /clear).
 
     Args:
-        user_id: 텔레그램 유저 ID
-        character_id: 지정하면 해당 캐릭터 히스토리만 삭제.
-                      None이면 유저의 전체 히스토리 삭제 (하위 호환).
+        user_id: Telegram user id
+        character_id: if set, clear only that character's history.
+                      If None, clear all of the user's history (legacy compat).
     """
     conn = _get_connection()
     try:
@@ -401,7 +406,7 @@ def clear_history(user_id: int, character_id: str | None = None) -> None:
 
 
 def get_active_character(user_id: int) -> str:
-    """유저의 활성 캐릭터 ID를 반환한다. 미설정 시 'char01'."""
+    """Return the user's active character id. Defaults to 'char01' if unset."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -416,7 +421,7 @@ def get_active_character(user_id: int) -> str:
 
 
 def set_active_character(user_id: int, character_id: str) -> None:
-    """유저의 활성 캐릭터 ID를 설정한다."""
+    """Set the user's active character id."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -431,7 +436,7 @@ def set_active_character(user_id: int, character_id: str) -> None:
 
 
 def save_summary(user_id: int, character_id: str, summary: str, message_count: int) -> None:
-    """요약문을 저장한다."""
+    """Persist a summary."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -446,7 +451,7 @@ def save_summary(user_id: int, character_id: str, summary: str, message_count: i
 
 
 def get_latest_summary(user_id: int, character_id: str) -> str | None:
-    """유저의 특정 캐릭터와의 최신 요약문을 반환한다. 없으면 None."""
+    """Return the latest summary for the user/character. None if none exists."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -463,15 +468,15 @@ def get_latest_summary(user_id: int, character_id: str) -> str | None:
 
 
 def delete_old_messages(user_id: int, character_id: str, keep_recent: int = 10) -> int:
-    """요약 완료 후 오래된 메시지를 삭제한다. 최근 keep_recent개만 유지.
+    """Delete old messages after summarization completes. Keeps the latest keep_recent rows.
 
     Returns:
-        삭제된 메시지 수
+        Number of messages deleted.
     """
     conn = _get_connection()
     try:
         cursor = conn.cursor()
-        # 최근 keep_recent개의 id를 가져온다
+        # Fetch the ids of the most recent keep_recent rows
         cursor.execute(
             "SELECT id FROM chat_history "
             "WHERE user_id = ? AND character_id = ? "
@@ -498,7 +503,7 @@ def delete_old_messages(user_id: int, character_id: str, keep_recent: int = 10) 
 
 
 def get_message_count(user_id: int, character_id: str) -> int:
-    """유저의 특정 캐릭터와의 메시지 수를 반환한다."""
+    """Return the message count for the user/character."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -516,7 +521,7 @@ def get_message_count(user_id: int, character_id: str) -> int:
 
 
 def set_profile(user_id: int, character_id: str, key: str, value: str, source: str = "manual") -> None:
-    """유저 프로필 항목을 설정한다. (upsert)"""
+    """Set a user-profile entry (upsert)."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -533,7 +538,7 @@ def set_profile(user_id: int, character_id: str, key: str, value: str, source: s
 
 
 def get_profile(user_id: int, character_id: str) -> dict:
-    """특정 범위의 프로필을 dict로 반환한다. {"key": {"value": "...", "source": "..."}, ...}"""
+    """Return the profile for a given scope as a dict. {"key": {"value": "...", "source": "..."}, ...}"""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -548,7 +553,7 @@ def get_profile(user_id: int, character_id: str) -> dict:
 
 
 def get_full_profile(user_id: int, character_id: str) -> dict:
-    """글로벌 + 캐릭터별 프로필을 merge하여 반환한다. 캐릭터별이 우선, manual이 auto보다 우선."""
+    """Merge global + per-character profile and return it. Per-character takes precedence; manual outranks auto."""
     global_profile = get_profile(user_id, "global")
     char_profile = get_profile(user_id, character_id) if character_id != "global" else {}
 
@@ -556,7 +561,7 @@ def get_full_profile(user_id: int, character_id: str) -> dict:
     for key, data in global_profile.items():
         merged[key] = data
     for key, data in char_profile.items():
-        # 캐릭터별은 글로벌을 덮어씀
+        # Per-character entries override global ones
         merged[key] = data
 
     return merged
@@ -566,12 +571,12 @@ def get_full_profile(user_id: int, character_id: str) -> dict:
 
 
 def save_memory(user_id: int, character_id: str, memory_type: str, content: str) -> None:
-    """장기 기억을 저장한다. relationship은 덮어쓰기, event는 추가."""
+    """Persist a long-term memory entry. relationship overwrites; event appends."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
         if memory_type == "relationship":
-            # relationship은 1개만 유지 — 기존 삭제 후 삽입
+            # Keep only one relationship row — delete the existing one first
             cursor.execute(
                 "DELETE FROM long_term_memory "
                 "WHERE user_id = ? AND character_id = ? AND memory_type = 'relationship'",
@@ -588,7 +593,7 @@ def save_memory(user_id: int, character_id: str, memory_type: str, content: str)
 
 
 def get_memories(user_id: int, character_id: str) -> list[dict]:
-    """유저의 특정 캐릭터와의 장기 기억을 전부 반환한다."""
+    """Return all long-term memories for the user/character."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -604,7 +609,7 @@ def get_memories(user_id: int, character_id: str) -> list[dict]:
 
 
 def delete_oldest_events(user_id: int, character_id: str, keep: int = 10) -> int:
-    """오래된 event 기억을 삭제하여 최대 keep개만 유지한다."""
+    """Delete old event memories and keep at most `keep` rows."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -637,7 +642,7 @@ def delete_oldest_events(user_id: int, character_id: str, keep: int = 10) -> int
 
 
 def is_admin(user_id: int) -> bool:
-    """유저가 Admin인지 확인한다."""
+    """Check whether the user is an admin."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -652,7 +657,7 @@ def is_admin(user_id: int) -> bool:
 
 
 def set_admin(user_id: int, admin: bool) -> None:
-    """유저의 Admin 상태를 설정한다. user_settings 행이 없으면 생성."""
+    """Set the user's admin flag. Inserts a user_settings row if missing."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -666,11 +671,11 @@ def set_admin(user_id: int, admin: bool) -> None:
         conn.close()
 
 
-# ── Usage 추적 ──
+# ── Usage tracking ──
 
 
 def increment_usage(user_id: int, field: str) -> None:
-    """월별 사용량을 1 증가시킨다. field: 'turns', 'images', 'videos'."""
+    """Increment monthly usage by 1. field: 'turns', 'images', 'videos'."""
     from datetime import datetime
     month = datetime.now().strftime("%Y-%m")
     conn = _get_connection()
@@ -687,7 +692,7 @@ def increment_usage(user_id: int, field: str) -> None:
 
 
 def get_usage(user_id: int) -> dict:
-    """현재 월의 사용량을 반환한다."""
+    """Return the current month's usage."""
     from datetime import datetime
     month = datetime.now().strftime("%Y-%m")
     conn = _get_connection()
@@ -706,7 +711,7 @@ def get_usage(user_id: int) -> dict:
 
 
 def get_daily_image_count(user_id: int) -> int:
-    """오늘의 이미지 사용량을 반환한다."""
+    """Return today's image usage count."""
     from datetime import datetime
     today = datetime.now().strftime("%Y-%m-%d")
     conn = _get_connection()
@@ -723,7 +728,7 @@ def get_daily_image_count(user_id: int) -> int:
 
 
 def increment_daily_images(user_id: int) -> None:
-    """오늘의 이미지 사용량을 1 증가시킨다."""
+    """Increment today's image usage count by 1."""
     from datetime import datetime
     today = datetime.now().strftime("%Y-%m-%d")
     conn = _get_connection()
@@ -740,7 +745,7 @@ def increment_daily_images(user_id: int) -> None:
 
 
 def get_daily_video_count(user_id: int) -> int:
-    """오늘의 비디오 사용량을 반환한다."""
+    """Return today's video usage count."""
     from datetime import datetime
     today = datetime.now().strftime("%Y-%m-%d")
     conn = _get_connection()
@@ -757,7 +762,7 @@ def get_daily_video_count(user_id: int) -> int:
 
 
 def increment_daily_videos(user_id: int) -> None:
-    """오늘의 비디오 사용량을 1 증가시킨다."""
+    """Increment today's video usage count by 1."""
     from datetime import datetime
     today = datetime.now().strftime("%Y-%m-%d")
     conn = _get_connection()
@@ -773,11 +778,11 @@ def increment_daily_videos(user_id: int) -> None:
         conn.close()
 
 
-# ── 통계 ──
+# ── Stats ──
 
 
 def get_stats() -> dict:
-    """전체 통계를 반환한다."""
+    """Return overall stats."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -790,11 +795,11 @@ def get_stats() -> dict:
         conn.close()
 
 
-# ── 온보딩 ──
+# ── Onboarding ──
 
 
 def is_onboarded(user_id: int) -> bool:
-    """age_verified + terms_agreed 둘 다 True인지 확인."""
+    """Return True iff both age_verified and terms_agreed are set."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -811,7 +816,7 @@ def is_onboarded(user_id: int) -> bool:
 
 
 def set_onboarded(user_id: int) -> None:
-    """age_verified=1, terms_agreed=1 설정. user_settings 행이 없으면 생성."""
+    """Set age_verified=1, terms_agreed=1. Inserts a user_settings row if missing."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -838,7 +843,7 @@ def set_onboarded(user_id: int) -> None:
 
 
 def get_outfit(user_id: int, char_id: str) -> dict | None:
-    """유저의 캐릭터별 커스텀 의상 조회. 없으면 None."""
+    """Look up the user's per-character custom outfit. Returns None if absent."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -856,7 +861,7 @@ def get_outfit(user_id: int, char_id: str) -> dict | None:
 
 
 def set_outfit(user_id: int, char_id: str, clothing: str, underwear: str = "", source: str = "custom") -> None:
-    """유저의 캐릭터별 의상 저장 (덮어쓰기)."""
+    """Save the user's per-character outfit (overwrite)."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -874,7 +879,7 @@ def set_outfit(user_id: int, char_id: str, clothing: str, underwear: str = "", s
 
 
 def reset_outfit(user_id: int, char_id: str) -> None:
-    """유저의 캐릭터별 의상을 초기화 (preset으로 복귀)."""
+    """Reset the user's per-character outfit (revert to preset)."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -887,26 +892,26 @@ def reset_outfit(user_id: int, char_id: str) -> None:
         conn.close()
 
 
-# ── Location Context (글로벌 캐시, P10 Phase 2) ──
+# ── Location Context (global cache, P10 Phase 2) ──
 
 
 def _normalize_location_key(key: str) -> str:
-    """Location key 정규화. 모든 save/get에서 사용.
+    """Normalize a location key. Used by every save/get.
     - strip, lowercase
-    - 영숫자/언더스코어 외 → 언더스코어
-    - 연속 언더스코어 축약
-    - 양끝 언더스코어 제거
+    - non-[a-z0-9_] → underscore
+    - collapse consecutive underscores
+    - strip leading/trailing underscores
     """
     if not key:
         return ""
     s = key.strip().lower()
-    s = re.sub(r"[^a-z0-9_]+", "_", s)  # 한글/공백/특수문자 → _
-    s = re.sub(r"_+", "_", s)            # 연속 _ 축약
+    s = re.sub(r"[^a-z0-9_]+", "_", s)  # Korean/whitespace/special chars → _
+    s = re.sub(r"_+", "_", s)            # collapse consecutive _
     return s.strip("_")
 
 
 def get_location_context(location_key: str) -> dict | None:
-    """로케이션 컨텍스트 조회. 없으면 None.
+    """Look up location context. Returns None if absent.
 
     Returns:
         {"description": str, "danbooru_background": str} or None
@@ -941,9 +946,10 @@ _LIGHTING_STRIP_WORDS = {
 
 
 def _strip_lighting_tags(danbooru_background: str) -> str:
-    """조명/램프/ambient 태그를 완전히 제거 (저장 시점 최종 방어선).
+    """Strip lighting / lamp / ambient tags entirely (final defence at save time).
 
-    CLAUDE.md 규칙: 색감/광원 태그 DB 저장 금지. Grok이 프롬프트 무시하고 넣어도 여기서 끊음.
+    Per CLAUDE.md: never persist colour-grading or light-source tags. Even if
+    Grok ignores the prompt instructions, this catches it.
     """
     if not danbooru_background:
         return danbooru_background
@@ -963,9 +969,9 @@ def _strip_lighting_tags(danbooru_background: str) -> str:
 
 
 def save_location_context(location_key: str, description: str, danbooru_background: str) -> None:
-    """로케이션 컨텍스트 upsert (글로벌 캐시, 모든 유저가 공유).
+    """Upsert location context (global cache shared by every user).
 
-    저장 전 조명/램프/ambient 태그를 항상 strip (CLAUDE.md 규칙).
+    Always strips lighting / lamp / ambient tags before saving (CLAUDE.md rule).
     """
     key = _normalize_location_key(location_key)
     if not key:
@@ -989,13 +995,13 @@ def save_location_context(location_key: str, description: str, danbooru_backgrou
 
 
 def increment_lora_usage(pose_key: str) -> None:
-    """Pose preset 호출 카운터를 1 증가 (upsert).
+    """Increment the pose-preset call counter by 1 (upsert).
 
-    SFW fork: pose_motion_presets.json 기반 SFW pose 사용 통계를 추적.
-    함수/테이블 이름(increment_lora_usage / lora_preset_usage)은 schema-level identifier라
-    하위 호환을 위해 유지.
+    SFW fork: tracks usage of pose_motion_presets.json SFW poses.
+    The function and table names (increment_lora_usage / lora_preset_usage) are
+    schema-level identifiers retained for backward compatibility.
 
-    - pose_key: pose_motion_presets.json 키 (`generic`, `portrait_static_sfw`, `standing` 등)
+    - pose_key: a key in pose_motion_presets.json (`generic`, `portrait_static_sfw`, `standing`, etc.)
     """
     if not pose_key or not isinstance(pose_key, str):
         return
@@ -1016,7 +1022,7 @@ def increment_lora_usage(pose_key: str) -> None:
 
 
 def get_lora_usage_stats() -> list[dict]:
-    """모든 LoRA preset 호출 기록을 call_count 내림차순으로 반환.
+    """Return every LoRA preset call record sorted by call_count descending.
 
     Returns: [{"pose_key": str, "call_count": int, "last_used_at": str}, ...]
     """
@@ -1038,13 +1044,13 @@ def get_lora_usage_stats() -> list[dict]:
 
 
 def _migrate_location_keys() -> None:
-    """DB의 location_key를 _normalize_location_key 기준으로 통합.
+    """Consolidate location_key in the DB under _normalize_location_key.
 
-    - location_context: 중복 그룹의 경우 최신 updated_at 1개만 유지, 나머지 삭제.
-    - location_context: 단일 행이어도 스토어된 키 ≠ 정규화 키라면 키 재작성.
-    - character_stats.location: 전부 정규화 형태로 업데이트.
+    - location_context: for duplicate groups, keep the row with the latest updated_at and delete the rest.
+    - location_context: even for single rows, rewrite the key if stored != normalized.
+    - character_stats.location: rewrite every value to its normalized form.
 
-    idempotent: stored == normalized이면 no-op.
+    Idempotent: when stored == normalized this is a no-op.
     """
     import logging as _logging
     log = _logging.getLogger(__name__)
@@ -1053,7 +1059,7 @@ def _migrate_location_keys() -> None:
     try:
         cursor = conn.cursor()
 
-        # 1. location_context 중복 병합
+        # 1. Merge duplicate location_context rows
         cursor.execute(
             "SELECT location_key, description, danbooru_background, updated_at FROM location_context"
         )
@@ -1069,8 +1075,8 @@ def _migrate_location_keys() -> None:
         renormalized = 0
         for norm, group in groups.items():
             if len(group) > 1:
-                # 최신 updated_at 1개만 유지 — 나머지 삭제
-                # updated_at NULL → 맨 앞으로 밀어냄 (가장 오래된 것으로 처리)
+                # Keep only the row with the latest updated_at — delete the rest.
+                # updated_at NULL → bubbles to the front (treated as oldest).
                 sorted_rows = sorted(
                     group,
                     key=lambda r: (r[3] or ""),
@@ -1078,7 +1084,7 @@ def _migrate_location_keys() -> None:
                 )
                 keeper = sorted_rows[0]
                 losers = sorted_rows[1:]
-                # 먼저 keeper의 키도 정규화 형태로 변경할 수 있도록, 모든 기존 행 삭제 후 keeper upsert
+                # Delete every existing row first so the keeper's key can also be rewritten to normalized form, then upsert the keeper
                 for row in group:
                     cursor.execute(
                         "DELETE FROM location_context WHERE location_key = ?",
@@ -1093,7 +1099,7 @@ def _migrate_location_keys() -> None:
             else:
                 row = group[0]
                 if row[0] != norm:
-                    # 단일 행이지만 키 정규화 필요 — 기존 삭제 후 insert (혹시 정규화 후 키 충돌 시 대비해 INSERT OR REPLACE)
+                    # Single row but needs key rewriting — delete and reinsert (INSERT OR REPLACE handles a post-normalization key collision)
                     cursor.execute(
                         "DELETE FROM location_context WHERE location_key = ?",
                         (row[0],),
@@ -1105,7 +1111,7 @@ def _migrate_location_keys() -> None:
                     )
                     renormalized += 1
 
-        # 2. character_stats.location 정규화
+        # 2. Normalize character_stats.location
         cursor.execute(
             "SELECT rowid, location FROM character_stats WHERE location IS NOT NULL AND location <> ''"
         )
@@ -1138,16 +1144,17 @@ def _migrate_location_keys() -> None:
 
 
 def _migrate_profile_keys() -> None:
-    """user_profile.key를 canonicalize(key) 기준으로 통합.
+    """Consolidate user_profile.key under canonicalize(key).
 
-    - alias 행은 canonical 행으로 이름 변경 (UPDATE).
-    - 같은 (user_id, character_id)에 canonical 행이 이미 있으면 updated_at 최신 것만 유지, alias 행 DELETE.
-    - stored == canonicalize(stored)이면 no-op (idempotent).
+    - Alias rows are renamed to the canonical key (UPDATE).
+    - If a canonical row already exists for the same (user_id, character_id),
+      keep only the latest updated_at row and DELETE the alias row.
+    - When stored == canonicalize(stored) this is a no-op (idempotent).
     """
     import logging as _logging
     log = _logging.getLogger(__name__)
 
-    # 순환 import 방지 — 지연 로드
+    # Avoid circular import — lazy-load
     from src.profile_keys import canonicalize
 
     conn = _get_connection()
@@ -1164,9 +1171,9 @@ def _migrate_profile_keys() -> None:
         for user_id, character_id, key, value, source, updated_at in rows:
             canon = canonicalize(key)
             if canon == key:
-                continue  # 이미 canonical — skip
+                continue  # already canonical — skip
 
-            # canonical 행이 동일 (user_id, character_id)에 이미 있는지 체크
+            # Check whether a canonical row exists for the same (user_id, character_id)
             cursor.execute(
                 "SELECT value, source, updated_at FROM user_profile "
                 "WHERE user_id = ? AND character_id = ? AND key = ?",
@@ -1175,8 +1182,8 @@ def _migrate_profile_keys() -> None:
             existing = cursor.fetchone()
 
             if existing is None:
-                # 단순 rename — 기존 alias 행을 canonical로 업데이트
-                # (PK 포함 — UPDATE로 key 변경)
+                # Simple rename — update the alias row's key to the canonical key
+                # (PK is part of the row — UPDATE rewrites it)
                 cursor.execute(
                     "UPDATE user_profile SET key = ?, updated_at = updated_at "
                     "WHERE user_id = ? AND character_id = ? AND key = ?",
@@ -1184,13 +1191,13 @@ def _migrate_profile_keys() -> None:
                 )
                 normalized += 1
             else:
-                # 충돌 — updated_at 최신 row를 남기고 나머지 삭제
+                # Conflict — keep the row with the latest updated_at, delete the rest
                 existing_value, existing_source, existing_updated = existing
-                # None-safe 비교 (NULL은 가장 오래된 것으로 처리)
+                # None-safe comparison (NULL is treated as oldest)
                 alias_ts = updated_at or ""
                 canon_ts = existing_updated or ""
                 if alias_ts > canon_ts:
-                    # alias가 더 최신 — canonical 행을 alias 값으로 덮어쓰고 alias 행 삭제
+                    # alias is newer — overwrite the canonical row with the alias values, then delete the alias row
                     cursor.execute(
                         "UPDATE user_profile SET value = ?, source = ?, updated_at = ? "
                         "WHERE user_id = ? AND character_id = ? AND key = ?",
@@ -1219,13 +1226,13 @@ def _migrate_profile_keys() -> None:
 
 
 def _migrate_saved_chars_v3() -> None:
-    """saved_characters를 nested JSON 스키마로 재생성 — 구식 v1/v2 schema 감지 시 DROP & CREATE.
+    """Recreate saved_characters under the nested JSON schema — DROP & CREATE on old v1/v2 schemas.
 
-    DEV 브랜치 전용 — prod 데이터 없으므로 무손실 마이그레이션 불필요. images/char*.json과
-    동일한 14 sub-attribute 구조로 통일.
+    Dev-branch only — no prod data exists, so no need for lossless migration.
+    Aligns with images/char*.json's 14 sub-attribute structure.
 
-    감지 기준: body_shape_json 컬럼 부재 = 구식 schema → DROP. 신규 schema는 init_db의
-    CREATE TABLE이 처리한다 (idempotent: 두 번째 호출은 no-op).
+    Detection: missing body_shape_json column = old schema → DROP. The init_db
+    CREATE TABLE recreates the new schema (idempotent: second call is a no-op).
     """
     import logging as _logging
     log = _logging.getLogger(__name__)
@@ -1240,29 +1247,29 @@ def _migrate_saved_chars_v3() -> None:
         if "body_shape_json" in cols:
             log.debug("saved_characters v3 schema already in place (idempotent no-op).")
             return
-        log.warning("saved_characters: 구식 schema 감지 — v3 nested JSON 스키마로 DROP & CREATE.")
+        log.warning("saved_characters: old schema detected — DROP & CREATE under v3 nested JSON schema.")
         cursor.execute("DROP TABLE saved_characters")
         conn.commit()
     finally:
         conn.close()
 
 
-# ── 캐릭터 수치 (메모리 캐시 + 지연 DB 쓰기) ──
+# ── Character stats (in-memory cache + deferred DB writes) ──
 
-# 메모리 캐시: {(user_id, char_id): {"fixation": int, "mood": str, "location": str, "_dirty": bool, "_last_activity": float}}
+# In-memory cache: {(user_id, char_id): {"fixation": int, "mood": str, "location": str, "_dirty": bool, "_last_activity": float}}
 _stats_cache: dict[tuple[int, str], dict] = {}
-# 플러시 타이머: {(user_id, char_id): asyncio.Task}
+# Flush timers: {(user_id, char_id): asyncio.Task}
 _flush_timers: dict[tuple[int, str], object] = {}
-# 플러시 지연 시간 (초)
-STATS_FLUSH_DELAY = 300  # 5분
+# Flush delay (seconds)
+STATS_FLUSH_DELAY = 300  # 5 minutes
 
 
 def get_character_stats(user_id: int, character_id: str) -> dict:
-    """캐릭터 수치 조회. 메모리 캐시 우선, 없으면 DB → 캐시 로드."""
+    """Look up character stats. Hits the in-memory cache first; otherwise loads from DB → cache."""
     import time as _time
     key = (user_id, character_id)
 
-    # 캐시 히트
+    # Cache hit
     if key in _stats_cache:
         cached = _stats_cache[key]
         result = {k: v for k, v in cached.items() if not k.startswith("_")}
@@ -1270,7 +1277,7 @@ def get_character_stats(user_id: int, character_id: str) -> dict:
         result["mood_lock"] = cached.get("_mood_lock")
         return result
 
-    # DB에서 로드
+    # Load from DB
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -1291,7 +1298,7 @@ def get_character_stats(user_id: int, character_id: str) -> dict:
             result["mood_lock"] = stats.get("_mood_lock")
             return result
 
-        # 없으면 캐릭터별 초기값으로 생성
+        # Otherwise insert per-character initial values
         initial = INITIAL_STATS.get(character_id, {"fixation": 20, "mood": "neutral"})
         cursor.execute(
             "INSERT INTO character_stats (user_id, character_id, fixation, mood) "
@@ -1320,18 +1327,18 @@ def update_character_stats(
     location: str = "",
     stat_limits: dict | None = None,
 ) -> None:
-    """수치 업데이트. 캐시에만 반영 (DB 쓰기 지연).
+    """Update stats. Writes to the cache only (DB write is deferred).
 
-    - fixation_delta: 메시지당 최대 clamp (캐릭터별 stat_limits 또는 글로벌 STAT_LIMITS)
-    - mood/location이 빈 문자열이면 이전 값 유지
-    - 5분 후 또는 요약 트리거 시 DB에 flush
-    - stat_limits: 캐릭터별 한도 dict (없으면 글로벌 STAT_LIMITS 사용)
+    - fixation_delta: clamped per-message (per-character stat_limits, else global STAT_LIMITS).
+    - mood/location: empty string → keep the previous value.
+    - DB flush happens after 5 minutes or when summarization is triggered.
+    - stat_limits: per-character limit dict; falls back to global STAT_LIMITS.
     """
-    # 현재 값 조회 (캐시 또는 DB)
+    # Look up current values (cache or DB)
     current = get_character_stats(user_id, character_id)
     key = (user_id, character_id)
 
-    # delta clamp (메시지당 변화량 제한) — 캐릭터별 한도 우선
+    # Delta clamp (per-message change limit) — per-character limits take precedence
     limits = stat_limits if stat_limits else STAT_LIMITS
     fix_up = limits.get("fixation", STAT_LIMITS["fixation"])["up"]
     fix_down = limits.get("fixation", STAT_LIMITS["fixation"])["down"]
@@ -1340,20 +1347,20 @@ def update_character_stats(
 
     new_fixation = current["fixation"] + fixation_delta
 
-    # 범위 clamp (0~100)
+    # Range clamp (0–100)
     new_fixation = max(STAT_RANGE["min"], min(STAT_RANGE["max"], new_fixation))
 
-    # mood/location: 빈 문자열이면 이전 값 유지
+    # mood/location: empty string → keep previous
     new_mood = mood if mood else current["mood"]
-    # location은 항상 정규화 형태로 저장 (DB 중복 방지)
+    # Always store location in normalized form (avoid DB duplicates)
     new_location = _normalize_location_key(location) if location else current.get("location", "")
 
-    # mood_lock 강제 — 잠긴 mood는 LLM이 변경 불가
+    # Enforce mood_lock — when locked, the LLM cannot change the mood
     prev = _stats_cache.get(key, {})
     if prev.get("_mood_lock"):
         new_mood = prev["_mood_lock"]["mood"]
 
-    # 캐시에만 반영 (DB 쓰기 지연) — mood_lock 보존
+    # Cache-only write (deferred DB write) — preserve mood_lock
     import time as _time
     _stats_cache[key] = {
         "fixation": new_fixation,
@@ -1365,12 +1372,12 @@ def update_character_stats(
         "_total_turns": prev.get("_total_turns", 0),
     }
 
-    # 5분 후 자동 flush 타이머 설정
+    # Schedule the auto-flush timer (5 minutes from now)
     _schedule_flush(user_id, character_id)
 
 
 def increment_total_turns(user_id: int, character_id: str) -> int:
-    """캐릭터별 누적 턴 수를 +1 하고 현재 값을 반환한다."""
+    """Increment the per-character cumulative turn count by 1 and return the new value."""
     current = get_character_stats(user_id, character_id)
     key = (user_id, character_id)
     cached = _stats_cache.get(key, {})
@@ -1383,7 +1390,7 @@ def increment_total_turns(user_id: int, character_id: str) -> int:
 
 
 def flush_character_stats(user_id: int, character_id: str) -> None:
-    """캐시된 수치를 DB에 즉시 기록. 요약 트리거 시 또는 타이머 만료 시 호출."""
+    """Flush cached stats to the DB immediately. Called on summarization trigger or timer expiry."""
     key = (user_id, character_id)
     cached = _stats_cache.get(key)
     if not cached or not cached.get("_dirty"):
@@ -1407,18 +1414,18 @@ def flush_character_stats(user_id: int, character_id: str) -> None:
 
 
 def flush_all_stats() -> None:
-    """모든 dirty 캐시를 DB에 기록. 봇 종료 시 호출."""
+    """Flush every dirty cache entry to the DB. Called at bot shutdown."""
     for (uid, cid), cached in _stats_cache.items():
         if cached.get("_dirty"):
             flush_character_stats(uid, cid)
 
 
 def _schedule_flush(user_id: int, character_id: str) -> None:
-    """5분 후 자동 flush 타이머 설정. 기존 타이머 있으면 리셋."""
+    """Arm an auto-flush timer 5 minutes from now. Resets any existing timer."""
     import asyncio
     key = (user_id, character_id)
 
-    # 기존 타이머 취소
+    # Cancel any existing timer
     old_timer = _flush_timers.get(key)
     if old_timer and not old_timer.done():
         old_timer.cancel()
@@ -1432,18 +1439,18 @@ def _schedule_flush(user_id: int, character_id: str) -> None:
         loop = asyncio.get_event_loop()
         _flush_timers[key] = loop.create_task(_delayed_flush())
     except RuntimeError:
-        # 이벤트 루프 없으면 즉시 flush
+        # No event loop — flush synchronously
         flush_character_stats(user_id, character_id)
 
 
-# ── 데이터 삭제 ──
+# ── Data deletion ──
 
 
 def delete_all_user_data(user_id: int) -> dict:
-    """유저의 모든 데이터를 삭제한다. (GDPR /deletedata)
+    """Delete every piece of data belonging to a user (GDPR /deletedata).
 
     Returns:
-        삭제된 행 수 딕셔너리
+        Dict mapping table name to the number of deleted rows.
     """
     conn = _get_connection()
     try:
@@ -1464,7 +1471,7 @@ def delete_all_user_data(user_id: int) -> dict:
             cursor.execute(f"DELETE FROM {table} WHERE {col} = ?", (user_id,))
             deleted[table] = cursor.rowcount
 
-        # user_settings는 행 삭제 (온보딩 상태도 초기화)
+        # Delete the user_settings row too (also clears onboarding state)
         cursor.execute("DELETE FROM user_settings WHERE user_id = ?", (user_id,))
         deleted["user_settings"] = cursor.rowcount
 
@@ -1475,7 +1482,7 @@ def delete_all_user_data(user_id: int) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Saved Characters (이미지 제네레이터 캐릭터 저장, Feature 1)
+# Saved Characters (image-generator character store, Feature 1)
 # ═══════════════════════════════════════════════════════════════════════
 
 import re as _re_saved
@@ -1485,12 +1492,12 @@ SAVED_CHAR_MAX_SLOTS = 3
 
 
 def is_valid_saved_char_name(name: str) -> bool:
-    """캐릭터 이름 유효성 검사 — 영문/숫자/언더스코어 1-20자."""
+    """Validate a character name — 1–20 chars of alphanumerics/underscore."""
     return bool(name) and bool(_SAVED_CHAR_NAME_RE.match(name))
 
 
 def _deserialize_nested(raw: str | None, default_keys: tuple[str, ...]) -> dict:
-    """JSON 문자열을 dict로 역직렬화. 파싱 실패/비어있으면 default_keys로 빈 dict 반환."""
+    """Deserialize a JSON string into a dict. On parse failure or empty input, return a dict with default_keys all empty."""
     if not raw:
         return {k: "" for k in default_keys}
     try:
@@ -1516,9 +1523,9 @@ def save_character(
     body_shape: dict | None = None,
     breast: dict | None = None,
 ) -> None:
-    """캐릭터 저장/덮어쓰기 (upsert by user_id + slot).
+    """Save/overwrite a character (upsert by user_id + slot).
 
-    nested 스키마 (P15-3 v3, images/char*.json와 동일):
+    Nested schema (P15-3 v3, mirrors images/char*.json):
         appearance_tags : flat string (eye/hair/face/skin/age/species)
         clothing        : flat string (outerwear, shoes, accessories)
         underwear       : flat string (intimate wear)
@@ -1566,7 +1573,7 @@ def save_character(
 
 
 def _row_to_saved_char(r: tuple) -> dict:
-    """saved_characters 행을 nested dict로 변환."""
+    """Convert a saved_characters row into a nested dict."""
     return {
         "slot": r[0],
         "name": r[1],
@@ -1581,7 +1588,7 @@ def _row_to_saved_char(r: tuple) -> dict:
 
 
 def list_saved_characters(user_id: int) -> list[dict]:
-    """유저의 저장된 캐릭터 목록 (slot 오름차순)."""
+    """Return the user's saved characters (ascending slot order)."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -1601,7 +1608,7 @@ def list_saved_characters(user_id: int) -> list[dict]:
 
 
 def get_saved_character_by_name(user_id: int, name: str) -> dict | None:
-    """이름으로 저장된 캐릭터 조회 (대소문자 구분)."""
+    """Look up a saved character by name (case-sensitive)."""
     if not name:
         return None
     conn = _get_connection()
@@ -1625,7 +1632,7 @@ def get_saved_character_by_name(user_id: int, name: str) -> dict | None:
 
 
 def get_saved_character_by_slot(user_id: int, slot: int) -> dict | None:
-    """슬롯으로 저장된 캐릭터 조회."""
+    """Look up a saved character by slot."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -1647,7 +1654,7 @@ def get_saved_character_by_slot(user_id: int, slot: int) -> dict | None:
 
 
 def delete_saved_character(user_id: int, slot: int) -> bool:
-    """슬롯의 캐릭터 삭제. 삭제 성공 시 True."""
+    """Delete the character in the given slot. Returns True on successful delete."""
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -1662,7 +1669,7 @@ def delete_saved_character(user_id: int, slot: int) -> bool:
 
 
 def find_available_slot(user_id: int) -> int | None:
-    """빈 슬롯 찾기 (1-3). 다 차있으면 None."""
+    """Find an available slot (1–3). Returns None if all slots are taken."""
     existing = {c["slot"] for c in list_saved_characters(user_id)}
     for s in range(1, SAVED_CHAR_MAX_SLOTS + 1):
         if s not in existing:
