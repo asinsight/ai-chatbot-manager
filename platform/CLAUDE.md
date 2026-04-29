@@ -16,39 +16,56 @@ npm run dev      # http://127.0.0.1:9000
 
 ## 현재 마일스톤
 
-**M0 — 골격 + 봇 dashboard + 시작/종료** (`feat/feature_M0_admin_skeleton` 브랜치).
+**M1 완료 (develop 머지 대기)** — `.env` 편집기 + Connections + Dashboard health card.
 
 | 페이지 | 상태 |
 |---|---|
-| `/dashboard` | ✅ 봇 status 카드 + 로그 tail (5초 polling) |
-| `/connections` | ⏳ M1 placeholder |
-| `/env` | ⏳ M1 placeholder |
+| `/dashboard` | ✅ Bot status card + Connections health card + log tail (5s polling) |
+| `/connections` | ✅ 4 endpoint cards (ComfyUI / OpenWebUI / Grok / Prompt Guard) — URL+token 편집 + Ping + last_ping SQLite 기록 + 전체 Ping |
+| `/env` | ✅ 8 카테고리 tabs + 시크릿 마스킹 + 자동 백업 + restart toast |
 | `/prompts` | ⏳ M2 placeholder |
 | `/characters` | ⏳ M3 placeholder |
 | `/config` | ⏳ M4 placeholder |
 | `/workflows` | ⏳ M5 placeholder |
 | `/logs` | ⏳ M5 placeholder |
 
+> M1 단계에서 코드/UI 전체가 영어로 통일됐다 (PM 결정 D). Markdown 문서 (이 파일 포함) 만 한국어 유지. `lib/env-categories.ts` 의 카테고리 라벨, toast 메시지, 컴포넌트 텍스트 모두 영어.
+
 ## 디렉터리 구조
 
 ```
 platform/
-├── app/                   # App Router
-│   ├── layout.tsx         # Sidebar + Header + Main
-│   ├── page.tsx           # → /dashboard 리다이렉트
-│   ├── dashboard/         # M0 핵심 페이지
-│   ├── (placeholders)/    # connections, env, prompts, characters, config, workflows, logs
-│   └── api/bot/           # 5 routes — status, start, stop, restart, logs
+├── app/                                # App Router
+│   ├── layout.tsx                      # Sidebar + Header + Main + Toaster
+│   ├── page.tsx                        # → /dashboard 리다이렉트
+│   ├── dashboard/                      # M0 (status + log tail) + M1 (health card)
+│   ├── env/{page,env-form}.tsx         # M1 — 카테고리 tabs + 시크릿 마스킹
+│   ├── connections/{page,connections-page,connection-card}.tsx  # M1 — 4 endpoint
+│   ├── (placeholders)/                 # prompts, characters, config, workflows, logs
+│   └── api/
+│       ├── bot/                        # M0 — 5 routes (status/start/stop/restart/logs)
+│       ├── env/                        # M1 — GET / PUT
+│       └── connections/                # M1 — GET, [id] PUT, [id]/ping POST, ping-all POST
 ├── components/
-│   ├── ui/                # shadcn primitives (Button, Card, Badge)
-│   ├── sidebar.tsx
+│   ├── ui/                             # shadcn primitives (Button, Card, Badge, Input, Label, Tabs, Sonner)
+│   ├── sidebar.tsx                     # 8 nav items
 │   ├── header.tsx
-│   ├── bot-status-card.tsx   # 5초 polling + Start/Stop/Restart
-│   └── log-tail.tsx          # logs/bot.log 마지막 200줄 5초 polling
-└── lib/
-    ├── paths.ts           # REPO_ROOT / RUN_DIR / LOGS_DIR / ENV_FILE 등
-    ├── bot-process.ts     # spawn / kill / PID file 관리
-    └── utils.ts           # cn() (shadcn util)
+│   ├── bot-status-card.tsx             # M0 — 5s polling + Start/Stop/Restart
+│   ├── connections-health-card.tsx     # M1 — 30s polling, 4 dot summary
+│   └── log-tail.tsx                    # M0 — logs/bot.log 마지막 200 줄
+├── lib/
+│   ├── paths.ts                        # REPO_ROOT / RUN_DIR / LOGS_DIR / ENV_FILE / ENV_EXAMPLE_FILE / SQLITE_FILE
+│   ├── bot-process.ts                  # M0 — spawn / kill / PID file
+│   ├── env-parser.ts                   # M1 — 라인 보존 .env 파서 + applyUpdates + parseExampleComments
+│   ├── env-categories.ts               # M1 — 8 카테고리 mapping (LLM/Grok/ComfyUI/Video/Prompt Guard/Operations/Tokens/Platform)
+│   ├── secrets.ts                      # M1 — *_API_KEY / *_BOT_TOKEN 패턴 + maskValue
+│   ├── backup.ts                       # M1 — KST timestamp .env 백업 (무제한 회전)
+│   ├── db.ts                           # M1 — better-sqlite3 + connection_check 테이블
+│   ├── connections.ts                  # M1 — 4 endpoint 정의
+│   ├── env-read.ts                     # M1 — .env 값 읽기 helper
+│   ├── ping.ts                         # M1 — 4 endpoint ping (10s timeout, AbortController)
+│   └── utils.ts                        # cn() (shadcn util)
+└── data/                               # gitignored — platform.sqlite + backups/.env.*.bak
 ```
 
 ## `lib/bot-process.ts` — 봇 라이프사이클 SOT
@@ -77,8 +94,23 @@ platform/
 | `/api/bot/stop` | POST | `{ ok: true }` | 409 NOT_RUNNING / 500 STOP_FAILED |
 | `/api/bot/restart` | POST | `{ pid }` | 500 RESTART_FAILED |
 | `/api/bot/logs?tail=N` | GET | `{ lines: string[], note? }` | 500 LOGS_FAILED |
+| `/api/env` | GET | 8 카테고리 + 변수 list | 500 ENV_READ_FAILED |
+| `/api/env` | PUT `{updates}` | `{ok, restart_required, backup_path}` | 422 READ_ONLY_KEY / UNKNOWN_KEY / INVALID_VALUE |
+| `/api/connections` | GET | 4 endpoint + last_ping | 500 |
+| `/api/connections/[id]` | PUT `{url, token}` | `{ok, backup_path}` | 422 TOKEN_REQUIRED / TOKEN_NOT_SUPPORTED |
+| `/api/connections/[id]/ping` | POST | `{ok, status_code, duration_ms, message}` | — (failure body 안에 ok=false) |
+| `/api/connections/ping-all` | POST | `{results: {id: PingResult}}` | — |
 
 `logs` route 는 1MB 읽기 창 + 마지막 N줄 (1 ≤ N ≤ 1000, 기본 200) 추출.
+
+## SQLite (M1)
+
+`platform/data/platform.sqlite` (gitignored). WAL mode. `lib/db.ts` 가 lazy-init + idempotent migration.
+
+테이블:
+- `connection_check` — `(id, endpoint_id, ts, ok, status_code, duration_ms, message)` + index `(endpoint_id, ts DESC)`. recordPing / getLastPing / getLastPingsAll 헬퍼.
+
+향후 마일스톤 (M2-M5) 에서 audit log / character snapshot 등 테이블이 추가될 수 있다.
 
 ## 의존성
 
@@ -86,6 +118,9 @@ platform/
 - **shadcn/ui** primitives 직접 작성 (CLI 미사용 — components.json 만 두고 필요한 컴포넌트만 수동 추가).
 - **lucide-react** 아이콘.
 - **class-variance-authority + tailwind-merge + clsx** (shadcn 표준).
+- **better-sqlite3** (M1) — `platform.sqlite` 단일 파일 SQLite. native binding, prebuilt arm64 정상 다운로드.
+- **@radix-ui/react-tabs / react-label** (M1) — env tabs / form labels.
+- **sonner** (M1) — toast UI.
 
 ## 편집 가이드
 
@@ -95,6 +130,6 @@ platform/
 4. **봇 프로세스 외부 영향**: `lib/bot-process.ts` 변경 시 항상 수동 테스트 — start/stop/restart/stale-pid 시나리오. `npm run build` 만으로는 race 검증 안 됨.
 5. **새 마일스톤 시작 시**: 새 feature 브랜치 + `docs/features/M<N>_<name>.md` plan + 사인오프 → 구현. 머지 시 `platform/CLAUDE.md` 의 "현재 마일스톤" 표 갱신.
 
-## M0 외 부분 진입 시 주의
+## M2+ 시작 시 주의
 
-`/dashboard` 외 페이지는 모두 placeholder. 함수형 컴포넌트 한 줄짜리 텍스트만 있음. M1+ 에서 실제 UI 채울 때 이 placeholder 들을 직접 교체한다 (별도 routing 변경 불필요).
+`/prompts` (M2), `/characters` (M3), `/config` (M4), `/workflows` + `/logs` (M5) 페이지는 placeholder 만 있음. 새 마일스톤에서는 placeholder 를 실제 UI 로 교체하면 된다 — routing 변경 불필요.
