@@ -19,7 +19,15 @@ export const CATEGORIES: EnvCategory[] = [
   {
     id: "grok",
     label: "Grok",
-    keys: ["GROK_API_KEY", "GROK_MODEL_NAME", "GROK_BASE_URL"],
+    keys: [
+      "GROK_API_KEY",
+      "GROK_MODEL_NAME",
+      "GROK_BASE_URL",
+      "GROK_IMAGE_MODEL",
+      "VIDEO_GROK_MODEL",
+      "VIDEO_ANALYZER_MODEL",
+      "GROK_SEARCH_MODEL",
+    ],
   },
   {
     id: "comfyui",
