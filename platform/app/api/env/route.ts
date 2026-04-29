@@ -139,7 +139,7 @@ export async function PUT(req: NextRequest) {
   }
 
   for (const key of keys) {
-    if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) {
+    if (!/^[A-Z_][A-Za-z0-9_]*$/.test(key)) {
       return NextResponse.json(
         { error: `invalid env key format: ${key}`, code: "INVALID_KEY" },
         { status: 422 },
