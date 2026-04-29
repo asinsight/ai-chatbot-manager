@@ -66,11 +66,10 @@ export const CATEGORIES: EnvCategory[] = [
     id: "operations",
     label: "Operations",
     description:
-      "Runtime knobs that don't fit the backend categories. IMAGE_AUTONOMY controls how often the LLM proactively sends photos (0–3). FORCE_SFW_SCENE pins the /random scene for debug. ENV chooses the TEST_/PROD_ token group. ADMIN_USER_IDS / ADMIN_NOTIFY / LOG_LEVEL govern logging and admin notifications. The LLM queue + summarization knobs throttle backpressure.",
+      "Runtime knobs that don't fit the backend categories. IMAGE_AUTONOMY controls how often the LLM proactively sends photos (0–3). FORCE_SFW_SCENE pins the /random scene for debug. ADMIN_USER_IDS / ADMIN_NOTIFY / LOG_LEVEL govern logging and admin notifications. The LLM queue + summarization knobs throttle backpressure.",
     keys: [
       "IMAGE_AUTONOMY",
       "FORCE_SFW_SCENE",
-      "ENV",
       "ADMIN_USER_IDS",
       "ADMIN_NOTIFY",
       "LOG_LEVEL",
@@ -83,12 +82,12 @@ export const CATEGORIES: EnvCategory[] = [
   },
   {
     id: "tokens",
-    label: "Bot tokens (Test/Prod)",
+    label: "Bot tokens",
     description:
-      "Telegram bot tokens. The active set is selected by ENV (test or prod) — the matching prefix (`TEST_` or `PROD_`) is auto-mapped on startup. MAIN_BOT_TOKEN drives the onboarding bot; per-character / per-imagegen tokens are added when you register a new bot in @BotFather.",
-    keys: [],
+      "Telegram bot tokens. MAIN_BOT_TOKEN drives the onboarding bot; per-character + imagegen tokens are added when you register a new bot in @BotFather. The TEST_/PROD_ environment split was removed — this build runs against a single deployment.",
+    keys: ["MAIN_BOT_TOKEN", "MAIN_BOT_USERNAME"],
     dynamicMatch: (k) =>
-      /^(TEST|PROD)_(MAIN_BOT_TOKEN|MAIN_BOT_USERNAME|CHAR_BOT_[A-Za-z0-9]+|CHAR_USERNAME_[A-Za-z0-9]+)$/.test(
+      /^(MAIN_BOT_TOKEN|MAIN_BOT_USERNAME|CHAR_BOT_[A-Za-z0-9]+|CHAR_USERNAME_[A-Za-z0-9]+)$/.test(
         k,
       ),
   },

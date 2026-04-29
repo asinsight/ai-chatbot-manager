@@ -19,12 +19,6 @@ import sys
 from dotenv import load_dotenv
 load_dotenv()  # load .env before module imports (so module-level os.getenv works)
 
-# Resolve env-prefixed bot tokens: TEST_X or PROD_X → X
-_ENV_PREFIX = os.getenv("ENV", "test").upper() + "_"
-for _key in list(os.environ):
-    if _key.startswith(_ENV_PREFIX):
-        os.environ[_key[len(_ENV_PREFIX):]] = os.environ[_key]
-
 from telegram.ext import ApplicationBuilder
 
 from src.handlers_main import register_main_handlers

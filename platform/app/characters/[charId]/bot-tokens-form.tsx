@@ -13,21 +13,17 @@ type FieldState = { value: string; present: boolean; masked: string | null };
 type Resp = {
   charId: string;
   fields: {
-    test_token: FieldState;
-    test_username: FieldState;
-    prod_token: FieldState;
-    prod_username: FieldState;
+    token: FieldState;
+    username: FieldState;
   };
   keys: Record<string, string>;
 };
 
-type FieldKey = "test_token" | "test_username" | "prod_token" | "prod_username";
+type FieldKey = "token" | "username";
 
 const FIELD_DEFS: { key: FieldKey; label: string; secret: boolean; placeholder: string }[] = [
-  { key: "test_token", label: "Test bot token", secret: true, placeholder: "12345:ABC… (from @BotFather)" },
-  { key: "test_username", label: "Test bot username", secret: false, placeholder: "MyTestBot" },
-  { key: "prod_token", label: "Prod bot token", secret: true, placeholder: "12345:ABC…" },
-  { key: "prod_username", label: "Prod bot username", secret: false, placeholder: "MyProdBot" },
+  { key: "token", label: "Bot token", secret: true, placeholder: "12345:ABC… (from @BotFather)" },
+  { key: "username", label: "Bot username", secret: false, placeholder: "MyCharBot" },
 ];
 
 export function BotTokensForm({ charId }: { charId: string }) {
@@ -105,9 +101,7 @@ export function BotTokensForm({ charId }: { charId: string }) {
   return (
     <div className="space-y-5">
       <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
-        Telegram bot token + username for this character. The bot picks
-        TEST_ vs PROD_ based on the global <code className="font-mono">ENV</code>{" "}
-        var. Get the token + username from{" "}
+        Telegram bot token + username for this character. Get the token + username from{" "}
         <a
           className="underline"
           href="https://t.me/BotFather"

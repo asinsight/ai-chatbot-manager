@@ -71,12 +71,7 @@ async function _backupOne(file: string): Promise<string> {
 }
 
 function _envCharLines(charId: string): string[] {
-  return [
-    `TEST_CHAR_BOT_${charId}`,
-    `TEST_CHAR_USERNAME_${charId}`,
-    `PROD_CHAR_BOT_${charId}`,
-    `PROD_CHAR_USERNAME_${charId}`,
-  ];
+  return [`CHAR_BOT_${charId}`, `CHAR_USERNAME_${charId}`];
 }
 
 async function _appendEnvCharLines(charId: string): Promise<void> {

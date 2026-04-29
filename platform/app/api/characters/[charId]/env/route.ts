@@ -12,16 +12,12 @@ export const dynamic = "force-dynamic";
 const CHAR_ID_RE = /^char(\d{2,3})$/;
 
 function keysFor(charId: string): {
-  test_token: string;
-  test_username: string;
-  prod_token: string;
-  prod_username: string;
+  token: string;
+  username: string;
 } {
   return {
-    test_token: `TEST_CHAR_BOT_${charId}`,
-    test_username: `TEST_CHAR_USERNAME_${charId}`,
-    prod_token: `PROD_CHAR_BOT_${charId}`,
-    prod_username: `PROD_CHAR_USERNAME_${charId}`,
+    token: `CHAR_BOT_${charId}`,
+    username: `CHAR_USERNAME_${charId}`,
   };
 }
 
@@ -65,10 +61,8 @@ export async function GET(
 }
 
 type PutBody = {
-  test_token?: string;
-  test_username?: string;
-  prod_token?: string;
-  prod_username?: string;
+  token?: string;
+  username?: string;
 };
 
 export async function PUT(
