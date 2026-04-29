@@ -16,14 +16,14 @@ npm run dev      # http://127.0.0.1:9000
 
 ## 현재 마일스톤
 
-**M1 완료 (develop 머지 대기)** — `.env` 편집기 + Connections + Dashboard health card.
+**M2 완료 (develop 머지 대기)** — `/prompts` 편집기 + Monaco + diff modal.
 
 | 페이지 | 상태 |
 |---|---|
 | `/dashboard` | ✅ Bot status card + Connections health card + log tail (5s polling) |
 | `/connections` | ✅ 4 endpoint cards (ComfyUI / OpenWebUI / Grok / Prompt Guard) — URL+token 편집 + Ping + last_ping SQLite 기록 + 전체 Ping |
-| `/env` | ✅ 8 카테고리 tabs + 시크릿 마스킹 + 자동 백업 + restart toast |
-| `/prompts` | ⏳ M2 placeholder |
+| `/env` | ✅ 8 카테고리 tabs + 카테고리 description + 시크릿 마스킹 + 자동 백업 + default placeholder |
+| `/prompts` | ✅ Outer tabs (Grok prompting / System prompt) × inner tabs (5+3 keys), Monaco 65vh + react-diff-viewer modal + per-key save + ${var} placeholder lint + 인라인 metadata |
 | `/characters` | ⏳ M3 placeholder |
 | `/config` | ⏳ M4 placeholder |
 | `/workflows` | ⏳ M5 placeholder |
@@ -39,17 +39,20 @@ platform/
 │   ├── layout.tsx                      # Sidebar + Header + Main + Toaster
 │   ├── page.tsx                        # → /dashboard 리다이렉트
 │   ├── dashboard/                      # M0 (status + log tail) + M1 (health card)
-│   ├── env/{page,env-form}.tsx         # M1 — 카테고리 tabs + 시크릿 마스킹
+│   ├── env/{page,env-form}.tsx         # M1 — 카테고리 tabs + 시크릿 마스킹 + description
 │   ├── connections/{page,connections-page,connection-card}.tsx  # M1 — 4 endpoint
-│   ├── (placeholders)/                 # prompts, characters, config, workflows, logs
+│   ├── prompts/{page,prompts-page,prompt-editor,lint,metadata}.tsx  # M2 — Monaco + diff modal
+│   ├── (placeholders)/                 # characters, config, workflows, logs
 │   └── api/
 │       ├── bot/                        # M0 — 5 routes (status/start/stop/restart/logs)
 │       ├── env/                        # M1 — GET / PUT
-│       └── connections/                # M1 — GET, [id] PUT, [id]/ping POST, ping-all POST
+│       ├── connections/                # M1 — GET, [id] PUT, [id]/ping POST, ping-all POST
+│       └── prompts/{grok,system}/      # M2 — GET / PUT
 ├── components/
-│   ├── ui/                             # shadcn primitives (Button, Card, Badge, Input, Label, Tabs, Sonner)
+│   ├── ui/                             # shadcn primitives (Button, Card, Badge, Input, Label, Tabs, Sonner, Dialog)
 │   ├── sidebar.tsx                     # 8 nav items
 │   ├── header.tsx
+│   ├── monaco-client.tsx               # M2 — dynamic import Monaco (SSR off)
 │   ├── bot-status-card.tsx             # M0 — 5s polling + Start/Stop/Restart
 │   ├── connections-health-card.tsx     # M1 — 30s polling, 4 dot summary
 │   └── log-tail.tsx                    # M0 — logs/bot.log 마지막 200 줄
@@ -64,6 +67,7 @@ platform/
 │   ├── connections.ts                  # M1 — 4 endpoint 정의
 │   ├── env-read.ts                     # M1 — .env 값 읽기 helper
 │   ├── ping.ts                         # M1 — 4 endpoint ping (10s timeout, AbortController)
+│   ├── prompts.ts                      # M2 — read/write/validate/lint config/grok_prompts.json + system_prompt.json
 │   └── utils.ts                        # cn() (shadcn util)
 └── data/                               # gitignored — platform.sqlite + backups/.env.*.bak
 ```
@@ -100,6 +104,9 @@ platform/
 | `/api/connections/[id]` | PUT `{url, token}` | `{ok, backup_path}` | 422 TOKEN_REQUIRED / TOKEN_NOT_SUPPORTED |
 | `/api/connections/[id]/ping` | POST | `{ok, status_code, duration_ms, message}` | — (failure body 안에 ok=false) |
 | `/api/connections/ping-all` | POST | `{results: {id: PingResult}}` | — |
+| `/api/prompts/grok` | GET | `{file, keys: [{name, value, size}]}` | 500 PROMPT_READ_FAILED |
+| `/api/prompts/grok` | PUT `{updates}` | `{ok, backup_path, warnings}` | 422 INVALID_PAYLOAD / MISSING_REQUIRED_KEY |
+| `/api/prompts/system` | GET / PUT | (grok 동일) | (grok 동일) |
 
 `logs` route 는 1MB 읽기 창 + 마지막 N줄 (1 ≤ N ≤ 1000, 기본 200) 추출.
 
@@ -121,6 +128,9 @@ platform/
 - **better-sqlite3** (M1) — `platform.sqlite` 단일 파일 SQLite. native binding, prebuilt arm64 정상 다운로드.
 - **@radix-ui/react-tabs / react-label** (M1) — env tabs / form labels.
 - **sonner** (M1) — toast UI.
+- **@monaco-editor/react** (M2) — VS Code-equivalent editor (dynamic import, SSR off).
+- **@radix-ui/react-dialog** (M2) — shadcn Dialog primitive (diff modal).
+- **react-diff-viewer-continued** (M2) — split-view diff (active React 18 fork).
 
 ## 편집 가이드
 
@@ -130,6 +140,6 @@ platform/
 4. **봇 프로세스 외부 영향**: `lib/bot-process.ts` 변경 시 항상 수동 테스트 — start/stop/restart/stale-pid 시나리오. `npm run build` 만으로는 race 검증 안 됨.
 5. **새 마일스톤 시작 시**: 새 feature 브랜치 + `docs/features/M<N>_<name>.md` plan + 사인오프 → 구현. 머지 시 `platform/CLAUDE.md` 의 "현재 마일스톤" 표 갱신.
 
-## M2+ 시작 시 주의
+## M3+ 시작 시 주의
 
-`/prompts` (M2), `/characters` (M3), `/config` (M4), `/workflows` + `/logs` (M5) 페이지는 placeholder 만 있음. 새 마일스톤에서는 placeholder 를 실제 UI 로 교체하면 된다 — routing 변경 불필요.
+`/characters` (M3), `/config` (M4), `/workflows` + `/logs` (M5) 페이지는 placeholder 만 있음. 새 마일스톤에서는 placeholder 를 실제 UI 로 교체하면 된다 — routing 변경 불필요.
