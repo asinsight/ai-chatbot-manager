@@ -17,6 +17,7 @@ import {
 import { MonacoEditor } from "@/components/monaco-client";
 
 import { lintPlaceholders, type LintIssue } from "./lint";
+import { metaFor } from "./metadata";
 
 type PromptKey = { name: string; value: string; size: number };
 type PromptFile = "grok" | "system";
@@ -34,6 +35,7 @@ export function PromptEditor({ file, initial, onSaved }: Props) {
 
   const dirty = draft !== initial.value;
   const lint = useMemo<LintIssue[]>(() => lintPlaceholders(draft), [draft]);
+  const meta = metaFor(file, initial.name);
 
   const save = useCallback(async () => {
     setSaving(true);
@@ -75,6 +77,15 @@ export function PromptEditor({ file, initial, onSaved }: Props) {
 
   return (
     <div className="space-y-3">
+      {meta && (
+        <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-xs">
+          <p className="text-sm font-semibold text-foreground">{meta.title}</p>
+          <p className="mt-1 text-muted-foreground">{meta.summary}</p>
+          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+            <span className="font-semibold uppercase tracking-wider">Used by</span> · {meta.used_by}
+          </p>
+        </div>
+      )}
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <div className="flex items-center gap-3">
           <span className="font-mono">
