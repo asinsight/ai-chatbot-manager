@@ -373,7 +373,7 @@ async def generate_danbooru_tags(
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url="https://api.x.ai/v1",
+        base_url=os.getenv("GROK_BASE_URL", "https://api.x.ai/v1"),
     )
 
     messages = [
@@ -469,7 +469,7 @@ async def generate_danbooru_tags_random(
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url="https://api.x.ai/v1",
+        base_url=os.getenv("GROK_BASE_URL", "https://api.x.ai/v1"),
     )
 
     messages = [
@@ -591,7 +591,7 @@ async def classify_tags_to_nested_blocks(pos_prompt: str) -> dict:
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url="https://api.x.ai/v1",
+        base_url=os.getenv("GROK_BASE_URL", "https://api.x.ai/v1"),
     )
 
     messages = [
@@ -696,7 +696,7 @@ async def analyze_partial_edit_intent(
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url="https://api.x.ai/v1",
+        base_url=os.getenv("GROK_BASE_URL", "https://api.x.ai/v1"),
     )
 
     messages = [
@@ -1115,7 +1115,7 @@ async def generate_video_prompts(
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url="https://api.x.ai/v1",
+        base_url=os.getenv("GROK_BASE_URL", "https://api.x.ai/v1"),
     )
 
     # ── motion_override 경로 — Stage 1 bypass, Composer 단독 호출 ──
