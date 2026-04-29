@@ -27,6 +27,7 @@ type EnvVar = {
 type EnvCategory = {
   id: string;
   label: string;
+  description: string | null;
   vars: EnvVar[];
 };
 
@@ -170,6 +171,11 @@ export function EnvForm() {
         </TabsList>
         {data.categories.map((c) => (
           <TabsContent key={c.id} value={c.id}>
+            {c.description && (
+              <div className="mb-4 rounded-md border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+                {c.description}
+              </div>
+            )}
             <div className="space-y-5">
               {c.vars.map((v) => {
                 const current = edits[v.key] ?? v.value;

@@ -102,6 +102,7 @@ export async function GET() {
         return {
           id,
           label: c ? c.label : "Misc",
+          description: c?.description ?? null,
           vars: buckets.get(id) ?? [],
         };
       });
