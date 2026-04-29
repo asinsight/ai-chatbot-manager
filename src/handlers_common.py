@@ -1,4 +1,4 @@
-"""handlers_common.py — 메인봇/캐릭터봇 핸들러 공통 유틸리티."""
+"""handlers_common.py — Shared utilities for main bot / character bot handlers."""
 
 import logging
 import os
@@ -15,13 +15,13 @@ from src.profile_keys import canonicalize as _canon_key
 
 
 def check_admin(user_id: int) -> bool:
-    """유저가 Admin인지 확인한다 (.env 기반)."""
+    """Check whether the user is an Admin (based on .env)."""
     admin_ids = os.getenv("ADMIN_USER_IDS", "").split(",")
     return str(user_id) in [x.strip() for x in admin_ids]
 
 
 def get_admin_ids() -> list[int]:
-    """설정된 Admin 유저 ID 리스트."""
+    """List of configured Admin user IDs."""
     raw = os.getenv("ADMIN_USER_IDS", "")
     ids = []
     for x in raw.split(","):
@@ -44,10 +44,10 @@ async def notify_admins_video(
     audio_prompt: str = "",
     extra: str = "",
 ) -> None:
-    """영상 생성 이벤트를 모든 Admin에게 알린다.
+    """Notify all Admins about a video generation event.
 
-    **VIDEO_DEBUG_DUMP=1 env 가드** — 디버깅 모드일 때만 전송 (평소엔 메시지 스팸 방지).
-    실패는 silently swallow.
+    **VIDEO_DEBUG_DUMP=1 env guard** — only sent in debug mode (prevents message spam in normal use).
+    Failures are silently swallowed.
     """
     if os.getenv("VIDEO_DEBUG_DUMP", "0") != "1":
         return
@@ -80,25 +80,25 @@ async def notify_admins_video(
             await context.bot.send_message(chat_id=aid, text=msg, parse_mode="Markdown")
         except Exception:
             try:
-                # Markdown 파싱 실패 시 plain text로 재시도
+                # Markdown parsing failed — retry with plain text
                 await context.bot.send_message(chat_id=aid, text=msg[:4000])
             except Exception as _e:
-                logger.warning("admin video notify 실패: admin=%s err=%s", aid, _e)
+                logger.warning("admin video notify failed: admin=%s err=%s", aid, _e)
 
 logger = logging.getLogger(__name__)
 
 
 def _get_character(context, user_id):
-    """유저의 활성 캐릭터를 반환한다."""
-    # 멀티봇: 캐릭터 봇이면 bot_data에 char_id가 고정
+    """Return the user's active character."""
+    # Multi-bot: for character bots, char_id is fixed in bot_data
     if "char_id" in context.bot_data and "character" in context.bot_data:
         return context.bot_data["char_id"], context.bot_data["character"]
-    # 레거시/메인봇: DB에서 조회
+    # Legacy / main bot: look up from DB
     characters = context.bot_data.get("characters", {})
     char_id = get_active_character(user_id)
     if char_id in characters:
         return char_id, characters[char_id]
-    # fallback: 첫 번째 캐릭터
+    # fallback: first character
     first_id = next(iter(characters), None)
     if first_id:
         return first_id, characters[first_id]
@@ -106,53 +106,53 @@ def _get_character(context, user_id):
 
 
 async def _run_summary(user_id: int, char_id: str, recent_keep: int) -> None:
-    """비동기 요약 + 장기 기억/프로필 추출."""
+    """Async summary + long-term memory / profile extraction."""
     try:
         all_messages = get_history(user_id, limit=9999, character_id=char_id)
         if len(all_messages) <= recent_keep:
             return
 
-        # 요약 대상: 최근 keep 제외한 나머지
+        # Summary target: everything except the most recent `keep` messages
         to_summarize = all_messages[:-recent_keep]
         existing_summary = get_latest_summary(user_id, char_id)
 
-        # 기존 요약이 있으면 앞에 붙여서 연속성 유지 (최대 500자 — 누적 방지)
+        # If a previous summary exists, prepend it for continuity (max 500 chars — prevents accumulation)
         max_prev_summary = int(os.getenv("SUMMARY_MAX_PREV_CHARS", "500"))
         if existing_summary:
             truncated = existing_summary[:max_prev_summary]
             to_summarize.insert(0, {"role": "system", "content": f"Previous summary: {truncated}"})
 
-        # 1. 요약 생성
+        # 1. Generate summary
         summary = await summarize_messages(to_summarize)
         if summary and summary != "(summary unavailable)":
             save_summary(user_id, char_id, summary, len(to_summarize))
             deleted = delete_old_messages(user_id, char_id, keep_recent=recent_keep)
-            logger.info("유저 %s 캐릭터 %s 요약 완료: %d개 메시지 압축, %d개 삭제", user_id, char_id, len(to_summarize), deleted)
+            logger.info("user %s character %s summary done: %d messages compressed, %d deleted", user_id, char_id, len(to_summarize), deleted)
         else:
-            logger.warning("유저 %s 캐릭터 %s 요약 실패", user_id, char_id)
+            logger.warning("user %s character %s summary failed", user_id, char_id)
 
-        # 1-1. 캐릭터 수치 DB flush (요약 트리거 시 캐시 기록)
+        # 1-1. Flush character stats to DB (write cache when summary is triggered)
         try:
             from src.history import flush_character_stats
             flush_character_stats(user_id, char_id)
         except Exception:
             pass
 
-        # 2. 장기 기억 + 프로필 추출
+        # 2. Long-term memory + profile extraction
         extracted = await extract_memory_and_profile(to_summarize, truncated if existing_summary else "")
 
-        # relationship 저장 (덮어쓰기) — sanitize
+        # Save relationship (overwrite) — sanitize
         if extracted.get("relationship"):
             save_memory(user_id, char_id, "relationship", strip_signals(extracted["relationship"]))
-            logger.info("유저 %s 캐릭터 %s relationship 업데이트", user_id, char_id)
+            logger.info("user %s character %s relationship updated", user_id, char_id)
 
-        # events 저장 (추가)
+        # Save events (append)
         for event in extracted.get("events", []):
             if event.strip():
                 save_memory(user_id, char_id, "event", strip_signals(event.strip()))
         delete_oldest_events(user_id, char_id, keep=10)
 
-        # user_info → 프로필 저장 (manual이 아닌 항목만) — canonical key로 정규화
+        # user_info → save to profile (only non-manual entries) — normalize to canonical key
         for key, value in extracted.get("user_info", {}).items():
             if not value or not value.strip():
                 continue
@@ -161,7 +161,7 @@ async def _run_summary(user_id: int, char_id: str, recent_keep: int) -> None:
             if canon in existing and existing[canon].get("source") == "manual":
                 continue
             set_profile(user_id, "global", canon, strip_signals(value.strip()), source="auto")
-            logger.info("유저 %s 프로필 자동 추출: %s=%s (LLM key='%s')", user_id, canon, value.strip(), key)
+            logger.info("user %s profile auto-extracted: %s=%s (LLM key='%s')", user_id, canon, value.strip(), key)
 
     except Exception as e:
-        logger.error("요약/추출 실행 중 오류: %s", e)
+        logger.error("error during summary/extract: %s", e)

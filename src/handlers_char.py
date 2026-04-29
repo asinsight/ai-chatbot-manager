@@ -1,6 +1,6 @@
-"""Character bot handlers — 멀티봇 아키텍처에서 각 캐릭터 봇에 등록되는 핸들러.
+"""Character bot handlers — handlers registered on each character bot in the multi-bot architecture.
 
-각 봇의 bot_data에 char_id와 character가 설정되어 있다고 가정한다.
+Assumes each bot's bot_data has `char_id` and `character` populated.
 """
 
 import asyncio
@@ -65,15 +65,15 @@ except Exception as _exc:
     logger.warning("sfw_denylist.json load failed (%s) — proceeding without denylist", _exc)
 
 
-# P10 Phase 2 — Location research in-flight dedup (두 번 빠르게 요청되지 않도록)
+# P10 Phase 2 — Location research in-flight dedup (avoid back-to-back duplicate requests)
 _location_research_inflight: set[str] = set()
 
 
 async def _research_location_bg(location_key: str) -> None:
-    """백그라운드 로케이션 리서치 — 캐시 미스 시 Grok 검색 후 DB 저장.
+    """Background location research — on cache miss, run a Grok search and persist to DB.
 
-    fire-and-forget 용도. 실패해도 메인 대화 플로우에 영향 없음.
-    중복 인플라이트 방지를 위한 in-memory 가드 포함.
+    Fire-and-forget. Failures must not affect the main chat flow.
+    Includes an in-memory guard to prevent duplicate in-flight requests.
     """
     from src.history import get_location_context
     from src.grok_search import search_location
@@ -82,11 +82,11 @@ async def _research_location_bg(location_key: str) -> None:
     if not key:
         return
 
-    # 이미 캐시에 있으면 즉시 종료 — 불필요한 API 호출 방지
+    # Already cached -> bail immediately to avoid an unnecessary API call
     if get_location_context(key):
         return
 
-    # 동시 요청 방지
+    # Dedup concurrent requests
     if key in _location_research_inflight:
         return
     _location_research_inflight.add(key)
@@ -104,7 +104,7 @@ async def _research_location_bg(location_key: str) -> None:
 
 
 def _parse_outfit_signal(text: str) -> str | None:
-    """LLM 응답에서 [OUTFIT: ...] 시그널을 추출한다. 없으면 None.
+    """Extract the [OUTFIT: ...] signal from an LLM response. Returns None if absent.
 
     SFW invariant (config/grok_prompts.json): clothing is always full and
     intact — the LLM should never emit a state-style outfit (e.g. partial
@@ -147,14 +147,14 @@ def _parse_outfit_signal(text: str) -> str | None:
 
 
 def _split_tags(text: str) -> list[str]:
-    """콤마 구분 태그를 trim 된 리스트로 분리한다."""
+    """Split a comma-separated tag string into a trimmed list."""
     if not text:
         return []
     return [t.strip() for t in text.split(",") if t.strip()]
 
 
 async def _convert_outfit_tags(description: str) -> dict | None:
-    """자연어 의상 설명을 danbooru 태그로 변환한다. Grok 경량 호출."""
+    """Convert a natural-language outfit description into Danbooru tags. Lightweight Grok call."""
     from openai import AsyncOpenAI
 
     api_key = os.getenv("GROK_API_KEY", "")
@@ -185,35 +185,34 @@ async def _convert_outfit_tags(description: str) -> dict | None:
         data = _json.loads(json_match.group(0))
         return data if data.get("clothing") else None
     except Exception as e:
-        logger.error("의상 태그 변환 실패: %s", e)
+        logger.error("outfit tag conversion failed: %s", e)
         return None
 
 
 async def char_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/start 커맨드 핸들러 — 온보딩 체크 + 캐릭터 봇의 first_mes를 전송한다."""
+    """/start handler — checks onboarding and sends the character bot's first_mes."""
     char_id = context.bot_data["char_id"]
     character = context.bot_data["character"]
     user_name = update.effective_user.first_name or "User"
     user_id = update.effective_user.id
 
-    # 온보딩 체크 — 미완료 시 메인 봇으로 안내
+    # Onboarding check — if incomplete, redirect to the main bot
     if not is_onboarded(user_id):
         link = f"https://t.me/{MAIN_BOT_USERNAME}" if MAIN_BOT_USERNAME else ""
         text = (
-            "서비스 이용을 위해 먼저 메인 봇에서 연령 확인 + 이용약관에 동의해 주세요.\n"
-            "Please agree to age verification + terms of service in the main bot first."
+            "Please complete age verification + terms of service in the main bot first."
         )
         if link:
             text += f"\n\n👉 {link}"
         await update.message.reply_text(text)
         return
 
-    # first_mes 전송
+    # Send first_mes
     first_mes = character.get("first_mes", "")
     if first_mes:
         first_mes = replace_macros(first_mes, character["name"], user_name)
 
-    # 프로필 사진 전송 (앵커 이미지)
+    # Send profile photo (anchor image)
     anchor_image = character.get("anchor_image", "")
     if anchor_image:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -222,54 +221,54 @@ async def char_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with open(image_path, "rb") as photo:
                 await update.message.reply_photo(photo=photo)
 
-    greeting = first_mes or "안녕! 무엇이든 물어봐 :)"
+    greeting = first_mes or "Hi! Ask me anything :)"
     await update.message.reply_text(greeting)
 
-    # first_mes를 히스토리에 저장 (다음 대화에서 맥락 유지)
+    # Save first_mes into history (so it's part of context next turn)
     if first_mes:
         save_message(user_id, "assistant", first_mes, character_id=char_id)
-        logger.info("유저 %s에게 first_mes 전송 및 히스토리 저장 (char=%s)", user_id, char_id)
+        logger.info("sent first_mes to user %s and stored in history (char=%s)", user_id, char_id)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """텍스트 메시지 핸들러 — 히스토리 + 캐릭터 카드로 프롬프트를 조립하여 LLM 응답을 반환한다."""
+    """Text message handler — builds the prompt from history + character card and returns the LLM reply."""
     user_text = update.message.text
     user_id = update.effective_user.id
     user_name = update.effective_user.first_name or "User"
 
-    # Rate limit 체크
+    # Rate limit check
     allowed, reason = rate_limiter.check(user_id)
     if not allowed:
         if reason == "rate_limit":
-            await update.message.reply_text("잠시만... 기다려봐. 너 말이 너무 빨라.")
+            await update.message.reply_text("Hold on... slow down a bit. You're typing too fast.")
         elif reason == "spam_blocked":
-            await update.message.reply_text("잠시 후에 다시 말하자.")
+            await update.message.reply_text("Let's pick this up in a bit.")
         return
 
-    # 프롬프트 인젝션 필터
+    # Prompt-injection filter
     user_text, blocked, block_reason = await filter_input(user_text)
     if blocked:
-        logger.warning("[security] 인젝션 차단: user=%s reason=%s text=%s", user_id, block_reason, update.message.text[:100])
-        await update.message.reply_text("무슨 말이야? 잘 모르겠어~")
+        logger.warning("[security] injection blocked: user=%s reason=%s text=%s", user_id, block_reason, update.message.text[:100])
+        await update.message.reply_text("Hmm? I'm not sure what you mean~")
         return
 
-    # 온보딩 체크
+    # Onboarding check
     if not is_onboarded(user_id):
-        await update.message.reply_text("서비스 이용을 위해 /start를 눌러 연령 확인 + 이용약관에 동의해 주세요.")
+        await update.message.reply_text("Please send /start to complete age verification + terms of service before using the service.")
         return
 
     char_id, character = _get_character(context, user_id)
 
     system_config = context.bot_data.get("system_config")
 
-    # 캐릭터 수치 1회 조회 (이후 재사용) + 턴 카운트 즉시 증가
+    # Read character stats once (reused below) + bump the turn count immediately
     _cached_stats = get_character_stats(user_id, char_id)
     turn_num = increment_total_turns(user_id, char_id)
     _cached_stats = get_character_stats(user_id, char_id)
 
-    # 히스토리 + 프로필 + 기억 + 요약 조회 → 프롬프트 조립
-    # chat_history는 RECENT_MESSAGES_KEEP 만큼만 LLM에 노출 (피크 토큰 제어)
-    # 초과분은 다음 요약 주기에서 summary로 흡수됨
+    # Pull history + profile + memory + summary -> assemble prompt
+    # Only RECENT_MESSAGES_KEEP messages are exposed to the LLM (peak token control)
+    # Older messages are absorbed into the running summary on the next cycle
     history_limit = int(os.getenv("RECENT_MESSAGES_KEEP", "5"))
     chat_history = get_history(user_id, character_id=char_id, limit=history_limit)
     summary = get_latest_summary(user_id, char_id)
@@ -283,7 +282,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     async def keep_typing():
-        """LLM 응답 대기 중 3초마다 typing indicator를 전송한다."""
+        """While waiting for the LLM response, send a typing indicator every 3 seconds."""
         while True:
             await update.message.chat.send_action(ChatAction.TYPING)
             await asyncio.sleep(3)
@@ -294,11 +293,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = await llm_queue.enqueue(messages, user_id=user_id, task_type="chat", max_tokens=char_max_tokens)
     except QueueFullError:
         typing_task.cancel()
-        await update.message.reply_text("지금 너무 많은 사람이 대화 중이야... 잠시 후에 다시 말해줘!")
+        await update.message.reply_text("Lots of people are chatting right now... try me again in a bit!")
         return
     except QueueTimeoutError:
         typing_task.cancel()
-        await update.message.reply_text("응답이 너무 오래 걸리고 있어... 다시 시도해줘!")
+        await update.message.reply_text("This is taking too long... please try again!")
         return
     finally:
         typing_task.cancel()
@@ -307,19 +306,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     search_match = re.search(r"\[SEARCH:\s*(.+?)\]", reply)
     if search_match and char_id not in SEARCH_EXCLUDED_CHARS:
         search_query = search_match.group(1).strip()
-        logger.info("[SEARCH] 시그널 감지 (유저 %s): query='%s'", user_id, search_query)
-        # 검색 + 2차 호출 전체에 typing indicator 유지
+        logger.info("[SEARCH] signal detected (user %s): query='%s'", user_id, search_query)
+        # Keep the typing indicator running across the search + second LLM call
         typing_task_search = asyncio.create_task(keep_typing())
         try:
             try:
                 from src.grok_search import search as grok_search
                 search_results = await grok_search(search_query, user_id=user_id)
             except Exception as e:
-                logger.warning("Grok Search 호출 실패: %s", e)
+                logger.warning("Grok Search call failed: %s", e)
                 search_results = ""
 
             if search_results:
-                # 검색 결과 포함하여 프롬프트 재조립
+                # Re-assemble the prompt with the search results included
                 messages_with_search = build_messages(
                     character, chat_history, user_text, user_name,
                     system_config,
@@ -336,34 +335,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except (QueueFullError, QueueTimeoutError):
                     reply = re.sub(r"\[SEARCH:\s*.+?\]", "", reply).strip()
                     if not reply:
-                        reply = "음... 잠깐 찾아보려고 했는데 안 되네."
+                        reply = "Hmm... I tried to look it up but couldn't."
             else:
-                # 검색 실패 — 시그널 제거하고 1차 응답 사용
+                # Search failed — strip the signal and use the first-pass response
                 reply = re.sub(r"\[SEARCH:\s*.+?\]", "", reply).strip()
         finally:
             typing_task_search.cancel()
 
-    # <think>...</think> 블록 제거 (reasoning 모델의 내부 사고 과정)
+    # Strip <think>...</think> blocks (internal reasoning from reasoning models)
     reply = re.sub(r"</?think>", "", reply)
     reply = re.sub(r"<think>.*?</think>", "", reply, flags=re.DOTALL)
     if "<think>" in reply:
         reply = reply.split("<think>")[0]
-    # 마크다운 포맷팅 제거 (*bold*, _italic_)
+    # Strip markdown formatting (*bold*, _italic_)
     reply = re.sub(r"\*{1,2}(.+?)\*{1,2}", r"\1", reply)
     reply = re.sub(r"_{1,2}(.+?)_{1,2}", r"\1", reply)
     reply = reply.strip()
 
-    # 에러 체크
-    if reply.startswith("[오류]"):
-        logger.warning("LLM 오류 응답, 히스토리 저장 생략: %s", reply)
+    # Error check
+    if reply.startswith("[오류]") or reply.startswith("[error]") or reply.startswith("[Error]"):
+        logger.warning("LLM error response, skipping history save: %s", reply)
         await update.message.reply_text(reply)
         return
 
-    # LLM 응답 디버그 로그
-    logger.info("LLM 응답 (유저 %s): %s", user_id, reply)
+    # LLM response debug log
+    logger.info("LLM response (user %s): %s", user_id, reply)
 
-    # [STAT: ...] 시그널 파싱 — DB 업데이트 (실패해도 메인 플로우 중단 안 함)
-    # 형식: [STAT: fixation+3, mood:jealous, location:bedroom]
+    # Parse [STAT: ...] signal — update DB (must not break the main flow if it errors)
+    # Format: [STAT: fixation+3, mood:jealous, location:bedroom]
     try:
         stat_match = re.search(r'\[STAT:\s*(.+?)\]', reply)
         if stat_match:
@@ -382,40 +381,49 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 elif part.startswith("location:"):
                     stat_location = _normalize_location_key(part.split(":", 1)[1])
             update_character_stats(user_id, char_id, fixation_delta, stat_mood, location=stat_location, stat_limits=character.get("stat_limits"))
-            logger.info("캐릭터 수치 업데이트 (유저 %s, %s): fix=%+d, mood=%s, loc=%s",
+            logger.info("character stats updated (user %s, %s): fix=%+d, mood=%s, loc=%s",
                         user_id, char_id, fixation_delta, stat_mood or "(unchanged)", stat_location or "(unchanged)")
 
-            # P10 Phase 2 — 새 location 감지 시 비동기 리서치 훅 (non-blocking)
-            # 캐시 히트 체크는 _research_location_bg 내부에서 수행
+            # P10 Phase 2 — when a new location is detected, kick off async research (non-blocking)
+            # Cache-hit check happens inside _research_location_bg
             if stat_location:
                 try:
                     asyncio.create_task(_research_location_bg(stat_location))
                 except Exception as _e:
-                    logger.debug("location research task spawn 실패: %s", _e)
+                    logger.debug("location research task spawn failed: %s", _e)
     except Exception as e:
-        logger.error("캐릭터 수치 파싱/업데이트 실패 (유저 %s): %s", user_id, e)
+        logger.error("character stats parse/update failed (user %s): %s", user_id, e)
 
-    # 이미지 시그널 파싱 — SEND_IMAGE / 사진을 보냈다 / photo sent만 매칭
-    # [STAT:], [MOOD:], [OUTFIT:] 등 다른 시그널은 매칭하지 않음
+    # Image-signal parsing — only match SEND_IMAGE / 사진을 보냈다 / photo sent
+    # Other signals like [STAT:], [MOOD:], [OUTFIT:] must not match here
+    # NOTE: the Korean phrase in the regex stays as-is — it's a cross-language safety net for legacy LLM output and Korean user input.
     image_signal_pattern = r"\[(SEND_IMAGE|사진을 보냈다|photo sent):\s*(.+?)\]"
     image_match = re.search(image_signal_pattern, reply, re.IGNORECASE)
-    # 2) 대괄호 없이 SEND_IMAGE: ... 형태
+    # 2) Bare form without brackets: SEND_IMAGE: ...
     if not image_match:
         bare_pattern = r"(?:SEND_IMAGE|사진을 보냈다|photo sent):\s*(.+?)$"
         image_match = re.search(bare_pattern, reply, re.IGNORECASE | re.MULTILINE)
 
-    # 3) 코드 키워드 강제 트리거 — LLM이 시그널 안 넣어도 유저 요청이면 강제 생성
+    # 3) Hard keyword trigger — even if the LLM omits the signal, force generation when the user clearly asks
+    # NOTE: Korean keywords are intentionally kept here as a cross-language safety net (regex-style user-input matching).
     force_image = False
     force_mood = None
     if not image_match:
-        _IMAGE_KEYWORDS = ["사진", "셀카", "보여", "보내", "찍어", "멀리서", "가까이서", "다른 각도", "전신"]
+        _IMAGE_KEYWORDS = [
+            # English
+            "photo", "selfie", "picture", "show me", "send me", "snap", "from far", "close up", "another angle", "full body",
+            # Korean (legacy / cross-language safety net)
+            "사진", "셀카", "보여", "보내", "찍어", "멀리서", "가까이서", "다른 각도", "전신",
+        ]
+        lower_user_text = user_text.lower()
         for kw in _IMAGE_KEYWORDS:
-            if kw in user_text:
+            needle = kw.lower()
+            if needle in lower_user_text or kw in user_text:
                 force_image = True
-                logger.info("키워드 강제 이미지 트리거: '%s' (유저 %s)", kw, user_id)
+                logger.info("keyword forced image trigger: '%s' (user %s)", kw, user_id)
                 break
 
-    # 4) 캐릭터별 특수 무드 트리거 — mood_triggers 매칭 시 강제 이미지 + 표정 오버라이드
+    # 4) Per-character special-mood trigger — when a mood_trigger keyword matches, force an image + override the expression
     if not image_match and not force_image:
         img_config = _load_image_config(char_id)
         mood_triggers = img_config.get("mood_triggers", {})
@@ -424,53 +432,53 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if kw in user_text:
                     force_image = True
                     force_mood = mood
-                    logger.info("캐릭터 특수 트리거: mood=%s, keyword='%s' (유저 %s, %s)", mood, kw, user_id, char_id)
+                    logger.info("character special trigger: mood=%s, keyword='%s' (user %s, %s)", mood, kw, user_id, char_id)
                     break
             if force_mood:
                 break
 
-    # 5) 수치 mood fallback — 키워드 트리거 없을 때 stat mood 사용
+    # 5) Stats-based mood fallback — when no keyword trigger fired, use the stat-mood
     if not force_mood and char_id:
         try:
             if _cached_stats["mood"] not in ("neutral", ""):
                 force_mood = _cached_stats["mood"]
-                logger.info("수치 mood fallback: mood=%s (유저 %s, %s)", force_mood, user_id, char_id)
+                logger.info("stat mood fallback: mood=%s (user %s, %s)", force_mood, user_id, char_id)
         except Exception as e:
-            logger.error("수치 mood fallback 실패: %s", e)
+            logger.error("stat mood fallback failed: %s", e)
 
-    # 대괄호 [...] + 닫히지 않은 [ + 대괄호 없는 시그널 전부 제거
+    # Strip [...] brackets + unclosed [ + bracketless signals — drop everything
     clean_reply = re.sub(r"\[[^\[\]]*?\]", "", reply)
     clean_reply = re.sub(r"\[.*$", "", clean_reply, flags=re.DOTALL)
     clean_reply = re.sub(r"(?:SEND_IMAGE|사진을 보냈다|photo sent):\s*.+?$", "", clean_reply, flags=re.IGNORECASE | re.MULTILINE)
-    # 히스토리에서 따라쓴 (IMAGE_SENT: ...) 패턴 제거
+    # Drop the (IMAGE_SENT: ...) pattern that may have been parroted from history
     clean_reply = re.sub(r"\(IMAGE_SENT:\s*.+?\)", "", clean_reply, flags=re.IGNORECASE)
-    # [MOOD:...] 태그 제거
+    # Drop [MOOD:...] tags
     clean_reply = re.sub(r"\[MOOD:\w+\]", "", clean_reply)
-    # [OUTFIT:...] 태그 제거
+    # Drop [OUTFIT:...] tags
     clean_reply = re.sub(r"\[OUTFIT:\s*.+?\]", "", clean_reply, flags=re.IGNORECASE)
-    # [STAT:...] 태그 제거 (location 포함)
+    # Drop [STAT:...] tags (including location)
     clean_reply = re.sub(r"\[STAT:\s*[^\]]*\]", "", clean_reply)
-    # [LOCATION:...] 태그 제거 (혹시 별도로 나올 경우 대비)
+    # Drop [LOCATION:...] tags (in case it ever shows up separately)
     clean_reply = re.sub(r"\[LOCATION:\s*[^\]]*\]", "", clean_reply, flags=re.IGNORECASE)
-    # [SEARCH:...] 태그 제거
+    # Drop [SEARCH:...] tags
     clean_reply = re.sub(r"\[SEARCH:\s*[^\]]*\]", "", clean_reply)
     clean_reply = clean_reply.strip()
 
-    # 📷촬영 버튼 — fixation > 50 + 이미지 전송이 없을 때만 표시
+    # 📷 capture button — only show when fixation > 50 AND no image is being sent
     capture_keyboard = None
     if not image_match and not force_image:
         try:
             if _cached_stats["fixation"] > 50:
                 capture_keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📷촬영", callback_data="capture_scene")]
+                    [InlineKeyboardButton("📷 Capture", callback_data="capture_scene")]
                 ])
         except Exception:
             pass
 
     if clean_reply:
-        # 행동(괄호)은 그대로, 대사는 bold 처리 (HTML)
+        # Keep stage directions (parens) as-is; bold the dialogue (HTML)
         def _format_dialogue_bold(text: str) -> str:
-            """괄호 밖 대사를 <b>로 감싸고, 괄호 안 행동묘사는 그대로 둔다."""
+            """Wrap dialogue (text outside parens) in <b>; leave action descriptions inside parens unchanged."""
             parts = re.split(r'(\([^)]*\))', text)
             result = []
             for part in parts:
@@ -488,22 +496,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await update.message.reply_text(formatted_reply, parse_mode="HTML", reply_markup=capture_keyboard)
         except Exception:
-            # HTML 파싱 실패 시 plain text fallback
+            # Fallback to plain text if HTML parsing fails
             await update.message.reply_text(clean_reply, reply_markup=capture_keyboard)
 
-    # 히스토리 저장 (stage direction 포함된 전체 텍스트로 — 분리는 표시용일 뿐)
+    # Save to history (full text including stage directions — the split is just for display)
     save_message(user_id, "user", user_text, character_id=char_id)
     save_message(user_id, "assistant", clean_reply if clean_reply else reply, character_id=char_id)
-    # 턴 카운트 (유저 메시지 1회 = 1턴) — total_turns는 이미 수신 시 증가
-    increment_usage(user_id, "turns")  # 월간 통계 (Admin /stats)
+    # Turn count (one user message = one turn). total_turns is already incremented on receipt.
+    increment_usage(user_id, "turns")  # monthly stats (Admin /stats)
 
-    # 의상 변경 감지 — LLM의 [OUTFIT: ...] 시그널 파싱
-    # 이미지 생성 전에 처리해야 현재 이미지에도 반영됨
-    # full outfit change만 허용 (full-set 의상 이름) → Grok 태그 변환
+    # Detect outfit changes — parse the LLM's [OUTFIT: ...] signal
+    # Must run before image generation so the current image reflects the change
+    # Only full outfit changes (full-set names) are allowed -> Grok tag conversion
     outfit_raw = _parse_outfit_signal(reply)
     current_outfit_override = None
     if outfit_raw:
-        # Sanity check — LLM이 캐릭터 default에 없는 태그를 발명했는지 로깅
+        # Sanity check — log when the LLM invents tags not in the character default
         try:
             _default_clothing = _load_image_config(char_id).get("clothing", "").lower()
             _default_underwear = _load_image_config(char_id).get("underwear", "").lower()
@@ -511,7 +519,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             _novel = [t for t in _emitted if t not in _default_clothing and t not in _default_underwear]
             if _novel:
                 logger.warning(
-                    "의상 full-change novel tags (유저 %s, %s): %s — not in default wardrobe",
+                    "outfit full-change novel tags (user %s, %s): %s — not in default wardrobe",
                     user_id, char_id, _novel,
                 )
         except Exception:
@@ -521,48 +529,48 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if converted:
             set_outfit(user_id, char_id, converted["clothing"], converted.get("underwear", ""), source="custom")
             current_outfit_override = converted
-            logger.info("의상 변경 저장 (유저 %s, %s): %s", user_id, char_id, converted["clothing"])
+            logger.info("outfit change saved (user %s, %s): %s", user_id, char_id, converted["clothing"])
         else:
-            # Grok 변환 실패 시 원본 그대로 저장
+            # Grok conversion failed — store the raw value as-is
             set_outfit(user_id, char_id, outfit_raw, "", source="custom")
             current_outfit_override = {"clothing": outfit_raw, "underwear": ""}
-            logger.info("의상 변경 저장 (원본, 유저 %s, %s): %s", user_id, char_id, outfit_raw)
+            logger.info("outfit change saved (raw, user %s, %s): %s", user_id, char_id, outfit_raw)
 
-    # 캐릭터 외 이미지 요청 차단
+    # Block non-character image requests
     if (image_match or force_image) and is_non_character_image_request(user_text):
-        logger.info("캐릭터 외 이미지 요청 차단 (유저 %s): %s", user_id, user_text[:80])
+        logger.info("non-character image request blocked (user %s): %s", user_id, user_text[:80])
         image_match = None
         force_image = False
 
-    # 이미지 시그널 또는 키워드 강제 트리거
+    # Image signal or keyword-forced trigger
     if image_match or force_image:
-        # 수치 기반 거리두기 — fixation < 20이면 이미지 생성 스킵
+        # Stat-based distance gate — skip image generation when fixation < 20
         try:
             _img_stats = _cached_stats
             if _img_stats["fixation"] < 20:
-                logger.info("거리두기 상태 — 이미지 생성 스킵 (fixation=%d, 유저 %s, %s)",
+                logger.info("distance state — image generation skipped (fixation=%d, user %s, %s)",
                             _img_stats["fixation"], user_id, char_id)
                 image_match = None
                 force_image = False
         except Exception as e:
-            logger.error("이미지 수치 체크 실패: %s", e)
+            logger.error("image stat check failed: %s", e)
 
     if image_match or force_image:
-        # 큐 체크를 먼저 — Grok API 호출 전에 거절
+        # Queue check first — reject before calling the Grok API
         queue_status = await check_queue()
         from src.comfyui import COMFYUI_MAX_QUEUE
         total_queued = queue_status.get("running", 0) + queue_status.get("pending", 0)
         if total_queued >= COMFYUI_MAX_QUEUE:
-            await update.message.reply_text("(이미지 요청이 많아서 지금은 생성할 수 없어... 잠시 후 다시 시도해줘!)")
+            await update.message.reply_text("(Lots of image requests right now... try me again in a bit!)")
         else:
             image_description = image_match.group(2) if image_match else user_text
-            # 특수 무드가 있으면 이미지 설명에 무드 표정 힌트 추가
+            # When a special mood is set, append a mood/expression hint to the image description
             if force_mood:
                 image_description = f"{image_description} [mood:{force_mood}]"
 
             anchor_image = character.get("anchor_image", "")
 
-            # 이미지 생성 중 typing
+            # Send upload-photo indicator while generating
             async def keep_uploading():
                 while True:
                     await update.message.chat.send_action(ChatAction.UPLOAD_PHOTO)
@@ -571,12 +579,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             upload_task = asyncio.create_task(keep_uploading())
             try:
                 recent_history = get_history(user_id, limit=6, character_id=char_id)
-                # 현재 장소 정보 추가 (대화 컨텍스트는 chat_history로 직접 전달되므로 중복 제거)
+                # Append current-location info (chat context is delivered separately via chat_history, so no duplication)
                 _cur_location = _cached_stats.get("location", "")
                 loc_hint = f" Current location: {_cur_location}." if _cur_location else ""
                 combined_desc = f"{loc_hint} Image instruction: {image_description}"
                 outfit = current_outfit_override or get_outfit(user_id, char_id)
-                # P10 Phase 2 — location_context 배경 태그 주입 (캐시 히트 시만)
+                # P10 Phase 2 — inject location_context background tags (cache-hit only)
                 _loc_bg = ""
                 if _cur_location:
                     try:
@@ -591,7 +599,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     outfit_override=outfit,
                     location_background=_loc_bg,
                 )
-                logger.info("Grok 태그 (유저 %s): pos=%s | neg=%s | orient=%s | skip_face=%s",
+                logger.info("Grok tags (user %s): pos=%s | neg=%s | orient=%s | skip_face=%s",
                             user_id, tags["pos_prompt"], tags["neg_prompt"],
                             tags.get("orientation"), tags.get("skip_face"))
                 orientation = tags.get("orientation", "portrait")
@@ -601,33 +609,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
 
                 if image_path == "TIMEOUT":
-                    await update.message.reply_text("(이미지 생성이 너무 오래 걸리고 있어... 나중에 다시 시도해줘!)")
-                    # Admin에게 상세 알림
+                    await update.message.reply_text("(Image generation is taking too long... please try again later!)")
+                    # Detailed Admin notification
                     username = update.effective_user.username or update.effective_user.first_name or "unknown"
                     char_name = character.get("name", char_id)
                     try:
                         await notify_image_timeout(context.bot, user_id, username, char_id, char_name)
                     except Exception as e:
-                        logger.error("이미지 타임아웃 Admin 알림 실패: %s", e)
+                        logger.error("image timeout Admin notify failed: %s", e)
                 elif image_path:
-                    # 🎬 영상 생성 버튼 표시 (이미지 파일은 비디오 컨텍스트에서 관리, TTL 후 자동 삭제)
+                    # Show 🎬 video generation button (image file is owned by the video context, auto-deleted after TTL)
                     video_ctx_id = _store_video_context(
                         user_id, char_id, image_path, image_description,
                         danbooru_tags=tags["pos_prompt"],
                     )
                     keyboard = InlineKeyboardMarkup([[
-                        InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{video_ctx_id}")
+                        InlineKeyboardButton("🎬 Generate video", callback_data=f"video:{video_ctx_id}")
                     ]])
                     with open(image_path, "rb") as photo_file:
                         await update.message.reply_photo(photo=photo_file, reply_markup=keyboard)
                     save_message(user_id, "assistant", f"(IMAGE_SENT: {image_description})", character_id=char_id)
                     increment_usage(user_id, "images")
                     increment_daily_images(user_id)
-                    logger.info("유저 %s 자동 이미지 생성 완료", user_id)
+                    logger.info("user %s auto image generation done", user_id)
             finally:
                 upload_task.cancel()
 
-    # 요약 트리거 — 메시지 수가 임계값 초과 시 비동기 요약 실행
+    # Summary trigger — when message count exceeds threshold, run summary asynchronously
     summary_threshold = int(os.getenv("SUMMARY_THRESHOLD", "20"))
     recent_keep = int(os.getenv("RECENT_MESSAGES_KEEP", "10"))
     msg_count = get_message_count(user_id, char_id)
@@ -636,11 +644,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/image 커맨드 핸들러 — 대화 맥락 기반으로 이미지를 생성한다. (관리자 전용)"""
-    # 관리자 체크
+    """/image command handler — generate an image using current chat context. (Admin only)"""
+    # Admin check
     admin_ids = os.getenv("ADMIN_USER_IDS", "").split(",")
     if str(update.effective_user.id) not in admin_ids:
-        await update.message.reply_text("이 기능은 관리자 전용입니다.")
+        await update.message.reply_text("This command is admin-only.")
         return
 
     custom_command = " ".join(context.args) if context.args else ""
@@ -651,13 +659,13 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     recent_history = get_history(user_id, limit=6, character_id=char_id)
 
     async def keep_typing():
-        """이미지 생성 대기 중 3초마다 upload_photo indicator를 전송한다."""
+        """Send an upload_photo indicator every 3 seconds while the image is being generated."""
         while True:
             await update.message.chat.send_action(ChatAction.UPLOAD_PHOTO)
             await asyncio.sleep(3)
 
     outfit = get_outfit(user_id, char_id)
-    # P10 Phase 2 — location_context 배경 태그 주입 (캐시 히트 시만)
+    # P10 Phase 2 — inject location_context background tags (cache-hit only)
     _img_loc_bg = ""
     try:
         _img_stats = get_character_stats(user_id, char_id)
@@ -676,7 +684,7 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
             outfit_override=outfit,
             location_background=_img_loc_bg,
         )
-        logger.info("Grok 태그 (유저 %s /image): pos=%s | neg=%s | orient=%s | skip_face=%s",
+        logger.info("Grok tags (user %s /image): pos=%s | neg=%s | orient=%s | skip_face=%s",
                     user_id, tags["pos_prompt"][:150], tags["neg_prompt"][:80],
                     tags.get("orientation"), tags.get("skip_face"))
         orientation = tags.get("orientation", "portrait")
@@ -686,41 +694,41 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         if image_path:
-            desc = custom_command if custom_command else "사진"
-            # Admin은 항상 비디오 버튼 표시
+            desc = custom_command if custom_command else "photo"
+            # Admin always sees the video button
             video_ctx_id = _store_video_context(
                 user_id, char_id, image_path, desc,
                 danbooru_tags=tags["pos_prompt"],
             )
             keyboard = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{video_ctx_id}")
+                InlineKeyboardButton("🎬 Generate video", callback_data=f"video:{video_ctx_id}")
             ]])
             with open(image_path, "rb") as photo_file:
                 await update.message.reply_photo(photo=photo_file, reply_markup=keyboard)
             save_message(user_id, "assistant", f"(IMAGE_SENT: {desc})", character_id=char_id)
-            logger.info("유저 %s 이미지 생성 완료: %s", user_id, tags["pos_prompt"][:80])
+            logger.info("user %s image generation done: %s", user_id, tags["pos_prompt"][:80])
         else:
-            await update.message.reply_text("이미지 생성에 실패했어... 다시 시도해줘!")
+            await update.message.reply_text("Image generation failed... please try again!")
     finally:
         typing_task.cancel()
 
 
 async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/reset 커맨드 — 이 캐릭터 봇의 히스토리를 초기화한다."""
+    """/reset command — wipe this character bot's chat history."""
     user_id = update.effective_user.id
     char_id = context.bot_data["char_id"]
     character = context.bot_data["character"]
     char_name = character.get("name", char_id)
 
     clear_history(user_id, character_id=char_id)
-    await update.message.reply_text(f"[{char_name}] 대화 히스토리가 초기화되었습니다.")
-    logger.info("유저 %s의 캐릭터 %s 히스토리 초기화", user_id, char_id)
+    await update.message.reply_text(f"[{char_name}] Chat history has been reset.")
+    logger.info("user %s character %s history cleared", user_id, char_id)
 
 
 async def _unsupported_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """텍스트 외 메시지 (사진, 파일, 스티커 등) — 안내 메시지 전송 후 자동 삭제."""
-    msg = await update.message.reply_text("텍스트 메시지만 보낼 수 있어요! / Text messages only!")
-    # 5초 후 안내 메시지 삭제 (채팅 오염 방지)
+    """Non-text messages (photos, files, stickers, etc.) — send a notice that auto-deletes."""
+    msg = await update.message.reply_text("Text messages only!")
+    # Delete the notice 5 seconds later (avoid chat clutter)
     await asyncio.sleep(5)
     try:
         await msg.delete()
@@ -728,10 +736,10 @@ async def _unsupported_message(update: Update, context: ContextTypes.DEFAULT_TYP
         pass
 
 
-# 의상 변경 감지 키워드
+# Outfit-change detection keywords
 
 async def outfit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/outfit 커맨드 — 현재 의상 확인 / 리셋."""
+    """/outfit command — view / reset the current outfit."""
     user_id = update.effective_user.id
     char_id = context.bot_data["char_id"]
     character = context.bot_data["character"]
@@ -739,51 +747,51 @@ async def outfit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     args = context.args
 
-    # /outfit reset — preset으로 복귀
+    # /outfit reset — back to preset
     if args and args[0].lower() == "reset":
         reset_outfit(user_id, char_id)
         img_config = _load_image_config(char_id)
-        default_clothing = img_config.get("clothing", "기본")
-        await update.message.reply_text(f"({char_name}의 의상이 기본으로 초기화되었습니다: {default_clothing})")
+        default_clothing = img_config.get("clothing", "default")
+        await update.message.reply_text(f"({char_name}'s outfit reset to default: {default_clothing})")
         return
 
-    # /outfit — 현재 의상 표시 + 프리셋 목록
+    # /outfit — show current outfit + preset list
     outfit = get_outfit(user_id, char_id)
     img_config = _load_image_config(char_id)
 
     if outfit and outfit["source"] == "custom":
         current = outfit["clothing"]
         current_underwear = outfit.get("underwear", "") or ""
-        source_text = "커스텀"
+        source_text = "custom"
     else:
-        current = img_config.get("clothing", "없음")
+        current = img_config.get("clothing", "(none)")
         current_underwear = ""
-        source_text = "기본"
+        source_text = "default"
 
-    text = f"👗 {char_name}의 현재 의상\n\n"
-    text += f"의상: {current}\n"
+    text = f"👗 {char_name}'s current outfit\n\n"
+    text += f"Outfit: {current}\n"
     if current_underwear:
-        text += f"속옷: {current_underwear}\n"
-    text += f"출처: {source_text}\n\n"
+        text += f"Underwear: {current_underwear}\n"
+    text += f"Source: {source_text}\n\n"
 
-    # 프리셋 목록 (outfits 배열이 있으면 표시)
+    # Preset list (shown when an outfits array is configured)
     outfits = img_config.get("outfits", [])
     if outfits:
-        text += "프리셋:\n"
+        text += "Presets:\n"
         keyboard = []
         for i, o in enumerate(outfits):
             text += f"  {i+1}. {o['name']}\n"
             keyboard.append([InlineKeyboardButton(o["name"], callback_data=f"outfit_{i}")])
-        keyboard.append([InlineKeyboardButton("🔄 기본으로 리셋", callback_data="outfit_reset")])
+        keyboard.append([InlineKeyboardButton("🔄 Reset to default", callback_data="outfit_reset")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(text, reply_markup=reply_markup)
     else:
-        text += "/outfit reset — 기본 의상으로 초기화"
+        text += "/outfit reset — restore the default outfit"
         await update.message.reply_text(text)
 
 
 async def outfit_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """의상 프리셋 선택 콜백."""
+    """Outfit preset selection callback."""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -795,8 +803,8 @@ async def outfit_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "outfit_reset":
         reset_outfit(user_id, char_id)
-        default_clothing = img_config.get("clothing", "기본")
-        await query.edit_message_text(f"({char_name}의 의상이 기본으로 초기화되었습니다: {default_clothing})")
+        default_clothing = img_config.get("clothing", "default")
+        await query.edit_message_text(f"({char_name}'s outfit reset to default: {default_clothing})")
         return
 
     # outfit_0, outfit_1, etc.
@@ -804,16 +812,16 @@ async def outfit_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         idx = int(query.data.split("_")[1])
         selected = outfits[idx]
     except (IndexError, ValueError):
-        await query.edit_message_text("잘못된 선택입니다.")
+        await query.edit_message_text("Invalid selection.")
         return
 
     set_outfit(user_id, char_id, selected["clothing"], selected.get("underwear", ""), source="custom")
-    await query.edit_message_text(f"({char_name}의 의상이 변경되었습니다: {selected['name']})")
-    logger.info("유저 %s 의상 변경: %s → %s", user_id, char_id, selected["name"])
+    await query.edit_message_text(f"({char_name}'s outfit changed: {selected['name']})")
+    logger.info("user %s outfit change: %s -> %s", user_id, char_id, selected["name"])
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/stats — 캐릭터 수치 조회 (Admin 전용)."""
+    """/stats — view character stats (Admin only)."""
     if not check_admin(update.effective_user.id):
         return
 
@@ -821,24 +829,24 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     char_name = context.bot_data.get("character", {}).get("name", char_id)
     args = context.args or []
 
-    # /stats <user_id> → 특정 유저 조회 (Admin)
+    # /stats <user_id> -> view a specific user (Admin)
     target_user = int(args[0]) if args else update.effective_user.id
 
     stats = get_character_stats(target_user, char_id)
     text = (
-        f"📊 캐릭터 수치 ({char_name})\n"
-        f"유저: {target_user}\n\n"
+        f"📊 Character stats ({char_name})\n"
+        f"User: {target_user}\n\n"
         f"fixation: {stats['fixation']}/100\n"
         f"mood: {stats['mood']}\n"
-        f"location: {stats.get('location') or '(없음)'}\n"
+        f"location: {stats.get('location') or '(none)'}\n"
         f"total_turns: {stats.get('total_turns', 0)}"
     )
     await update.message.reply_text(text)
 
 
 async def setstat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/setstat — 캐릭터 수치 직접 설정 (Admin 전용).
-    사용법: /setstat fixation 50, /setstat mood worship, /setstat total_turns 8
+    """/setstat — set a character stat directly (Admin only).
+    Usage: /setstat fixation 50, /setstat mood worship, /setstat total_turns 8
     """
     if not check_admin(update.effective_user.id):
         return
@@ -846,12 +854,12 @@ async def setstat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     char_id = context.bot_data.get("char_id", "")
     if not char_id:
-        await update.message.reply_text("캐릭터 봇에서만 사용 가능합니다.")
+        await update.message.reply_text("This command only works inside a character bot.")
         return
 
     args = context.args
     if not args or len(args) < 2:
-        await update.message.reply_text("사용법: /setstat <key> <value>\n예: /setstat fixation 50")
+        await update.message.reply_text("Usage: /setstat <key> <value>\nExample: /setstat fixation 50")
         return
 
     key = args[0].lower()
@@ -870,7 +878,7 @@ async def setstat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif key == "location":
         cached["location"] = value
     else:
-        await update.message.reply_text(f"알 수 없는 키: {key}\n사용 가능: fixation, mood, total_turns, location")
+        await update.message.reply_text(f"Unknown key: {key}\nAllowed: fixation, mood, total_turns, location")
         return
 
     cached["_dirty"] = True
@@ -881,7 +889,7 @@ async def setstat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def capture_scene_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """📷촬영 버튼 콜백 — 현재 장면을 이미지로 캡쳐."""
+    """📷 capture button callback — capture the current scene as an image."""
     query = update.callback_query
     await query.answer()
 
@@ -890,16 +898,16 @@ async def capture_scene_callback(update: Update, context: ContextTypes.DEFAULT_T
     character = context.bot_data.get("character", {})
     char_name = character.get("name", char_id)
 
-    # 버튼 제거 + 진행 표시
+    # Remove the button + show progress
     await query.edit_message_reply_markup(reply_markup=None)
 
-    # 최근 대화 히스토리 로드 (auto-image와 동일한 limit=6)
+    # Load recent chat history (limit=6, same as auto-image)
     recent_history = get_history(user_id, limit=6, character_id=char_id)
 
     if not recent_history:
         return
 
-    # Grok으로 태그 생성
+    # Generate tags via Grok
     try:
         chat_id = query.message.chat_id
 
@@ -916,13 +924,13 @@ async def capture_scene_callback(update: Update, context: ContextTypes.DEFAULT_T
 
         _cur_location = current_stats.get("location", "")
         loc_hint = f" Current location: {_cur_location}." if _cur_location else ""
-        # scene hint — custom_command으로 전달 (auto-image와 동일 패턴)
+        # Scene hint — passed in via custom_command (same pattern as auto-image)
         scene_desc = f"Capture the current scene.{loc_hint}"
         if force_mood:
             scene_desc += f" [mood:{force_mood}]"
 
         outfit = get_outfit(user_id, char_id)
-        # P10 Phase 2 — location_context 배경 태그 주입 (캐시 히트 시만)
+        # P10 Phase 2 — inject location_context background tags (cache-hit only)
         _cap_loc_bg = ""
         if _cur_location:
             try:
@@ -932,7 +940,7 @@ async def capture_scene_callback(update: Update, context: ContextTypes.DEFAULT_T
                     _cap_loc_bg = _cap_ctx.get("danbooru_background", "") or ""
             except Exception:
                 _cap_loc_bg = ""
-        # 실제 history 리스트를 그대로 Grok에 전달 (auto-image와 동일)
+        # Pass the actual history list directly to Grok (same as auto-image)
         tags = await generate_danbooru_tags(
             recent_history,
             scene_desc,
@@ -963,7 +971,7 @@ async def capture_scene_callback(update: Update, context: ContextTypes.DEFAULT_T
                 danbooru_tags=tags["pos_prompt"],
             )
             keyboard = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{video_ctx_id}")
+                InlineKeyboardButton("🎬 Generate video", callback_data=f"video:{video_ctx_id}")
             ]])
             with open(image_path, "rb") as photo:
                 await context.bot.send_photo(chat_id=chat_id, photo=photo, reply_markup=keyboard)
@@ -973,11 +981,11 @@ async def capture_scene_callback(update: Update, context: ContextTypes.DEFAULT_T
             await notify_image_timeout(context.bot, user_id, char_name)
     except Exception as e:
         upload_task.cancel()
-        logger.error("📷촬영 실패: %s", e)
+        logger.error("📷 capture failed: %s", e)
 
 
 async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """🎬 영상 생성 버튼 콜백 처리."""
+    """🎬 video generation button callback handler."""
     query = update.callback_query
     await query.answer()
 
@@ -989,18 +997,18 @@ async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
     ctx = _get_video_context(ctx_id)
     if not ctx:
         await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text("⏰ 영상 생성 시간이 만료되었어요.")
+        await query.message.reply_text("⏰ Video generation has timed out.")
         return
 
     user_id = ctx["user_id"]
     char_id = ctx["char_id"]
 
-    # 버튼 → "생성 중..." 으로 교체
+    # Replace the button with "Generating..."
     await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[
-        InlineKeyboardButton("⏳ 영상 생성 중...", callback_data="noop")
+        InlineKeyboardButton("⏳ Generating video...", callback_data="noop")
     ]]))
 
-    # upload_video typing indicator (3초마다 반복)
+    # upload_video typing indicator (repeats every 3s)
     chat_id = query.message.chat_id
     async def keep_uploading_video():
         while True:
@@ -1015,7 +1023,7 @@ async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
     video_path = None
     prompts_blocked = False
     try:
-        # Grok 비디오 프롬프트 생성 (이미지 Vision + 대화 히스토리 + i2v 가이드)
+        # Generate Grok video prompts (image Vision + chat history + i2v guide)
         from src.grok import generate_video_prompts
         recent_history = get_history(user_id, limit=6, character_id=char_id)
         stats = get_character_stats(user_id, char_id)
@@ -1028,7 +1036,7 @@ async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
                 mood=stats.get("mood", "neutral"),
             )
         except Exception as e:
-            logger.error("Grok 비디오 프롬프트 실패: %s", e)
+            logger.error("Grok video prompt failed: %s", e)
             prompts = {"motion_prompt": ctx["description"], "audio_prompt": "soft moan, heavy breathing, intimate silence"}
 
         # video-improve2 (P15) — Admin debug dump (VIDEO_DEBUG_DUMP=1)
@@ -1047,18 +1055,18 @@ async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
                 try:
                     await context.bot.send_message(chat_id=user_id, text=dump[:4000])
                 except Exception as _e:
-                    logger.warning("VIDEO_DEBUG_DUMP 전송 실패 (char): %s", _e)
+                    logger.warning("VIDEO_DEBUG_DUMP send failed (char): %s", _e)
 
-        # Phase 2-B — Step 2 태그 추가 fallback 성공 기록 (모니터링용)
+        # Phase 2-B — log Step 2 tag-augment fallback success (for monitoring)
         if prompts.get("_csam_fallback_used"):
-            logger.info("Grok Step 2 fallback 성공: user=%s char=%s", user_id, char_id)
+            logger.info("Grok Step 2 fallback succeeded: user=%s char=%s", user_id, char_id)
 
-        # Phase 2-B — 최종 BLOCKED 시 에러 메시지
+        # Phase 2-B — emit error when both passes are BLOCKED
         if prompts.get("motion_prompt") == "BLOCKED" or prompts.get("_csam_blocked"):
             prompts_blocked = True
-            logger.warning("Grok 비디오 최종 차단: user=%s char=%s", user_id, char_id)
+            logger.warning("Grok video finally blocked: user=%s char=%s", user_id, char_id)
         else:
-            # Admin 알림 — 영상 생성 시작 (prompts 정보 포함)
+            # Admin notify — video generation started (with prompts info)
             try:
                 await notify_admins_video(
                     context,
@@ -1072,9 +1080,9 @@ async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
                     audio_prompt=prompts.get("audio_prompt", ""),
                 )
             except Exception as _e:
-                logger.warning("admin video notify (started) 실패: %s", _e)
+                logger.warning("admin video notify (started) failed: %s", _e)
 
-            # AtlasCloud 비디오 생성 (오디오 자동 처리)
+            # AtlasCloud video generation (audio handled automatically)
             from src.video import generate_video
             video_path = await generate_video(
                 image_path=ctx["image_path"],
@@ -1086,15 +1094,15 @@ async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
         upload_task.cancel()
 
     if prompts_blocked:
-        # Grok이 두 번 모두 차단한 경우 — 유저에게는 단일 에러만 전달 (카운트는 성공 시에만 증가하므로 변화 없음)
+        # When Grok blocks twice — show a single error to the user (count only bumps on success, so unchanged)
         try:
             await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{ctx_id}")
+                InlineKeyboardButton("🎬 Generate video", callback_data=f"video:{ctx_id}")
             ]]))
         except Exception:
             pass
-        await query.message.reply_text("😢 영상 생성이 제한됐어요. 다시 시도해 주세요.")
-        logger.warning("유저 %s 비디오 Grok 차단 (char=%s)", user_id, char_id)
+        await query.message.reply_text("😢 Video generation was blocked. Please try again.")
+        logger.warning("user %s video blocked by Grok (char=%s)", user_id, char_id)
         try:
             await notify_admins_video(context, triggering_user_id=user_id, source="char_bot",
                                       char_id=char_id, status="blocked",
@@ -1104,7 +1112,7 @@ async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
         return
 
     if video_path:
-        # 성공: 버튼 제거 + 비디오 전송
+        # Success: remove the button + send the video
         try:
             await query.edit_message_reply_markup(reply_markup=None)
         except Exception:
@@ -1118,7 +1126,7 @@ async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
             os.unlink(video_path)
         except OSError:
             pass
-        logger.info("유저 %s 비디오 생성 완료 (char=%s)", user_id, char_id)
+        logger.info("user %s video generation done (char=%s)", user_id, char_id)
         try:
             await notify_admins_video(context, triggering_user_id=user_id, source="char_bot",
                                       char_id=char_id, status="success",
@@ -1126,15 +1134,15 @@ async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
         except Exception:
             pass
     else:
-        # 실패: 버튼 복구 (재시도 가능)
+        # Failure: restore the button (retryable)
         try:
             await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🎬 영상 생성", callback_data=f"video:{ctx_id}")
+                InlineKeyboardButton("🎬 Generate video", callback_data=f"video:{ctx_id}")
             ]]))
         except Exception:
             pass
-        await query.message.reply_text("😢 영상 생성에 실패했어요. 다시 시도해주세요.")
-        logger.error("유저 %s 비디오 생성 실패 (char=%s)", user_id, char_id)
+        await query.message.reply_text("😢 Video generation failed. Please try again.")
+        logger.error("user %s video generation failed (char=%s)", user_id, char_id)
         try:
             await notify_admins_video(context, triggering_user_id=user_id, source="char_bot",
                                       char_id=char_id, status="failed",
@@ -1144,7 +1152,7 @@ async def video_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
 
 
 def register_char_handlers(app):
-    """캐릭터 봇 Application에 핸들러를 등록한다."""
+    """Register handlers on a character bot Application."""
     app.add_handler(CommandHandler("start", char_start))
     app.add_handler(CommandHandler("reset", reset_command))
     app.add_handler(CommandHandler("image", handle_image))
@@ -1155,5 +1163,5 @@ def register_char_handlers(app):
     app.add_handler(CallbackQueryHandler(capture_scene_callback, pattern=r"^capture_scene$"))
     app.add_handler(CallbackQueryHandler(video_callback_handler, pattern=r"^video:"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    # 텍스트 외 메시지 (사진, 파일, 스티커 등) — 안내 후 삭제
+    # Non-text messages (photos, files, stickers, etc.) — notify and delete
     app.add_handler(MessageHandler(~filters.TEXT & ~filters.COMMAND, _unsupported_message))
