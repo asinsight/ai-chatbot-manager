@@ -18,15 +18,16 @@ export const CATEGORIES: EnvCategory[] = [
   },
   {
     id: "grok",
-    label: "Grok",
+    label: "Grok prompting",
     keys: [
       "GROK_API_KEY",
-      "GROK_MODEL_NAME",
+      "GROK_PROMPTING_MODEL",
       "GROK_BASE_URL",
-      "GROK_IMAGE_MODEL",
-      "VIDEO_GROK_MODEL",
-      "VIDEO_ANALYZER_MODEL",
-      "GROK_SEARCH_MODEL",
+      "GROK_PROMPTING_IMAGE_MODEL",
+      "GROK_PROMPTING_VIDEO_MODEL",
+      "GROK_PROMPTING_VIDEO_ANALYZER_MODEL",
+      "GROK_PROMPTING_VIDEO_COMPOSER_MODEL",
+      "GROK_PROMPTING_SEARCH_MODEL",
     ],
   },
   {

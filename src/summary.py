@@ -70,7 +70,7 @@ async def _call_provider(
     """
     if provider == "grok":
         api_key = os.getenv("GROK_API_KEY", "")
-        model = os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+        model = os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
 
         client = AsyncOpenAI(
             api_key=api_key,

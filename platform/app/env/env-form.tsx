@@ -18,6 +18,7 @@ import {
 type EnvVar = {
   key: string;
   value: string;
+  default_value: string | null;
   comment: string | null;
   is_secret: boolean;
   editable: boolean;
@@ -173,7 +174,18 @@ export function EnvForm() {
               {c.vars.map((v) => {
                 const current = edits[v.key] ?? v.value;
                 const isRevealed = revealed[v.key];
-                const showMasked = v.is_secret && !isRevealed;
+                const isUnsetSecret = v.is_secret && !v.value;
+                const showMasked = v.is_secret && !isRevealed && v.value !== "";
+                const displayValue = showMasked && current === v.value
+                  ? maskValue(v.value)
+                  : current;
+                const placeholder = v.value === ""
+                  ? (
+                      v.default_value
+                        ? `default: ${v.default_value}`
+                        : (isUnsetSecret ? "(not set)" : "(empty / optional)")
+                    )
+                  : undefined;
                 return (
                   <div key={v.key} className="space-y-1.5">
                     <div className="flex items-center gap-2">
@@ -190,16 +202,18 @@ export function EnvForm() {
                           secret
                         </span>
                       )}
+                      {v.value === "" && !v.is_secret && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                          empty
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Input
                         id={v.key}
-                        type={showMasked ? "password" : "text"}
-                        value={
-                          showMasked && current === v.value
-                            ? maskValue(v.value)
-                            : current
-                        }
+                        type="text"
+                        value={displayValue}
+                        placeholder={placeholder}
                         readOnly={showMasked && current === v.value}
                         disabled={!v.editable}
                         onChange={(e) =>
@@ -207,7 +221,7 @@ export function EnvForm() {
                         }
                         className="font-mono text-xs"
                       />
-                      {v.is_secret && (
+                      {v.is_secret && v.value !== "" && (
                         <Button
                           type="button"
                           size="icon"

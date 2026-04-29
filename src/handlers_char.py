@@ -162,7 +162,7 @@ async def _convert_outfit_tags(description: str) -> dict | None:
         return None
 
     client = AsyncOpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
-    model = os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+    model = os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
 
     prompt = (
         "Convert this clothing description to accurate Danbooru tags.\n"

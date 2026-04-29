@@ -13,6 +13,7 @@ import {
   applyUpdates,
   parseEnv,
   parseExampleComments,
+  parseExampleDefaults,
   serializeEnv,
   type EnvLine,
 } from "@/lib/env-parser";
@@ -25,6 +26,8 @@ export const dynamic = "force-dynamic";
 type EnvVarPayload = {
   key: string;
   value: string;
+  /** Default hint sourced from `.env.example` (commented-out value or example line). */
+  default_value: string | null;
   comment: string | null;
   is_secret: boolean;
   editable: boolean;
@@ -54,6 +57,7 @@ export async function GET() {
     ]);
     const lines = parseEnv(envText);
     const help = parseExampleComments(exampleText);
+    const defaults = parseExampleDefaults(exampleText);
 
     // Collect every key seen in the .env file (var or comment-var).
     const seen = new Map<string, string>();
@@ -75,6 +79,7 @@ export async function GET() {
       const payload: EnvVarPayload = {
         key,
         value,
+        default_value: defaults[key] ?? null,
         comment: help[key] ?? null,
         is_secret: isSecret(key),
         editable: isEditable(key),
