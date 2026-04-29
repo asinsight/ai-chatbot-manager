@@ -1,4 +1,5 @@
 import { BotStatusCard } from "@/components/bot-status-card";
+import { ConnectionsHealthCard } from "@/components/connections-health-card";
 import { LogTail } from "@/components/log-tail";
 
 export default function DashboardPage() {
@@ -11,6 +12,7 @@ export default function DashboardPage() {
         </p>
       </div>
       <BotStatusCard />
+      <ConnectionsHealthCard />
       <LogTail />
     </div>
   );
