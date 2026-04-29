@@ -98,23 +98,11 @@ _RANDOM_KEYBOARD = InlineKeyboardMarkup([[
     InlineKeyboardButton("🎲 Random SFW", callback_data="random:sfw"),
 ]])
 
-# Korean name -> char_id mapping (legacy / cross-language safety net for user input matching)
-# NOTE: The Korean keys are kept on purpose so users typing the character's Korean name still match.
-# Romanized aliases are added so English-typing users get the same matching behavior.
+# Display name -> char_id mapping for fast-path matching from free-text input.
+# Sample fork ships only char05; expand here when adding more characters.
 CHAR_NAME_MAP = {
-    "수아": "char01", "이수아": "char01", "Sua": "char01", "sua": "char01",
-    "민경": "char02", "박민경": "char02", "Minkyung": "char02", "minkyung": "char02",
-    "아린": "char03", "최아린": "char03", "Arin": "char03", "arin": "char03",
-    "서연": "char04", "박서연": "char04", "Seoyeon": "char04", "seoyeon": "char04",
-    "유리": "char05", "한유리": "char05", "Yuri": "char05", "yuri": "char05",
-    "예린": "char06", "강예린": "char06", "Yerin": "char06", "yerin": "char06",
-    "엘라라": "char07", "엘라라 폰 나흐트": "char07", "나흐트": "char07",
-    "Elara": "char07", "elara": "char07", "Elara von Nacht": "char07",
-    "리아엘": "char08", "리아엘 폰 아이젠하르트": "char08", "아이젠하르트": "char08",
-    "Liael": "char08", "liael": "char08", "Liael von Eisenhardt": "char08",
-    "수연": "char09", "박수연": "char09", "수연누나": "char09", "수연 누나": "char09",
-    "Suyeon": "char09", "suyeon": "char09",
-    "유진": "char10", "서유진": "char10", "Yujin": "char10", "yujin": "char10",
+    "Jiwon": "char05", "jiwon": "char05",
+    "Jiwon Han": "char05", "Han Jiwon": "char05",
 }
 
 
@@ -127,12 +115,8 @@ def _match_character(text: str, characters: dict) -> tuple[str, dict | None]:
 
 
 def _is_danbooru_tags(text: str) -> bool:
-    """Return True if the input looks like Danbooru tags (comma-separated + no Korean)."""
-    if "," not in text:
-        return False
-    if re.search(r"[가-힣]", text):
-        return False
-    return True
+    """Return True if the input looks like Danbooru tags (comma-separated)."""
+    return "," in text
 
 
 _HQ_WORKFLOW = "comfyui_workflow/main_character_build_highqual.json"

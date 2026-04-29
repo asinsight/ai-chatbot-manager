@@ -353,7 +353,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply = reply.strip()
 
     # Error check
-    if reply.startswith("[오류]") or reply.startswith("[error]") or reply.startswith("[Error]"):
+    if reply.startswith("[error]") or reply.startswith("[Error]"):
         logger.warning("LLM error response, skipping history save: %s", reply)
         await update.message.reply_text(reply)
         return
@@ -394,26 +394,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error("character stats parse/update failed (user %s): %s", user_id, e)
 
-    # Image-signal parsing — only match SEND_IMAGE / 사진을 보냈다 / photo sent
+    # Image-signal parsing — only match SEND_IMAGE / photo sent
     # Other signals like [STAT:], [MOOD:], [OUTFIT:] must not match here
-    # NOTE: the Korean phrase in the regex stays as-is — it's a cross-language safety net for legacy LLM output and Korean user input.
-    image_signal_pattern = r"\[(SEND_IMAGE|사진을 보냈다|photo sent):\s*(.+?)\]"
+    image_signal_pattern = r"\[(SEND_IMAGE|photo sent):\s*(.+?)\]"
     image_match = re.search(image_signal_pattern, reply, re.IGNORECASE)
     # 2) Bare form without brackets: SEND_IMAGE: ...
     if not image_match:
-        bare_pattern = r"(?:SEND_IMAGE|사진을 보냈다|photo sent):\s*(.+?)$"
+        bare_pattern = r"(?:SEND_IMAGE|photo sent):\s*(.+?)$"
         image_match = re.search(bare_pattern, reply, re.IGNORECASE | re.MULTILINE)
 
-    # 3) Hard keyword trigger — even if the LLM omits the signal, force generation when the user clearly asks
-    # NOTE: Korean keywords are intentionally kept here as a cross-language safety net (regex-style user-input matching).
+    # 3) Hard keyword trigger — even if the LLM omits the signal, force generation when the user clearly asks.
     force_image = False
     force_mood = None
     if not image_match:
         _IMAGE_KEYWORDS = [
-            # English
-            "photo", "selfie", "picture", "show me", "send me", "snap", "from far", "close up", "another angle", "full body",
-            # Korean (legacy / cross-language safety net)
-            "사진", "셀카", "보여", "보내", "찍어", "멀리서", "가까이서", "다른 각도", "전신",
+            "photo", "selfie", "picture", "show me", "send me", "snap",
+            "from far", "close up", "another angle", "full body",
         ]
         lower_user_text = user_text.lower()
         for kw in _IMAGE_KEYWORDS:
@@ -449,7 +445,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Strip [...] brackets + unclosed [ + bracketless signals — drop everything
     clean_reply = re.sub(r"\[[^\[\]]*?\]", "", reply)
     clean_reply = re.sub(r"\[.*$", "", clean_reply, flags=re.DOTALL)
-    clean_reply = re.sub(r"(?:SEND_IMAGE|사진을 보냈다|photo sent):\s*.+?$", "", clean_reply, flags=re.IGNORECASE | re.MULTILINE)
+    clean_reply = re.sub(r"(?:SEND_IMAGE|photo sent):\s*.+?$", "", clean_reply, flags=re.IGNORECASE | re.MULTILINE)
     # Drop the (IMAGE_SENT: ...) pattern that may have been parroted from history
     clean_reply = re.sub(r"\(IMAGE_SENT:\s*.+?\)", "", clean_reply, flags=re.IGNORECASE)
     # Drop [MOOD:...] tags

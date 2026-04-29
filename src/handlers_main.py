@@ -19,13 +19,13 @@ import src.comfyui as comfyui
 import src.grok_search as grok_search
 
 logger = logging.getLogger(__name__)
-TOS_URL = "https://telegra.ph/Ella-AI-%EC%9D%B4%EC%9A%A9%EC%95%BD%EA%B4%80--Terms-of-Service-04-07"
-PRIVACY_URL = "https://telegra.ph/Ella-AI-개인정보-처리방침--Privacy-Policy-04-09"
+TOS_URL = ""  # set this to a Terms-of-Service URL appropriate for your deployment
+PRIVACY_URL = ""  # set this to a privacy-policy URL appropriate for your deployment
 
 
 # Character display order (used as the listing order even when persona has no profile_summary_ko)
-# General (1-6) -> char09 (Park Su-yeon) -> char10 (Seo Yu-jin) -> fantasy (7, 8) -> image generator
-_CHAR_ORDER = ["char01", "char02", "char03", "char04", "char05", "char06", "char09", "char10", "char07", "char08", "imagegen"]
+# Sample fork ships only char05 (Jiwon Han) + the image generator entry — char01-04 / char06-09 were dropped.
+_CHAR_ORDER = ["char05", "imagegen"]
 
 # imagegen has no persona file, so the main bot defines its caption directly
 _IMAGEGEN_SUMMARY = "🎨 Image Generator\nDescribe what you want in plain English and the AI will draw it. Mention a character name to generate them!"
