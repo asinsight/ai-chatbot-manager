@@ -54,10 +54,7 @@ try:
         _denylist = json.load(_f)
     _DENIED_OUTFIT_TOKENS = frozenset(
         k.lower().strip()
-        for k in (
-            _denylist.get("outfit_state_keywords", [])
-            + _denylist.get("outfit_state_keywords_ko", [])
-        )
+        for k in _denylist.get("outfit_state_keywords", [])
         if isinstance(k, str) and k.strip()
     )
     logger.info(
