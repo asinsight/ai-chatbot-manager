@@ -167,6 +167,23 @@ export function applyUpdates(
 }
 
 /**
+ * Extract default values from `.env.example` — both real `KEY=val` lines and
+ * commented-out hints like `#KEY=val`. Used to surface "default" placeholders
+ * in the env editor when the live `.env` has no value for the key.
+ */
+export function parseExampleDefaults(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of parseEnv(text)) {
+    if (line.kind === "var") {
+      out[line.key] = line.value;
+    } else if (line.kind === "comment-var") {
+      out[line.key] = line.value;
+    }
+  }
+  return out;
+}
+
+/**
  * Extract the contiguous block of `# ...` comment lines immediately above each
  * KEY=... line in the .env.example. Used as inline help in the env editor.
  */

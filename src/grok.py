@@ -226,7 +226,7 @@ async def generate_danbooru_tags(
         {"pos_prompt": "complete positive prompt", "neg_prompt": "complete negative prompt"}
     """
     api_key = os.getenv("GROK_API_KEY", "")
-    model = os.getenv("GROK_IMAGE_MODEL") or os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+    model = os.getenv("GROK_PROMPTING_IMAGE_MODEL") or os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
 
     if not api_key:
         return _default_tags()
@@ -423,7 +423,7 @@ async def generate_danbooru_tags_random(
         {"pos_prompt": ..., "neg_prompt": ..., "orientation": ..., "skip_face": ..., "scene_description": ...}
     """
     api_key = os.getenv("GROK_API_KEY", "")
-    model = os.getenv("GROK_IMAGE_MODEL") or os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+    model = os.getenv("GROK_PROMPTING_IMAGE_MODEL") or os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
 
     # SFW fork — ignore the mode argument; always handle as SFW
     mode_norm = "sfw"
@@ -590,7 +590,7 @@ async def classify_tags_to_nested_blocks(pos_prompt: str) -> dict:
     empty_result = _empty_classify_result()
 
     api_key = os.getenv("GROK_API_KEY", "")
-    model = os.getenv("GROK_IMAGE_MODEL") or os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+    model = os.getenv("GROK_PROMPTING_IMAGE_MODEL") or os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
     if not api_key:
         return empty_result
 
@@ -682,7 +682,7 @@ async def analyze_partial_edit_intent(
     fallback = {"edits": {}, "scene_description": text or ""}
 
     api_key = os.getenv("GROK_API_KEY", "")
-    model = os.getenv("GROK_IMAGE_MODEL") or os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+    model = os.getenv("GROK_PROMPTING_IMAGE_MODEL") or os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
     if not api_key:
         return fallback
 
@@ -847,9 +847,9 @@ async def _analyze_video_scene(
     import base64
 
     model = (
-        os.getenv("VIDEO_ANALYZER_MODEL")
-        or os.getenv("VIDEO_GROK_MODEL")
-        or os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+        os.getenv("GROK_PROMPTING_VIDEO_ANALYZER_MODEL")
+        or os.getenv("GROK_PROMPTING_VIDEO_MODEL")
+        or os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
     )
 
     with open(image_path, "rb") as f:
@@ -964,9 +964,9 @@ async def _compose_video_prompt(
         }
 
     model = (
-        os.getenv("VIDEO_COMPOSER_MODEL")
-        or os.getenv("VIDEO_GROK_MODEL")
-        or os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+        os.getenv("GROK_PROMPTING_VIDEO_COMPOSER_MODEL")
+        or os.getenv("GROK_PROMPTING_VIDEO_MODEL")
+        or os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
     )
 
     analyzer_block = json.dumps(analyzer_json or {}, ensure_ascii=False, indent=2)

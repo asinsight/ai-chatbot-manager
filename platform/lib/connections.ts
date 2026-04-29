@@ -20,7 +20,7 @@ export const CONNECTIONS: ConnectionDef[] = [
   },
   {
     id: "openwebui",
-    label: "OpenWebUI / Gemma",
+    label: "OpenWebUI / llama-cpp-python",
     url_var: "OPENWEBUI_URL",
     token_var: "OPENWEBUI_API_KEY",
     token_blank_allowed: true,

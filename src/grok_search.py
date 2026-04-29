@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 # ── Env-var configuration ────────────────────────────────────
 GROK_API_KEY = os.getenv("GROK_API_KEY", "")
-GROK_MODEL_NAME = os.getenv("GROK_MODEL_NAME", "grok-3-mini")
-GROK_SEARCH_MODEL = os.getenv("GROK_SEARCH_MODEL", GROK_MODEL_NAME)
+GROK_PROMPTING_MODEL = os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
+GROK_PROMPTING_SEARCH_MODEL = os.getenv("GROK_PROMPTING_SEARCH_MODEL", GROK_PROMPTING_MODEL)
 GROK_SEARCH_ENABLED = os.getenv("GROK_SEARCH_ENABLED", "1") == "1"
 GROK_SEARCH_MONTHLY_LIMIT = int(os.getenv("GROK_SEARCH_MONTHLY_LIMIT", "500"))
 GROK_SEARCH_PER_USER_DAILY = int(os.getenv("GROK_SEARCH_PER_USER_DAILY", "10"))
@@ -184,7 +184,7 @@ async def search(query: str, user_id: int = 0) -> str:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": GROK_SEARCH_MODEL,
+                    "model": GROK_PROMPTING_SEARCH_MODEL,
                     "tools": [{"type": "web_search"}],
                     "input": [
                         {"role": "system", "content": _SYSTEM_PROMPT},
@@ -346,7 +346,7 @@ async def search_location(location_key: str) -> dict | None:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": GROK_MODEL_NAME,
+                    "model": GROK_PROMPTING_MODEL,
                     "tools": [{"type": "web_search"}],
                     "input": [
                         {"role": "system", "content": _LOCATION_SYSTEM_PROMPT},
