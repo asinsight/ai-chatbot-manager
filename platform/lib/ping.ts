@@ -36,7 +36,7 @@ async function timedFetch(
 }
 
 async function pingComfyUI(url: string): Promise<PingResult> {
-  if (!url) return { ok: false, duration_ms: 0, message: "URL 필수" };
+  if (!url) return { ok: false, duration_ms: 0, message: "URL required" };
   const target = `${trimTrailingSlash(url)}/system_stats`;
   const { res, ms, err } = await timedFetch(target, { method: "GET" });
   if (err)
@@ -60,7 +60,7 @@ async function pingComfyUI(url: string): Promise<PingResult> {
       ok: false,
       status_code: res!.status,
       duration_ms: ms,
-      message: "응답이 JSON 이 아님",
+      message: "response is not JSON",
     };
   }
   return {
@@ -75,7 +75,7 @@ async function pingOpenWebUI(
   url: string,
   token: string,
 ): Promise<PingResult> {
-  if (!url) return { ok: false, duration_ms: 0, message: "URL 필수" };
+  if (!url) return { ok: false, duration_ms: 0, message: "URL required" };
   const target = `${trimTrailingSlash(url)}/v1/models`;
   const headers: Record<string, string> = {};
   if (token) headers["authorization"] = `Bearer ${token}`;
@@ -106,7 +106,7 @@ async function pingOpenWebUI(
 }
 
 async function pingGrok(baseUrl: string, token: string): Promise<PingResult> {
-  if (!token) return { ok: false, duration_ms: 0, message: "토큰 필수" };
+  if (!token) return { ok: false, duration_ms: 0, message: "token required" };
   const target = `${trimTrailingSlash(baseUrl)}/models`;
   const { res, ms, err } = await timedFetch(target, {
     method: "GET",
@@ -143,7 +143,7 @@ async function pingGrok(baseUrl: string, token: string): Promise<PingResult> {
 }
 
 async function pingPromptGuard(url: string): Promise<PingResult> {
-  if (!url) return { ok: false, duration_ms: 0, message: "URL 필수" };
+  if (!url) return { ok: false, duration_ms: 0, message: "URL required" };
   const target = `${trimTrailingSlash(url)}/check`;
   const { res, ms, err } = await timedFetch(target, {
     method: "POST",

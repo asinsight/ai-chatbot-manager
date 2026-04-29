@@ -96,7 +96,7 @@ export async function GET() {
         const c = CATEGORIES.find((x) => x.id === id);
         return {
           id,
-          label: c ? c.label : "기타",
+          label: c ? c.label : "Misc",
           vars: buckets.get(id) ?? [],
         };
       });

@@ -56,7 +56,7 @@ export function Sidebar() {
                   base,
                   "cursor-not-allowed text-muted-foreground/60",
                 )}
-                title="다음 마일스톤에서 활성화"
+                title="Activates in a later milestone"
               >
                 <Icon className="h-4 w-4" />
                 {item.label}

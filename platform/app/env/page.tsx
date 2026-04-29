@@ -8,8 +8,8 @@ export default function EnvPage() {
       <div>
         <h1 className="text-2xl font-semibold">Env</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          루트 <code className="font-mono">.env</code> 변수 편집. 저장 시 자동
-          백업, 봇 재시작 필요.
+          Edit root <code className="font-mono">.env</code> variables. Saves are
+          auto-backed up; bot restart required to apply.
         </p>
       </div>
       <EnvForm />

@@ -8,7 +8,7 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          봇 상태와 최근 로그.
+          Bot status and recent logs.
         </p>
       </div>
       <BotStatusCard />

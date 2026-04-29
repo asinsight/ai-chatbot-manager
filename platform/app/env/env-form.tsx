@@ -97,12 +97,12 @@ export function EnvForm() {
       }
       const backupName = body.backup_path?.split("/").pop() ?? "(backup ok)";
       toast.success(
-        `${dirtyKeys.length}개 변수 저장됨. 봇을 재시작해야 적용됩니다.`,
+        `Saved ${dirtyKeys.length} variable(s). Restart the bot to apply.`,
         {
-          description: `백업: ${backupName}`,
+          description: `backup: ${backupName}`,
           duration: 8000,
           action: {
-            label: "Dashboard 이동",
+            label: "Go to Dashboard",
             onClick: () => {
               window.location.href = "/dashboard";
             },
@@ -111,19 +111,19 @@ export function EnvForm() {
       );
       await refresh();
     } catch (err) {
-      toast.error("저장 실패", { description: (err as Error).message });
+      toast.error("Save failed", { description: (err as Error).message });
     } finally {
       setSubmitting(false);
     }
   }, [dirtyKeys.length, edits, refresh]);
 
   if (error) {
-    return <div className="text-sm text-destructive">로드 실패: {error}</div>;
+    return <div className="text-sm text-destructive">Load failed: {error}</div>;
   }
   if (!data) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> 로드 중…
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
       </div>
     );
   }
@@ -133,8 +133,8 @@ export function EnvForm() {
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {dirtyKeys.length === 0
-            ? `루트 .env (${data.categories.reduce((n, c) => n + c.vars.length, 0)} 변수)`
-            : `변경된 키 ${dirtyKeys.length}개: ${dirtyKeys.join(", ")}`}
+            ? `Root .env (${data.categories.reduce((n, c) => n + c.vars.length, 0)} variables)`
+            : `${dirtyKeys.length} key(s) modified: ${dirtyKeys.join(", ")}`}
         </p>
         <Button
           size="sm"
@@ -146,7 +146,7 @@ export function EnvForm() {
           ) : (
             <Save />
           )}
-          저장
+          Save
         </Button>
       </div>
 
@@ -239,8 +239,9 @@ export function EnvForm() {
 
       {dirtyKeys.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          변경 후 적용하려면 <Link href="/dashboard" className="underline">Dashboard</Link>{" "}
-          에서 봇을 재시작하세요.
+          Restart the bot from{" "}
+          <Link href="/dashboard" className="underline">Dashboard</Link> to apply
+          changes.
         </p>
       )}
     </div>

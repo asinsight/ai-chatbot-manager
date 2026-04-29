@@ -8,7 +8,7 @@ export default function Page() {
       <div>
         <h1 className="text-2xl font-semibold">Connections</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          ComfyUI / OpenWebUI / Grok / Prompt Guard 의 URL+token 편집 + Ping 검증.
+          Edit URLs + tokens for ComfyUI / OpenWebUI / Grok / Prompt Guard and verify with Ping.
         </p>
       </div>
       <ConnectionsPage />

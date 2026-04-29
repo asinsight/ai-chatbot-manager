@@ -13,7 +13,7 @@ export const READ_ONLY_KEYS = new Set<string>(["VIDEO_MODEL"]);
 export const CATEGORIES: EnvCategory[] = [
   {
     id: "llm",
-    label: "LLM 백엔드",
+    label: "LLM backend",
     keys: ["OPENWEBUI_URL", "OPENWEBUI_API_KEY", "LLM_API_PATH", "MODEL_NAME"],
   },
   {
@@ -41,7 +41,7 @@ export const CATEGORIES: EnvCategory[] = [
   },
   {
     id: "video",
-    label: "비디오 (Atlas Cloud)",
+    label: "Video (Atlas Cloud)",
     keys: ["ATLASCLOUD_API_KEY", "VIDEO_MODEL"],
   },
   {
@@ -51,7 +51,7 @@ export const CATEGORIES: EnvCategory[] = [
   },
   {
     id: "operations",
-    label: "운영",
+    label: "Operations",
     keys: [
       "IMAGE_AUTONOMY",
       "FORCE_SFW_SCENE",
@@ -68,7 +68,7 @@ export const CATEGORIES: EnvCategory[] = [
   },
   {
     id: "tokens",
-    label: "봇 토큰 (Test/Prod)",
+    label: "Bot tokens (Test/Prod)",
     keys: [],
     dynamicMatch: (k) =>
       /^(TEST|PROD)_(MAIN_BOT_TOKEN|MAIN_BOT_USERNAME|CHAR_BOT_[A-Za-z0-9]+|CHAR_USERNAME_[A-Za-z0-9]+)$/.test(

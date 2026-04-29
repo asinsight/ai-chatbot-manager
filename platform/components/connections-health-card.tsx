@@ -60,7 +60,7 @@ export function ConnectionsHealthCard() {
   const total = data?.length ?? 0;
   const summary = data
     ? failCount > 0
-      ? `${okCount}/${total} OK · ${failCount} 실패`
+      ? `${okCount}/${total} OK · ${failCount} failing`
       : okCount === total
       ? `${total}/${total} OK`
       : `${okCount}/${total} OK · ${total - okCount} untested`
@@ -75,11 +75,11 @@ export function ConnectionsHealthCard() {
             href="/connections"
             className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground"
           >
-            관리 <ChevronRight className="h-3 w-3" />
+            Manage <ChevronRight className="h-3 w-3" />
           </Link>
         </div>
         <CardDescription>
-          마지막 ping 결과 · 30초마다 자동 갱신.
+          Last ping results · auto-refresh every 30 seconds.
         </CardDescription>
       </CardHeader>
       <CardContent>

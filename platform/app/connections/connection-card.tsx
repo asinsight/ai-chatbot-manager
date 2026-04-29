@@ -88,14 +88,14 @@ export function ConnectionCard({
         error?: string;
       };
       if (!res.ok) throw new Error(json.error ?? `status ${res.status}`);
-      toast.success(`${conn.label} 저장됨`, {
-        description: `백업: ${json.backup_path?.split("/").pop()}`,
+      toast.success(`${conn.label} saved`, {
+        description: `backup: ${json.backup_path?.split("/").pop()}`,
       });
       setToken(""); // clear secret input after save
       await onChanged();
       return true;
     } catch (err) {
-      toast.error(`${conn.label} 저장 실패`, {
+      toast.error(`${conn.label} save failed`, {
         description: (err as Error).message,
       });
       return false;
@@ -117,13 +117,13 @@ export function ConnectionCard({
           description: `${json.duration_ms} ms`,
         });
       } else {
-        toast.error(`${conn.label} ping 실패`, {
+        toast.error(`${conn.label} ping failed`, {
           description: json.message,
         });
       }
       await onChanged();
     } catch (err) {
-      toast.error(`${conn.label} ping 실패`, {
+      toast.error(`${conn.label} ping failed`, {
         description: (err as Error).message,
       });
     } finally {
@@ -193,7 +193,7 @@ export function ConnectionCard({
             </div>
             {!isTokenDirty && conn.token_present && (
               <p className="text-[11px] text-muted-foreground">
-                현재 저장된 토큰. 새 값을 입력해야 갱신됩니다.
+                Currently stored token. Enter a new value to update.
               </p>
             )}
           </div>

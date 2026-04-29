@@ -43,23 +43,23 @@ export function ConnectionsPage() {
       };
       const okCount = Object.values(body.results).filter((r) => r.ok).length;
       const total = Object.keys(body.results).length;
-      if (okCount === total) toast.success(`${okCount}/${total} 모두 OK`);
-      else toast.warning(`${okCount}/${total} OK · ${total - okCount} 실패`);
+      if (okCount === total) toast.success(`${okCount}/${total} all OK`);
+      else toast.warning(`${okCount}/${total} OK · ${total - okCount} failing`);
       await refresh();
     } catch (err) {
-      toast.error("전체 Ping 실패", { description: (err as Error).message });
+      toast.error("Ping all failed", { description: (err as Error).message });
     } finally {
       setPingingAll(false);
     }
   }, [refresh]);
 
   if (error) {
-    return <div className="text-sm text-destructive">로드 실패: {error}</div>;
+    return <div className="text-sm text-destructive">Load failed: {error}</div>;
   }
   if (!data) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> 로드 중…
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
       </div>
     );
   }
@@ -68,12 +68,11 @@ export function ConnectionsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {data.length}개 endpoint · 마지막 ping 결과는 `platform.sqlite` 에 누적
-          기록됨.
+          {data.length} endpoints · last ping results accumulate in `platform.sqlite`.
         </p>
         <Button size="sm" onClick={pingAll} disabled={pingingAll}>
           {pingingAll ? <Loader2 className="animate-spin" /> : <Zap />}
-          전체 Ping
+          Ping all
         </Button>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
