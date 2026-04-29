@@ -11,9 +11,11 @@ export default function Page() {
           Each character is a 3-file bundle (
           <code className="font-mono">behaviors/charNN.json</code> +{" "}
           <code className="font-mono">persona/charNN.json</code> +{" "}
-          <code className="font-mono">images/charNN.json</code>) plus 4{" "}
-          <code className="font-mono">.env</code> token lines (TEST_/PROD_ ×
-          BOT/USERNAME). Bot restart required after add / edit / delete.
+          <code className="font-mono">images/charNN.json</code>) plus 2{" "}
+          <code className="font-mono">.env</code> token lines (
+          <code className="font-mono">CHAR_BOT_charNN</code> +{" "}
+          <code className="font-mono">CHAR_USERNAME_charNN</code>). Bot restart
+          required after add / edit / delete.
         </p>
       </div>
       <CharactersList />

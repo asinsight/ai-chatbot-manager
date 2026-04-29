@@ -12,7 +12,7 @@ export type EnvLine =
 
 // Allow uppercase prefix + alphanumeric/underscore tail. Lowercase tail is
 // permitted because the bot's own conventions use lowercase suffixes
-// (e.g. TEST_CHAR_BOT_imagegen, TEST_CHAR_BOT_charNN).
+// (e.g. CHAR_BOT_imagegen, CHAR_BOT_charNN).
 const KEY_RE = /^[A-Z_][A-Za-z0-9_]*$/;
 
 function parseLine(raw: string): EnvLine {

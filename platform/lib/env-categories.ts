@@ -84,7 +84,7 @@ export const CATEGORIES: EnvCategory[] = [
     id: "tokens",
     label: "Bot tokens",
     description:
-      "Telegram bot tokens. MAIN_BOT_TOKEN drives the onboarding bot; per-character + imagegen tokens are added when you register a new bot in @BotFather. The TEST_/PROD_ environment split was removed — this build runs against a single deployment.",
+      "Telegram bot tokens. MAIN_BOT_TOKEN drives the onboarding bot; per-character + imagegen tokens use the CHAR_BOT_<charId> / CHAR_USERNAME_<charId> pattern and are added when you register a new bot in @BotFather. Bot restart required after adding or rotating a token.",
     keys: ["MAIN_BOT_TOKEN", "MAIN_BOT_USERNAME"],
     dynamicMatch: (k) =>
       /^(MAIN_BOT_TOKEN|MAIN_BOT_USERNAME|CHAR_BOT_[A-Za-z0-9]+|CHAR_USERNAME_[A-Za-z0-9]+)$/.test(
