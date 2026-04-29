@@ -22,6 +22,7 @@ type EnvVar = {
   comment: string | null;
   is_secret: boolean;
   editable: boolean;
+  edit_redirect: string | null;
 };
 
 type EnvCategory = {
@@ -212,6 +213,14 @@ export function EnvForm() {
                         <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
                           empty
                         </span>
+                      )}
+                      {v.edit_redirect && (
+                        <Link
+                          href={v.edit_redirect}
+                          className="ml-auto text-[11px] text-muted-foreground underline hover:text-foreground"
+                        >
+                          edit on character page →
+                        </Link>
                       )}
                     </div>
                     <div className="flex items-center gap-2">

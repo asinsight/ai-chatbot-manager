@@ -109,8 +109,23 @@ export function categoryFor(key: string): string {
   return "misc";
 }
 
+/**
+ * Per-character bot tokens (CHAR_BOT_charNN / CHAR_USERNAME_charNN, EXCLUDING
+ * the imagegen route which is its own special bot, not a character) are
+ * editable only from `/characters/[charId]` to keep the source-of-truth in
+ * one place. They show up in /env as read-only with a redirect link.
+ */
+const CHAR_TOKEN_RE = /^(CHAR_BOT|CHAR_USERNAME)_char(\d{2,3})$/;
+
+export function charIdFromKey(key: string): string | null {
+  const m = key.match(CHAR_TOKEN_RE);
+  return m ? `char${m[2]}` : null;
+}
+
 export function isEditable(key: string): boolean {
-  return !READ_ONLY_KEYS.has(key);
+  if (READ_ONLY_KEYS.has(key)) return false;
+  if (CHAR_TOKEN_RE.test(key)) return false;
+  return true;
 }
 
 /**

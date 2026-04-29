@@ -5,9 +5,9 @@ import { backupEnv } from "@/lib/backup";
 import {
   CATEGORIES,
   categoryFor,
+  charIdFromKey,
   isEditable,
   isRecognized,
-  READ_ONLY_KEYS,
 } from "@/lib/env-categories";
 import {
   applyUpdates,
@@ -31,6 +31,8 @@ type EnvVarPayload = {
   comment: string | null;
   is_secret: boolean;
   editable: boolean;
+  /** When the key is a per-character bot token, the redirect target for editing it. */
+  edit_redirect: string | null;
 };
 
 async function readEnvText(): Promise<string> {
@@ -76,6 +78,7 @@ export async function GET() {
     const buckets = new Map<string, EnvVarPayload[]>();
     for (const [key, value] of seen) {
       const cat = categoryFor(key);
+      const charId = charIdFromKey(key);
       const payload: EnvVarPayload = {
         key,
         value,
@@ -83,6 +86,7 @@ export async function GET() {
         comment: help[key] ?? null,
         is_secret: isSecret(key),
         editable: isEditable(key),
+        edit_redirect: charId ? `/characters/${charId}` : null,
       };
       if (!buckets.has(cat)) buckets.set(cat, []);
       buckets.get(cat)!.push(payload);
@@ -145,7 +149,7 @@ export async function PUT(req: NextRequest) {
         { status: 422 },
       );
     }
-    if (READ_ONLY_KEYS.has(key)) {
+    if (!isEditable(key)) {
       return NextResponse.json(
         { error: `key is read-only: ${key}`, code: "READ_ONLY_KEY" },
         { status: 422 },

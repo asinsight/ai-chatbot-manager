@@ -318,6 +318,10 @@ export async function createCharacter(opts: {
   await _writeJsonAtomic(FILE_FOR("persona", charId), persona);
   await _writeJsonAtomic(FILE_FOR("behaviors", charId), behaviors);
   await _writeJsonAtomic(FILE_FOR("images", charId), images);
-  await _appendEnvCharLines(charId);
+  // We intentionally do NOT auto-append empty CHAR_BOT_<charId> /
+  // CHAR_USERNAME_<charId> lines to .env. The bot reads them via os.getenv(),
+  // which returns None for unset keys (the bot then skips that character).
+  // The user fills in the token from the character editor's Bot tokens tab,
+  // which writes the .env line on save (creating it if missing).
   return { charId };
 }
