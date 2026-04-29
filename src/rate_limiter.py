@@ -1,8 +1,8 @@
-"""유저별 Rate Limiting — 초당/분당 제한 + 스팸 감지.
+"""Per-user rate limiting — per-second / per-minute caps + spam detection.
 
-초당 2회 초과 → 조용히 무시
-분당 10회 초과 → 제한 메시지
-10초 내 5회 초과 → 5분 임시 차단
+> 2 calls/sec  → silently dropped
+> 10 calls/min → rate-limited message
+> 5 calls within 10s → 5-minute temporary block
 """
 
 import time
@@ -24,62 +24,62 @@ class RateLimiter:
         self._blocked: dict[int, float] = {}
 
     def check(self, user_id: int) -> tuple[bool, str]:
-        """요청 허용 여부를 확인한다.
+        """Decide whether the request is allowed.
 
         Returns:
             (allowed, reason)
-            - (True, "") — 허용
-            - (False, "silent") — 조용히 무시
-            - (False, "rate_limit") — 분당 제한
-            - (False, "spam_blocked") — 스팸 차단
+            - (True, "") — allowed
+            - (False, "silent") — silently dropped
+            - (False, "rate_limit") — over the per-minute cap
+            - (False, "spam_blocked") — spam-blocked
         """
         now = time.time()
 
-        # 1. 스팸 차단 중인지 확인
+        # 1. Check whether the user is currently spam-blocked
         if user_id in self._blocked:
             if now < self._blocked[user_id]:
                 return False, "spam_blocked"
             else:
                 del self._blocked[user_id]
-                logger.info("[rate] 차단 해제: user=%s", user_id)
+                logger.info("[rate] block lifted: user=%s", user_id)
 
-        # 타임스탬프 정리 (60초 이전 제거)
+        # Prune old timestamps (older than 60s)
         self._timestamps[user_id] = [
             t for t in self._timestamps[user_id] if now - t < 60
         ]
         timestamps = self._timestamps[user_id]
 
-        # 2. 초당 제한
+        # 2. Per-second cap
         recent_1s = sum(1 for t in timestamps if now - t < 1)
         if recent_1s >= RATE_PER_SECOND:
             return False, "silent"
 
-        # 3. 분당 제한
+        # 3. Per-minute cap
         if len(timestamps) >= RATE_PER_MINUTE:
-            logger.warning("[rate] 분당 제한 초과: user=%s count=%d", user_id, len(timestamps))
+            logger.warning("[rate] per-minute cap exceeded: user=%s count=%d", user_id, len(timestamps))
             return False, "rate_limit"
 
-        # 4. 스팸 감지
+        # 4. Spam detection
         recent_spam = sum(1 for t in timestamps if now - t < SPAM_WINDOW)
         if recent_spam >= SPAM_THRESHOLD:
             self._blocked[user_id] = now + SPAM_COOLDOWN
-            logger.warning("[rate] 스팸 차단: user=%s (%d초)", user_id, SPAM_COOLDOWN)
+            logger.warning("[rate] spam block: user=%s (%ds)", user_id, SPAM_COOLDOWN)
             return False, "spam_blocked"
 
-        # 허용
+        # Allowed
         timestamps.append(now)
         return True, ""
 
     def unblock(self, user_id: int) -> bool:
-        """유저 차단을 해제한다. 차단 중이었으면 True, 아니면 False."""
+        """Unblock a user. Returns True if they were blocked, False otherwise."""
         if user_id in self._blocked:
             del self._blocked[user_id]
-            logger.info("[rate] Admin 차단 해제: user=%s", user_id)
+            logger.info("[rate] admin unblock: user=%s", user_id)
             return True
         return False
 
     def get_blocked_users(self) -> list[dict]:
-        """현재 차단 중인 유저 목록을 반환한다.
+        """Return the list of currently blocked users.
 
         Returns:
             [{"user_id": int, "remaining": float}, ...]

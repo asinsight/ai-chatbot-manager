@@ -1,26 +1,27 @@
-"""pose_motion_presets.py — Preset 룩업 (SFW 텍스트 전용).
+"""pose_motion_presets.py — preset lookup (SFW text-only).
 
-2-stage Grok 파이프라인(Analyzer → Composer)이 WAN 2.2 i2v 모션 프롬프트를
-조립할 때 참조하는 pose_key 기반 카탈로그.
+Catalog keyed by pose_key, consulted by the 2-stage Grok pipeline (Analyzer →
+Composer) when assembling WAN 2.2 i2v motion prompts.
 
-`config/pose_motion_presets.json` 한 파일을 import 시점에 로드한다.
+Loads `config/pose_motion_presets.json` once at import time.
 
-스키마: 각 preset은 평탄한(flat) 객체 — `primary`, `camera`, `audio`,
-`ambient_fallback`, `anchor_risk` 필수. SFW 단일 tier 구조.
+Schema: each preset is a flat object — `primary`, `camera`, `audio`,
+`ambient_fallback`, `anchor_risk` are required. SFW single-tier layout.
 
-언더스코어(`_`) prefix key는 도큐/템플릿 — list_keys()에서 제외, lookup 불가.
-'generic' key는 catch-all fallback (필수).
+Keys with an underscore (`_`) prefix are docs/templates — excluded from
+list_keys() and not reachable via lookup. The 'generic' key is the catch-all
+fallback (required).
 
 Public API:
     lookup(pose_key, safety_level) -> dict | None
     list_keys() -> list[str]
-    list_keys_by_tier() -> dict[str, list[str]]   # 단일 tier "text"만 반환
+    list_keys_by_tier() -> dict[str, list[str]]   # only the single "text" tier
 
 Example:
     from src.pose_motion_presets import lookup, list_keys
 
     preset = lookup("generic", "sfw")
-    # 텍스트 프리셋 반환 — primary/camera/audio/...
+    # Returns the text preset — primary/camera/audio/...
 """
 
 import json
@@ -41,7 +42,7 @@ _REQUIRED_FIELDS = ("primary", "camera", "audio")
 
 
 def _validate_text_entry(key: str, preset: dict) -> None:
-    """pose_motion_presets.json 단일 entry 검증 (평탄 스키마)."""
+    """Validate a single pose_motion_presets.json entry (flat schema)."""
     for field in _REQUIRED_FIELDS:
         val = preset.get(field)
         if not isinstance(val, str) or not val.strip():
@@ -59,7 +60,7 @@ def _validate_text_entry(key: str, preset: dict) -> None:
 
 
 def _load_and_validate_text(raw: dict) -> dict:
-    """pose_motion_presets.json 전체 검증. 'generic' key 필수."""
+    """Validate the entire pose_motion_presets.json. The 'generic' key is required."""
     if not isinstance(raw, dict) or not raw:
         raise ValueError("pose_motion_presets.json: top-level must be a non-empty object")
     if "generic" not in raw:
@@ -74,13 +75,13 @@ def _load_and_validate_text(raw: dict) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────
-# 로드 (fail-fast)
+# Load (fail-fast)
 # ─────────────────────────────────────────────────────────────
 
 with open(_TEXT_PRESETS_PATH, "r", encoding="utf-8") as _f:
     _PRESETS: dict = _load_and_validate_text(json.load(_f))
 
-# Public key 목록 (언더스코어 제외)
+# Public key list (underscore keys excluded)
 _PUBLIC_KEYS: list[str] = sorted([k for k in _PRESETS if not k.startswith("_")])
 
 logger.info("Loaded pose motion presets — total=%d", len(_PUBLIC_KEYS))
@@ -93,18 +94,18 @@ logger.debug("Preset keys: %s", _PUBLIC_KEYS)
 
 
 def _is_safe(safety_level: str) -> bool:
-    """SFW fork — blocked만 거부하고 그 외엔 모두 허용."""
+    """SFW fork — only `blocked` is rejected; everything else is allowed."""
     if not isinstance(safety_level, str):
         return True
     return safety_level.strip().lower() != "blocked"
 
 
 def lookup(pose_key: str, safety_level: str) -> dict | None:
-    """pose_key + safety_level로 preset 조회.
+    """Look up a preset by pose_key + safety_level.
 
-    - 언더스코어 키 / 미등록 키 → `generic` 텍스트 fallback
-    - safety_level=blocked → None
-    - 반환 스키마: {primary, camera, audio, ambient_fallback, anchor_risk, ...}
+    - underscore keys / unknown keys → fall back to `generic` text preset
+    - safety_level == "blocked" → None
+    - Return schema: {primary, camera, audio, ambient_fallback, anchor_risk, ...}
     """
     if not _is_safe(safety_level):
         return None
@@ -129,14 +130,15 @@ def lookup(pose_key: str, safety_level: str) -> dict | None:
 
 
 def list_keys() -> list[str]:
-    """모든 public pose_key 반환 (정렬됨)."""
+    """Return all public pose_keys (sorted)."""
     return list(_PUBLIC_KEYS)
 
 
 def list_keys_by_tier() -> dict[str, list[str]]:
-    """단일 tier 'text'에 모든 SFW pose_key를 묶어 반환.
+    """Bundle every SFW pose_key under a single tier called 'text'.
 
-    SFW fork에서는 LoRA tier가 없으므로 호출부 호환을 위해 단일 tier만 반환한다.
+    The SFW fork has no LoRA tier — this function returns a single tier purely
+    so call sites stay compatible.
 
     Returns:
         {"text": ["generic", "portrait_static_sfw", ...]}

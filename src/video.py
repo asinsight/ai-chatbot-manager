@@ -1,6 +1,6 @@
-"""비디오 생성 모듈 — AtlasCloud i2v 래퍼.
+"""Video generation module — AtlasCloud i2v wrapper.
 
-wan26/wan26-flash/seedance: 네이티브 오디오 (generate_audio=true)
+wan26 / wan26-flash / seedance: native audio (generate_audio=true)
 """
 
 import logging
@@ -8,12 +8,12 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# .env에서 비디오 설정 읽기
+# Read video config from .env
 VIDEO_MODEL = os.getenv("VIDEO_MODEL", "alibaba/wan-2.6/image-to-video-flash")
 VIDEO_RESOLUTION = os.getenv("VIDEO_RESOLUTION", "480p")
 VIDEO_DURATION = int(os.getenv("VIDEO_DURATION", "5"))
 
-# 네이티브 오디오 지원 모델 — 이 모델들만 audio_prompt를 전달
+# Models with native audio support — only these models forward audio_prompt
 _NATIVE_AUDIO_MODELS = {
     "alibaba/wan-2.6/image-to-video",
     "alibaba/wan-2.6/image-to-video-flash",
@@ -21,12 +21,12 @@ _NATIVE_AUDIO_MODELS = {
     "bytedance/seedance-v1.5-pro/image-to-video-spicy",
 }
 
-# AtlasCloudClient — ATLASCLOUD_API_KEY 환경변수 필요
+# AtlasCloudClient — requires ATLASCLOUD_API_KEY env var
 _client = None
 
 
 def _get_client():
-    """클라이언트를 lazy init한다 (ATLASCLOUD_API_KEY 없으면 None)."""
+    """Lazily initialize the client (returns None if ATLASCLOUD_API_KEY is missing)."""
     global _client
     if _client is not None:
         return _client
@@ -46,17 +46,17 @@ async def generate_video(
     motion_prompt: str,
     audio_prompt: str = "",
 ) -> str | None:
-    """이미지 → 비디오 생성 (오디오 포함).
+    """Generate a video from an image (with optional audio).
 
-    - wan26/wan26-flash/seedance: 네이티브 오디오
-    - 비디오 길이는 .env VIDEO_DURATION으로 고정 제어
+    - wan26 / wan26-flash / seedance: native audio
+    - Video duration is fixed by VIDEO_DURATION in .env
 
     Args:
-        image_path: 입력 이미지 경로.
-        motion_prompt: Composer가 만든 motion 프롬프트.
-        audio_prompt: Composer가 만든 audio 프롬프트 (native audio 모델만 사용).
+        image_path: input image path.
+        motion_prompt: motion prompt produced by the composer.
+        audio_prompt: audio prompt produced by the composer (only used for native-audio models).
 
-    성공 시 로컬 파일 경로 반환, 실패 시 None.
+    Returns the local file path on success, None on failure.
     """
     client = _get_client()
     if not client:
@@ -64,7 +64,7 @@ async def generate_video(
         return None
 
     effective_model = VIDEO_MODEL
-    # 네이티브 오디오 모델 감지
+    # Detect native-audio model
     effective_audio = audio_prompt if effective_model in _NATIVE_AUDIO_MODELS else ""
     if not effective_audio and audio_prompt:
         logger.info("Model %s lacks native audio — skipping audio", effective_model)

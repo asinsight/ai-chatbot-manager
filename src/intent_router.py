@@ -1,16 +1,18 @@
-"""이미지 제네레이터 의도 분류 라우터 — Local LLM 사용.
+"""Image-generator intent-classification router — runs on a local LLM.
 
-자유 텍스트 입력을 6개 intent로 분류하고 scene/edit_clause를 분리한다.
-단순 분류 작업이라 빠른 local LLM(gemma 등)이 적합하며 GPU 사용 미미.
+Classifies free-text input into one of six intents and splits scene /
+edit_clause from the prompt. Classification is light enough that a fast
+local LLM (e.g. gemma) works fine and GPU usage stays minimal.
 
-호출자는 `imagegen_message` — @name 파서 / CHAR_NAME_MAP 등 fast-path 이후의
-자유 텍스트를 라우터에 전달한다.
+Caller is `imagegen_message` — it passes the free text that remains after
+the @name parser and CHAR_NAME_MAP fast paths.
 
-llm_queue API 노트:
-    `LLMQueue.enqueue()`는 priority 인자를 직접 받지 않고 `task_type`과 `user_id`로
-    내부 매핑한다 (`chat`이면 NORMAL, `summary`/`extract`이면 LOW).
-    라우터는 캐릭터 대화와 동일한 chat 큐를 쓰지만, 라우터 호출 자체는 짧고
-    deterministic (max_tokens=200, JSON 분류) 이라 큐 부하에 영향이 적다.
+llm_queue API note:
+    `LLMQueue.enqueue()` does not take a priority argument directly; it derives
+    priority from `task_type` and `user_id` (`chat` → NORMAL, `summary` /
+    `extract` → LOW). The router uses the same chat queue as character chat
+    but its own calls are short and deterministic (max_tokens=200, JSON
+    classification), so queue pressure stays low.
 """
 
 import json
@@ -21,7 +23,7 @@ from src.llm_queue import llm_queue
 
 logger = logging.getLogger(__name__)
 
-# 라우터가 분류하는 6개 intent
+# The six intents this router classifies into
 INTENTS = ("NEW", "MODIFY", "EDIT_SAVED", "RECALL", "SCENE", "RESET")
 
 ROUTER_SYSTEM_PROMPT = """\
@@ -107,21 +109,22 @@ async def analyze_input_intent(
     has_last_tags: bool,
     user_id: int = 0,
 ) -> dict:
-    """Local LLM으로 자유 텍스트 의도 분류.
+    """Classify free-text intent using a local LLM.
 
     Args:
-        text: @name 토큰 strip 후의 자유 텍스트
-        has_saved_char_ref: @name으로 저장 캐릭터를 참조했는지
-        has_last_tags: 이전 이미지가 세션에 있는지 (modify mode 가능 여부)
-        user_id: 큐 큐잉용 (현재 NORMAL 단일 우선순위)
+        text: free text after the @name token has been stripped
+        has_saved_char_ref: True if the user referenced a saved character via @name
+        has_last_tags: True if a previous image is in the session (modify mode possible)
+        user_id: used for queue routing (currently a single NORMAL priority)
 
     Returns:
         {intent: str, scene_description: str, edit_clause: str}
-        파싱 실패 시 fallback (saved_char_ref면 RECALL, has_last_tags면 MODIFY, 아니면 NEW).
+        On parse failure, falls back to RECALL if saved_char_ref, MODIFY if
+        has_last_tags, else NEW.
     """
     text = (text or "").strip()
 
-    # Fallback 결정 — LLM 실패 시 사용
+    # Fallback decision — used on LLM failure
     if has_saved_char_ref:
         fallback_intent = "RECALL"
     elif has_last_tags:
@@ -150,7 +153,7 @@ async def analyze_input_intent(
 
     try:
         # task_type="chat" — NORMAL priority.
-        # max_tokens 작게: JSON 분류 결과만 받으면 됨.
+        # Keep max_tokens small: only the JSON classification result is needed.
         response = await llm_queue.enqueue(
             messages=messages,
             user_id=user_id,
@@ -158,28 +161,28 @@ async def analyze_input_intent(
             max_tokens=200,
         )
     except Exception as e:
-        logger.error("intent router LLM 호출 실패: %s", e)
+        logger.error("intent router LLM call failed: %s", e)
         return fallback
 
     content = (response or "").strip()
     if not content:
         return fallback
 
-    # JSON 파싱 — 마크다운 코드 블록 처리
+    # JSON parsing — handle markdown code blocks
     json_block = re.search(r"```(?:json)?\s*(.*?)```", content, re.DOTALL)
     raw = json_block.group(1).strip() if json_block else content
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        # 첫 { ~ 마지막 } 구간만 추출
+        # Extract only the substring from the first { to the last }
         m = re.search(r"\{.*\}", raw, re.DOTALL)
         if not m:
-            logger.warning("intent router JSON 파싱 실패: %s", content[:200])
+            logger.warning("intent router JSON parse failed: %s", content[:200])
             return fallback
         try:
             data = json.loads(m.group(0))
         except json.JSONDecodeError:
-            logger.warning("intent router JSON 파싱 실패: %s", content[:200])
+            logger.warning("intent router JSON parse failed: %s", content[:200])
             return fallback
 
     intent = data.get("intent", "")

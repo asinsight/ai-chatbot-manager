@@ -1,7 +1,8 @@
-"""비디오 생성 컨텍스트 캐시 — handlers_char, handlers_imagegen 공유.
+"""Video-generation context cache — shared between handlers_char and handlers_imagegen.
 
-🎬 버튼 클릭 시 필요한 이미지/설명/태그/모션 override 등을 ctx_id에 묶어 보관.
-TTL 10분 후 자동 만료 + 임시 이미지 파일 정리.
+When the 🎬 button is clicked we need the source image, description, tags, and any
+motion override; this module bundles them under a ctx_id. Entries auto-expire
+after 10 minutes and the temporary image files are cleaned up on expiry.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import time
 import uuid
 
 _video_contexts: dict[str, dict] = {}
-_VIDEO_CTX_TTL = 600  # 10분
+_VIDEO_CTX_TTL = 600  # 10 minutes
 
 
 def store_video_context(
@@ -24,15 +25,16 @@ def store_video_context(
     scene_key: str | None = None,
     pose: str | None = None,
 ) -> str:
-    """비디오 생성에 필요한 컨텍스트를 임시 저장. ctx_id 반환.
+    """Store the context needed for video generation. Returns a ctx_id.
 
-    char_id: 캐릭터 봇이면 "char01" 등, imagegen 봇이면 "imagegen" 또는 "".
-    motion_override: 유저 지정 한글 모션. 있으면 Grok Vision 생략.
-    scene_key: 캐릭터 봇의 SFW pose/scene 분류 결과. 🎬 영상 콜백에서 일관성 보장에 사용.
-    pose: scene_key의 `pose_pool`에서 선택한 pose.
+    char_id: "char01" etc. for character bots, "imagegen" or "" for the imagegen bot.
+    motion_override: user-supplied Korean motion text. If set, skip Grok Vision.
+    scene_key: SFW pose/scene classification from the character bot. Used by the
+        🎬 video callback to keep the result consistent.
+    pose: pose chosen from scene_key's `pose_pool`.
     """
     now = time.time()
-    # 만료된 항목 정리 (파일도 삭제)
+    # Clean up expired entries (and their files)
     expired = [k for k, v in _video_contexts.items() if now - v["created_at"] > _VIDEO_CTX_TTL]
     for k in expired:
         cleanup_video_context(k)
@@ -53,7 +55,7 @@ def store_video_context(
 
 
 def get_video_context(ctx_id: str) -> dict | None:
-    """컨텍스트 조회. 만료/미존재 시 None."""
+    """Look up a context by id. Returns None if expired or not found."""
     ctx = _video_contexts.get(ctx_id)
     if not ctx:
         return None
@@ -64,7 +66,7 @@ def get_video_context(ctx_id: str) -> dict | None:
 
 
 def cleanup_video_context(ctx_id: str) -> None:
-    """컨텍스트 삭제 + 임시 이미지 파일 정리."""
+    """Delete a context and clean up its temporary image file."""
     ctx = _video_contexts.pop(ctx_id, None)
     if ctx and ctx.get("image_path") and os.path.exists(ctx["image_path"]):
         try:
