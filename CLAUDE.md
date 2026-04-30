@@ -110,8 +110,9 @@
 | **Platform M0** | ✅ 완료 | `7804ea1` | Next.js 14 scaffold + sidebar + bot-process.ts + 5 API routes + Dashboard UI. 9 시나리오 모두 PASS. |
 | **Platform M1 + i18n** | ✅ 완료 | `09334db` | M1: /env 편집기 + Connections 4 endpoint Ping + Dashboard health card / 12 시나리오 PASS. i18n (PM scope D): markdown 제외 전 코드/설정/캐릭터 영어화. char05 (Jiwon Han) 만 sample 캐릭터로 잔류, char01-04 + char06-09 삭제. |
 | **Platform M1 polish** | ✅ 완료 | `b1fa27f` | Grok env var 명 통일 (GROK_PROMPTING_*) + VIDEO_COMPOSER_MODEL 노출 + UI 시크릿 마스킹 fix + .env.example default placeholder + OpenWebUI label. |
-| **Platform M2** | ✅ 완료 (develop 대기) | `feat/feature_M2_prompt_editor` | /prompts 페이지: Monaco 65vh + react-diff-viewer modal + per-key save + ${var} placeholder lint (warn-not-block) + 자동 백업 + 인라인 metadata (8 키 별 title/summary/used by). |
-| **Platform M3+** | 🔜 다음 | — | 캐릭터 카드 CRUD (M3) → 이미지 config / 워크플로우 / 로그 (M4-M5). 자세한 진행 상황은 [STATUS.md](STATUS.md) 참조 |
+| **Platform M2** | ✅ 완료 | `4823d44` | /prompts 페이지: Monaco 65vh + react-diff-viewer modal + per-key save + ${var} placeholder lint (warn-not-block) + 자동 백업 + 인라인 metadata (8 키 별 title/summary/used by). |
+| **Platform M3** | ✅ 완료 (develop 대기) | `feat/feature_M3_character_crud` | /characters CRUD (list + form + Raw JSON + soft-delete + draft auto-save) + Bot tokens 탭. **TEST_/PROD_ 분리 제거** (단일 namespace) + /env Bot tokens grouping. _bot_active() — token+username 둘 다 있어야 main listing 노출. anchor_image 폼에서 숨김. ajv 검증 + 빈-required 거부. |
+| **Platform M4+** | 🔜 다음 | — | 이미지 config (M4) → 워크플로우 / 로그 (M5). 자세한 진행 상황은 [STATUS.md](STATUS.md) 참조 |
 
 ## 작업 워크플로우 (Git Branching + 문서 갱신)
 
