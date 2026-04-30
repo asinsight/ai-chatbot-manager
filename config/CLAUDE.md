@@ -5,7 +5,9 @@ Runtime configuration for `ella-chat-publish`. All five files in this directory 
 ## Files
 
 ### `profile_keys.json`
-Whitelist of keys allowed when merging/saving character profiles. Used by `src/profile_keys.py` to drop unknown fields when applying partial edits to a saved character. Schema-style flat list — no NSFW-specific keys (`body_nsfw` is not present).
+Whitelist of canonical user-profile keys (with alias lists). Determines which topics the LLM tracks about the user (name / age / hobby / family / …). Used by `src/profile_keys.py` to canonicalize LLM-extracted keys when applying partial profile edits — unknown keys are dropped, alias matches are routed to the canonical form. Schema-style flat list — no NSFW-specific keys (`body_nsfw` is not present).
+
+Edited via the platform admin under `/prompts` → "Profile keys" tab (master-detail + chips), since the file controls LLM behavior (not image config).
 
 ### `grok_prompts.json`
 Externalized system prompts for the Grok API client. Loaded once at `src/grok.py` import time (fail-fast — missing keys or empty strings raise `RuntimeError`; there are no fallback strings). Keys (5):
