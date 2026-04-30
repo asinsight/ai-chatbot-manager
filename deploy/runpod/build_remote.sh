@@ -1,16 +1,17 @@
 #!/bin/bash
-# RunPod Pod (x86_64)에서 실행하는 Docker 빌드 스크립트
-# 웹 터미널에서 복사-붙여넣기로 실행
+# Docker build script meant to run from inside an x86_64 RunPod pod's web
+# terminal — copy-paste the file in and run it. Generates a self-contained
+# Dockerfile + handler.py + builds + pushes the image to Docker Hub.
 
 set -e
 
-echo "=== Ella ComfyUI Docker 빌드 (x86_64) ==="
+echo "=== ella-chat-publish ComfyUI Docker build (x86_64) ==="
 
-# 1. 작업 디렉토리
+# 1. Working directory
 cd /workspace
 mkdir -p ella-build && cd ella-build
 
-# 2. Dockerfile 작성
+# 2. Write the Dockerfile
 cat > Dockerfile << 'DOCKERFILE'
 FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
 
@@ -54,7 +55,7 @@ COPY handler.py /app/handler.py
 CMD ["python", "/app/handler.py"]
 DOCKERFILE
 
-# 3. handler.py 작성
+# 3. Write handler.py
 cat > handler.py << 'HANDLER'
 import json
 import os
@@ -163,25 +164,25 @@ def handler(event):
 runpod.serverless.start({"handler": handler})
 HANDLER
 
-echo "=== 파일 준비 완료 ==="
-echo "Dockerfile + handler.py 생성됨"
+echo "=== Files staged ==="
+echo "Dockerfile + handler.py written"
 
-# 4. Docker 설치 (없으면)
+# 4. Install Docker if it isn't already on the pod.
 if ! command -v docker &> /dev/null; then
-    echo "Docker 설치 중..."
+    echo "Installing Docker..."
     curl -fsSL https://get.docker.com | sh
 fi
 
-# 5. Docker 빌드
-echo "=== Docker 빌드 시작 ==="
+# 5. Build the image
+echo "=== Starting Docker build ==="
 docker build -t ellaadmin/ella-comfyui-serverless:latest .
 
 echo ""
-echo "=== 빌드 완료 ==="
+echo "=== Build complete ==="
 docker images ellaadmin/ella-comfyui-serverless:latest
 
-# 6. Docker Hub 로그인 + push
-echo "=== Docker Hub 로그인 ==="
-echo "다음 명령어로 로그인 후 push하세요:"
+# 6. Push instructions (login + push are interactive; do them manually).
+echo "=== Docker Hub login ==="
+echo "Run these commands to log in and push:"
 echo "  docker login -u ellaadmin"
 echo "  docker push ellaadmin/ella-comfyui-serverless:latest"

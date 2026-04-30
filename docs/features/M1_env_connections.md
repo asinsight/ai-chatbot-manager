@@ -37,7 +37,7 @@
 - **선택지가 답에 영향**: A 면 Connections 페이지 Grok 카드의 URL input 비활성화. B 면 모두 편집 가능.
 
 ### #2 — Prompt Guard 카드 노출 (plan §9.11)
-- **현재 상태**: `PROMPT_GUARD_URL` 은 `src/input_filter.py` 의 `os.getenv("PROMPT_GUARD_URL", "http://192.168.86.250:8081")` 로 fallback 만 존재. `.env` / `.env.example` 에 키 없음. 토큰 인증 X.
+- **현재 상태**: `PROMPT_GUARD_URL` 은 `src/input_filter.py` 에서 `os.getenv("PROMPT_GUARD_URL", "")` 로 읽음 — 비어있으면 remote 호출 스킵 (regex 필터만 동작). 사설 IP fallback 은 오픈소스 정리 단계에서 제거됨. 토큰 인증 X.
 - **A**: 보임 — `.env` 에 `PROMPT_GUARD_URL` 변수 line 추가 (현재 미존재) + Connections 카드 노출. Ping 은 `POST {URL}/check` 더미 텍스트로.
 - **B**: 숨김 — Prompt Guard 는 v1 미노출, M1 Connections 페이지에 3개 카드 (ComfyUI / OpenWebUI / Grok) 만.
 - **권장**: A. `.env.example` 에도 `#PROMPT_GUARD_URL=` 추가.

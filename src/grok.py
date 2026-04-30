@@ -15,6 +15,11 @@ from src.pose_motion_presets import (
 
 logger = logging.getLogger(__name__)
 
+# Grok API base URL (X.AI by default; set GROK_BASE_URL to point at an
+# OpenAI-compatible proxy). Sourced once at module import — every
+# AsyncOpenAI call below uses this constant.
+GROK_BASE_URL = os.getenv("GROK_BASE_URL", "https://api.x.ai/v1")
+
 # ───────────────────────────────────────────────────────────────────────
 # Externalized prompts — config/grok_prompts.json
 # ───────────────────────────────────────────────────────────────────────
@@ -377,7 +382,7 @@ async def generate_danbooru_tags(
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url=os.getenv("GROK_BASE_URL", "https://api.x.ai/v1"),
+        base_url=GROK_BASE_URL,
     )
 
     messages = [
@@ -474,7 +479,7 @@ async def generate_danbooru_tags_random(
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url=os.getenv("GROK_BASE_URL", "https://api.x.ai/v1"),
+        base_url=GROK_BASE_URL,
     )
 
     messages = [
@@ -599,7 +604,7 @@ async def classify_tags_to_nested_blocks(pos_prompt: str) -> dict:
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url=os.getenv("GROK_BASE_URL", "https://api.x.ai/v1"),
+        base_url=GROK_BASE_URL,
     )
 
     messages = [
@@ -705,7 +710,7 @@ async def analyze_partial_edit_intent(
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url=os.getenv("GROK_BASE_URL", "https://api.x.ai/v1"),
+        base_url=GROK_BASE_URL,
     )
 
     messages = [
@@ -1126,7 +1131,7 @@ async def generate_video_prompts(
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url=os.getenv("GROK_BASE_URL", "https://api.x.ai/v1"),
+        base_url=GROK_BASE_URL,
     )
 
     # ── motion_override path — bypass Stage 1, call Composer alone ──

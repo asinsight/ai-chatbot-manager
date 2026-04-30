@@ -1,7 +1,7 @@
 {
   "2": {
     "inputs": {
-      "ckpt_name": "illustrious/novaAnimeXL_ilV170.safetensors"
+      "ckpt_name": "illustrious/oneObsession_v20Bold.safetensors"
     },
     "class_type": "CheckpointLoaderSimple",
     "_meta": {

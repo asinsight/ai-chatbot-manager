@@ -74,7 +74,7 @@ async def _call_provider(
 
         client = AsyncOpenAI(
             api_key=api_key,
-            base_url="https://api.x.ai/v1",
+            base_url=os.getenv("GROK_BASE_URL", "https://api.x.ai/v1"),
         )
 
         response = await client.chat.completions.create(

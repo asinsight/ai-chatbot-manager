@@ -7,12 +7,20 @@ Systemd units, install/backup scripts, and the RunPod serverless image-gen endpo
 - **`ella-chat-publish.service`** — Main bot unit. Runs `src/bot.py` under the project venv. Renamed from the original `ella-telegram.service` to match the fork name; install/uninstall scripts and `journalctl -u ella-chat-publish` follow the new name.
 - **`comfyui.service`** — Local ComfyUI server for development image generation. Production routes through `runpod/` instead, but this unit is kept for local-host fallback and dev workflow.
 - **`llama-server.service`** — Optional `llama.cpp` server unit for running a local LLM as a fallback when the hosted LLM endpoint is unavailable. Disabled by default; enable via `systemctl enable --now llama-server` if you provide a model file.
-- **`prompt-guard.service`** — Optional safety classifier service that the bot can call for additional filtering on top of `src/input_filter.py`. Independent of the bot lifecycle.
+- **`prompt-guard/prompt-guard.service`** — Optional safety classifier service that the bot can call for additional filtering on top of `src/input_filter.py`. Independent of the bot lifecycle. The full server (FastAPI + ProtectAI deberta-v3-base-prompt-injection-v2) lives next to the unit file in `deploy/prompt-guard/` — see `deploy/prompt-guard/README.md` for setup. The bot reaches it via `PROMPT_GUARD_URL` in `.env`; when empty, only the regex filter runs.
 
 ## Scripts
 
 - **`backup_db.sh`** — SQLite snapshot helper. Copies the bot DB (`data/bot.sqlite`) to a timestamped path, intended to be run from cron. Adjust `DB_PATH` / `BACKUP_DIR` at the top of the script for your install.
 - **`install.sh`** — Bootstrap script. Creates the venv, installs `requirements.txt`, copies the four `.service` files into `/etc/systemd/system/`, runs `systemctl daemon-reload`, and enables the main bot unit. Re-runnable.
+
+## Standalone services
+
+- **`prompt-guard/`** — Self-contained FastAPI server for prompt-injection detection. Bundled here because it is meant to run on the same host as the bot (or any host the bot can reach over HTTP). Contents:
+  - `prompt_guard_server.py` — FastAPI app exposing `POST /check` + `GET /health`. Loads ProtectAI `deberta-v3-base-prompt-injection-v2` once at startup (CPU-only).
+  - `requirements.txt` — `fastapi` / `uvicorn` / `transformers` / `torch` (CPU build) / `sentencepiece` / `protobuf`.
+  - `prompt-guard.service` — systemd unit template (`User` and paths are placeholders — edit before installing).
+  - `README.md` — manual run + systemd setup + API reference.
 
 ## RunPod serverless
 

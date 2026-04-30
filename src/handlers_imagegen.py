@@ -570,7 +570,7 @@ async def imagegen_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Onboarding check
     if not is_onboarded(user_id):
         main_link = f"https://t.me/{MAIN_BOT_USERNAME}" if MAIN_BOT_USERNAME else ""
-        text = "Please sign up via the main bot first to use this service."
+        text = "Please send /start in the main bot first to register."
         if main_link:
             text += f"\n👉 {main_link}"
         await update.message.reply_text(text)
@@ -767,7 +767,7 @@ async def random_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Onboarding check
     if not is_onboarded(user_id):
         main_link = f"https://t.me/{MAIN_BOT_USERNAME}" if MAIN_BOT_USERNAME else ""
-        text = "Please sign up via the main bot first to use this service."
+        text = "Please send /start in the main bot first to register."
         if main_link:
             text += f"\n👉 {main_link}"
         await query.message.reply_text(text)

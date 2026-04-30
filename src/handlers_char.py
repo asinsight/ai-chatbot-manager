@@ -161,7 +161,10 @@ async def _convert_outfit_tags(description: str) -> dict | None:
     if not api_key:
         return None
 
-    client = AsyncOpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url=os.getenv("GROK_BASE_URL", "https://api.x.ai/v1"),
+    )
     model = os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
 
     prompt = (
@@ -196,12 +199,10 @@ async def char_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name or "User"
     user_id = update.effective_user.id
 
-    # Onboarding check — if incomplete, redirect to the main bot
+    # Registration check — if incomplete, redirect to the main bot
     if not is_onboarded(user_id):
         link = f"https://t.me/{MAIN_BOT_USERNAME}" if MAIN_BOT_USERNAME else ""
-        text = (
-            "Please complete age verification + terms of service in the main bot first."
-        )
+        text = "Please send /start in the main bot first to register."
         if link:
             text += f"\n\n👉 {link}"
         await update.message.reply_text(text)
@@ -254,7 +255,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Onboarding check
     if not is_onboarded(user_id):
-        await update.message.reply_text("Please send /start to complete age verification + terms of service before using the service.")
+        await update.message.reply_text("Please send /start in the main bot first to register.")
         return
 
     char_id, character = _get_character(context, user_id)
@@ -460,16 +461,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clean_reply = re.sub(r"\[SEARCH:\s*[^\]]*\]", "", clean_reply)
     clean_reply = clean_reply.strip()
 
-    # 📷 capture button — only show when fixation > 50 AND no image is being sent
+    # 📷 capture button — shown on every reply unless an image is already being
+    # auto-sent in this turn. The fixation > 50 gate was removed so users can
+    # request a scene capture at any point in the conversation.
     capture_keyboard = None
     if not image_match and not force_image:
-        try:
-            if _cached_stats["fixation"] > 50:
-                capture_keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📷 Capture", callback_data="capture_scene")]
-                ])
-        except Exception:
-            pass
+        capture_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📷 Capture", callback_data="capture_scene")]
+        ])
 
     if clean_reply:
         # Keep stage directions (parens) as-is; bold the dialogue (HTML)
