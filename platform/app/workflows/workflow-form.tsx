@@ -1,14 +1,25 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import type { SafeFields } from "@/lib/workflows-meta";
+
+type CheckpointsResp =
+  | { ok: true; comfyui_url: string; checkpoints: string[] }
+  | { ok: false; reason: string; message: string; checkpoints: string[] };
 
 export function WorkflowForm({
   name,
@@ -21,8 +32,43 @@ export function WorkflowForm({
 }) {
   const [draft, setDraft] = useState<SafeFields>(initial);
   const [saving, setSaving] = useState(false);
+  const [checkpoints, setCheckpoints] = useState<string[]>([]);
+  const [ckptLoading, setCkptLoading] = useState(false);
+  const [ckptError, setCkptError] = useState<string | null>(null);
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+
+  const loadCheckpoints = async () => {
+    setCkptLoading(true);
+    setCkptError(null);
+    try {
+      const r = await fetch("/api/comfyui/checkpoints", { cache: "no-store" });
+      const body = (await r.json()) as CheckpointsResp;
+      if (body.ok) {
+        setCheckpoints(body.checkpoints);
+      } else {
+        setCheckpoints([]);
+        setCkptError(`${body.reason}: ${body.message}`);
+      }
+    } catch (err) {
+      setCkptError((err as Error).message);
+    } finally {
+      setCkptLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadCheckpoints();
+  }, []);
+
+  // Make sure the current value is selectable even if ComfyUI hasn't returned
+  // the list yet (or doesn't include it — different server, file renamed, etc).
+  const checkpointOptions = (() => {
+    const cur = draft.checkpoint;
+    const set = new Set(checkpoints);
+    if (cur && !set.has(cur)) set.add(cur);
+    return Array.from(set).sort();
+  })();
 
   const save = async () => {
     setSaving(true);
@@ -49,14 +95,61 @@ export function WorkflowForm({
   return (
     <div className="space-y-4 rounded-md border p-4">
       <div className="space-y-1">
-        <Label className="text-xs">Checkpoint (CheckpointLoaderSimple.ckpt_name)</Label>
-        <Input
-          value={draft.checkpoint ?? ""}
-          onChange={(e) => setDraft({ ...draft, checkpoint: e.target.value })}
-          className="font-mono text-xs"
-          placeholder="(node not present)"
-          disabled={draft.checkpoint === null && initial.checkpoint === null}
-        />
+        <div className="flex items-center justify-between">
+          <Label className="text-xs">Checkpoint (CheckpointLoaderSimple.ckpt_name)</Label>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={ckptLoading}
+            onClick={() => void loadCheckpoints()}
+            title="Refresh checkpoint list from ComfyUI"
+          >
+            {ckptLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3 w-3" />
+            )}
+          </Button>
+        </div>
+        {draft.checkpoint === null && initial.checkpoint === null ? (
+          <Input
+            value=""
+            placeholder="(node not present)"
+            disabled
+            className="font-mono text-xs"
+          />
+        ) : checkpointOptions.length > 0 ? (
+          <Select
+            value={draft.checkpoint ?? ""}
+            onValueChange={(v) => setDraft({ ...draft, checkpoint: v })}
+          >
+            <SelectTrigger className="font-mono text-xs">
+              <SelectValue placeholder="Choose a checkpoint…" />
+            </SelectTrigger>
+            <SelectContent>
+              {checkpointOptions.map((opt) => (
+                <SelectItem key={opt} value={opt} className="font-mono text-xs">
+                  {opt}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            value={draft.checkpoint ?? ""}
+            onChange={(e) => setDraft({ ...draft, checkpoint: e.target.value })}
+            className="font-mono text-xs"
+            placeholder="e.g. illustrious/oneObsession_v20Bold.safetensors"
+          />
+        )}
+        {ckptError && (
+          <p className="text-[10px] text-amber-600">
+            ComfyUI checkpoint list unavailable ({ckptError}). Falling back to
+            free-text input — make sure the path matches a file on the ComfyUI
+            server.
+          </p>
+        )}
       </div>
 
       {draft.ksampler ? (
