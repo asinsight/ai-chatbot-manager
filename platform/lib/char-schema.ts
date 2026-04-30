@@ -33,7 +33,9 @@ export const PERSONA_FIELDS: FieldDef[] = [
   { key: "system_prompt", label: "System prompt", required: true, widget: "monaco", description: "Speech-style / Response Rules / Tone Guide / Emoji Rules." },
   { key: "post_history_instructions", label: "Post-history instructions", widget: "textarea", description: "Reminder injected after the chat history." },
   { key: "creator_notes", label: "Creator notes", widget: "textarea", description: "Memo for the card creator (not injected into prompts)." },
-  { key: "anchor_image", label: "Anchor image filename", widget: "text", description: "ComfyUI IPAdapter FaceID reference image filename (must be uploaded separately)." },
+  // anchor_image: hidden from the form per PM request — still preserved in
+  // schema + bot code (handlers_char.py reads it for ComfyUI IPAdapter FaceID
+  // when present). Edit via Raw JSON if you need to set it.
   { key: "image_prompt_prefix", label: "Image prompt prefix", widget: "textarea", description: "Positive Danbooru tag prefix appended to every image generation." },
   { key: "image_negative_prefix", label: "Image negative prefix", widget: "textarea", description: "Negative Danbooru tag prefix." },
   { key: "stat_personality", label: "Stat personality", widget: "textarea", description: "Per-character meaning of fixation (rise/fall conditions). Injected into the prompt." },
