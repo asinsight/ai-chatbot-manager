@@ -35,6 +35,9 @@ SFW scene catalog used by `trait_pools.roll_sfw_scene()` (called from `handlers_
 ### `pose_motion_presets.json`
 Pose-motion presets for video generation, loaded by `src/pose_motion_presets.py`. Flat schema: each entry is `{ pose_key: { motion_text: "..." } }`. The original two-tier structure (`sfw` / `nsfw` / `explicit`) was collapsed to a single text-only motion string per pose. There is no LoRA tier, no `general_nsfw` fallback.
 
+### `workflow_descriptions.json`
+Free-form descriptions for each `comfyui_workflow/*.json`, shown next to the workflow tab on the platform admin `/workflows` page. The bot does **not** read this file — it is platform-admin-only metadata. Edited via the per-workflow tab (description textarea + Save). Underscore-prefixed keys (`_doc`) are ignored.
+
 ## SFW-fork drops (not present in this directory)
 
 These files were intentionally not carried over from the original `ella-telegram/config/`:

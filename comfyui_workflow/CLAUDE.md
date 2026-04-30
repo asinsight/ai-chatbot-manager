@@ -30,5 +30,10 @@ These embeddings must be present on the model server (S3 download in `deploy/run
 ## Editing notes
 
 - ComfyUI workflows are large JSON graphs — prefer editing through the ComfyUI UI (`Save (API Format)`) rather than hand-editing.
+- The platform admin's `/workflows` page is the recommended editing surface (M5):
+  - **Stage assignments** card maps Standard / HQ stages to a workflow filename via the `COMFYUI_WORKFLOW` / `COMFYUI_WORKFLOW_HQ` env vars. Archived workflows are excluded from the picker.
+  - **Form** tab edits a small whitelist (checkpoint, KSampler seed/cfg/steps/sampler/scheduler, SaveImage filename_prefix) without touching graph topology.
+  - **Replace** tab accepts a fresh ComfyUI export — but rejects any paste whose Positive node `text` does not contain `%prompt%` or whose Negative node `text` does not contain `%negative_prompt%` (422 `PLACEHOLDER_MISSING`). `src/comfyui.py:121-122` does `str.replace("%prompt%", ...)` at runtime; without those tokens, render output is silently broken.
+- Description text shown on `/workflows` lives in `config/workflow_descriptions.json` (platform-admin-only metadata; the bot does not read it).
 - After any change, redeploy the RunPod image (`deploy/runpod/build_remote.sh`) so the worker picks up the new graph.
 - Do not add LoRA loader nodes that reference NSFW-tagged LoRAs — the fork has no character LoRA pipeline and the SFW negative block in `config/grok_prompts.json` assumes no NSFW visual amplification at the model level.

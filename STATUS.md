@@ -3,15 +3,15 @@
 > 작업 진행 상황 실시간 트래커. 매 의미있는 단계마다 갱신.
 > 자세한 결정 사항·아키텍처는 [CLAUDE.md](CLAUDE.md) / [plan.md](plan.md) / [NSFW_INVENTORY.md](NSFW_INVENTORY.md) 참고.
 
-**마지막 갱신**: 2026-04-30 (M4 — Image config editor + character schema viewer / develop 머지 대기)
+**마지막 갱신**: 2026-04-30 (M5 — Workflows + Logs + 메인 봇 strict + UX 정리 / develop 머지 대기)
 
 ---
 
 ## 현재 상태
 
-- **브랜치**: `feat/feature_M4_image_config`
-- **다음 작업**: Platform M5 — 워크플로우 / 로그 페이지
-- **진행 중**: M4 develop 머지 대기 (3 탭 image config + /prompts profile_keys 탭 + /characters schema viewer)
+- **브랜치**: `feat/feature_M5_workflows_logs`
+- **다음 작업**: 별도 PR 후보 (video_models.json catalog, Prompt Guard 인증, 라이브 SSE 등)
+- **진행 중**: M5 develop 머지 대기
 - **블로커**: 없음
 
 ---
@@ -20,7 +20,8 @@
 
 | 일자 | 단계 | 브랜치 | 머지 커밋 | 핵심 |
 |---|---|---|---|---|
-| 2026-04-30 | Platform M4 — Image config editor + Character schema viewer | `feat/feature_M4_image_config` | (develop 대기) | `/config` 3 탭 (sfw_scenes / pose_motion_presets / sfw_denylist) — master-detail + chips form + Raw JSON fallback + zod 검증 + 자동 백업 + restart-required toast. `profile_keys` 는 LLM 프로필 캐노니컬화 config 라서 `/prompts` 3번째 탭으로 이동. `character_card_schema` 는 `/characters` 의 read-only "View schema" Dialog 로 분리 (편집 불가, 전용 GET-only `/api/character-schema`) + 한국어 description 전부 영어로 번역. 부수: 4 pre-existing react/no-unescaped-entities lint 에러 (develop 에서 `npm run build` 막던 것) 수정. zod + @radix-ui/react-select 추가. |
+| 2026-04-30 | Platform M5 — Workflows + Logs + 메인 봇 strict + UX 정리 | `feat/feature_M5_workflows_logs` | (develop 대기) | `/workflows`: Stage assignments (Standard / HQ dropdown ↔ `COMFYUI_WORKFLOW{,_HQ}` env), 워크플로우별 auto facts (node count / Σ steps / refiner+detailer 감지 / size) + admin description (`config/workflow_descriptions.json`), Form / Raw JSON / Replace 3 탭. Replace 는 `%prompt%` + `%negative_prompt%` placeholder 검증 강제 (PM #8 B). `/logs`: file picker + tail 200-5000 + refresh interval + regex filter + auto-scroll + download (`/api/bot/logs` 에 `?file=` + `?listFiles=1` 추가). 메인 봇 strict: `bot.py` SystemExit + `bot-process.ts` pre-flight 422 + dashboard 경고 배너 + Start 버튼 disabled + `/env` 빨간 required 배지 + Save 차단. UX: 사이드바 / title "Chatbot Manager" rename, shadcn Select 투명 fix (`--popover` 추가), `bot.log` duplicate 라인 fix (StreamHandler 제거). 새 의존성 0개. |
+| 2026-04-30 | Platform M4 — Image config editor + Character schema viewer | `feat/feature_M4_image_config` | `4621d27` | `/config` 3 탭 (sfw_scenes / pose_motion_presets / sfw_denylist) — master-detail + chips form + Raw JSON fallback + zod 검증 + 자동 백업 + restart-required toast. `profile_keys` 는 LLM 프로필 캐노니컬화 config 라서 `/prompts` 3번째 탭으로 이동. `character_card_schema` 는 `/characters` 의 read-only "View schema" Dialog 로 분리 (편집 불가, 전용 GET-only `/api/character-schema`) + 한국어 description 전부 영어로 번역. 부수: 4 pre-existing react/no-unescaped-entities lint 에러 (develop 에서 `npm run build` 막던 것) 수정. zod + @radix-ui/react-select 추가. |
 | 2026-04-30 | Platform M3 — Character card CRUD + 단일 bot-token namespace | `feat/feature_M3_character_crud` | `6fb059a` | /characters list (Edit/Duplicate/Delete with AlertDialog) + /characters/[charId] editor (Form 모드 + Raw JSON 모드 토글). 22 persona 필드 schema-driven (chips/kv/trigger-list/stat-limits 위젯) + behaviors 4-tier + images 중첩 객체. first_mes markdown 미리보기 ({{user}}/{{char}} 매크로). Soft-delete + draft auto-save + Bot tokens 4번째 탭 + ajv validation + 빈-required 거부. **TEST_/PROD_ 분리 전면 제거** (오픈소스 단일 deployment). /env Bot tokens 탭 grouping (Native/Character) + character bots readonly + redirect link. 봇은 token+username 둘 다 있어야 main listing 노출. |
 | 2026-04-29 | Platform M2 — Prompt 편집기 | `feat/feature_M2_prompt_editor` | `4823d44` | /prompts 페이지: Outer tabs (Grok prompting / System prompt) × inner tabs (5+3 keys), Monaco 65vh 에디터, react-diff-viewer modal, ${var} placeholder lint (warn-not-block), per-key save + 자동 백업, 8 키 별 inline metadata (title / summary / used by). |
 | 2026-04-28 | M1 polish | `feat/feature_M1_polish` | `b1fa27f` | Grok env var 명 통일 (GROK_PROMPTING_*) + VIDEO_COMPOSER_MODEL 노출 + /env UI 시크릿 마스킹 표시 fix + .env.example default 값 placeholder + OpenWebUI label (Gemma → llama-cpp-python). |
@@ -40,41 +41,33 @@
 
 ---
 
-## M4 머지 체크리스트 (develop ← feat/feature_M4_image_config)
+## M5 머지 체크리스트 (develop ← feat/feature_M5_workflows_logs)
 
-- [x] 1 feature commit (`8e00ff0`) — plan + deps + libs + routes + UI + Korean→English schema translation
-- [x] /config 3 탭 (sfw_scenes / pose_motion_presets / sfw_denylist) HTTP 200
-- [x] /prompts profile_keys 탭 + /characters schema viewer 모두 동작
-- [x] zod shape validation + INVALID_SHAPE / MISSING_GENERIC 거부 + 자동 백업
-- [x] /api/character-schema GET-only endpoint, validate route 삭제
-- [x] character_card_schema.json description 한국어 → 영어 (char05 round-trip ajv 통과)
-- [x] 사용자 수동 테스트 PASS
-- [x] `npm run build` clean (4 pre-existing lint 에러 수정 포함)
-- [ ] platform/CLAUDE.md / 루트 CLAUDE.md / config/CLAUDE.md / docs/CLAUDE.md / STATUS.md (본 commit) 갱신
+- [x] 1 feature commit (`335a75c`) — bot strict + workflows + logs + UX
+- [x] /workflows + /logs 사용자 수동 테스트 PASS
+- [x] Stage assignments PUT/GET, workflow Replace 검증 (PLACEHOLDER_MISSING / NO_CHECKPOINT_LOADER)
+- [x] `?file=` 화이트리스트, path traversal 차단
+- [x] 메인 봇 strict: 빈 main → 422 MAIN_BOT_NOT_CONFIGURED, dashboard 경고 + /env required gate
+- [x] `npm run build` clean
+- [ ] platform / 루트 / src / config / comfyui_workflow / docs CLAUDE.md + STATUS.md (본 commit) 갱신
 
 ---
 
-## 다음 단계 — Platform M5 (워크플로우 + 로그)
+## 다음 단계 — 별도 PR 후보
 
-### 브랜치 흐름
-```
-develop
-  └ feat/feature_M5_workflows_logs
-```
-
-### Deliverable (요약)
-- `/workflows` — `comfyui_workflow/*.json` 편집 + 노드별 메타데이터
-- `/logs` — `logs/bot.log` 실시간 tail (WebSocket or polling)
-- 별도 PR 후보: video_models.json catalog + dropdown
+- `config/video_models.json` 신규 + `src/video.py` 한 줄 수정 (비디오 모델 카탈로그 + dropdown — plan §9.9)
+- Prompt Guard 토큰 추가 (서버에 인증 도입 시)
+- 라이브 SSE 로그 푸시 (현재 polling)
+- 워크플로우 versioning page (백업 .bak 브라우저)
+- 로그 알림 (notify-on-pattern)
+- 캐릭터 전용 봇만 운영 모드 (메인 strict 우회 — 명시적 env 플래그 필요 시)
+- title-based prompt injection (M5 PM #8 D — `src/comfyui.py` `inject_prompts()` 노드 ID → `_meta.title` 매칭으로 변경, `%prompt%` placeholder 의존성 제거)
 
 ---
 
-## 결정 대기 (PM 답변 받으면 진행)
+## 결정 대기
 
-### M5 시작 시 확인할 항목
-- [ ] M5 착수 신호
-- [ ] `comfyui_workflow/*.json` 편집 정책 — 노드별 form? Raw JSON only?
-- [ ] /logs 구현 — polling 간격? WebSocket?
+(없음 — M5 까지 main-bot strict 전환 + UX polish 모두 완료. 차기 마일스톤 또는 별도 PR 시작 신호 대기.)
 
 ### 별도 PR 후보
 - [ ] `config/video_models.json` 신규 + `src/video.py` 한 줄 수정 (비디오 모델 카탈로그 + dropdown — plan §9.9)
