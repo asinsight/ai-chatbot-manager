@@ -8,9 +8,10 @@ export default function Page() {
       <div>
         <h1 className="text-2xl font-semibold">Prompts</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Edit <code className="font-mono">config/grok_prompts.json</code> +{" "}
-          <code className="font-mono">config/system_prompt.json</code> with
-          per-key save, diff preview, and ${"${var}"} placeholder lint. Saves are
+          Edit <code className="font-mono">config/grok_prompts.json</code>,{" "}
+          <code className="font-mono">config/system_prompt.json</code>, and the
+          profile-key alias map (<code className="font-mono">config/profile_keys.json</code>)
+          that determines which user-profile topics the LLM tracks. Saves are
           auto-backed up; bot restart required to apply.
         </p>
       </div>

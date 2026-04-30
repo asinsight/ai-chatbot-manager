@@ -284,7 +284,7 @@ export function EnvForm() {
                         Character bots — read-only
                       </div>
                       <p className="mb-3 text-xs text-muted-foreground">
-                        Edit each character bot's token from its character page.
+                        Edit each character bot&apos;s token from its character page.
                         These rows mirror the live <code className="font-mono">.env</code> values.
                       </p>
                       <div className="space-y-5">

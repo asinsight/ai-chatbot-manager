@@ -10,6 +10,8 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 
+import { ProfileKeysTab } from "@/app/config/profile-keys-tab";
+
 import { PromptEditor } from "./prompt-editor";
 
 type PromptKey = { name: string; value: string; size: number };
@@ -65,12 +67,16 @@ export function PromptsPage() {
             {f.label}
           </TabsTrigger>
         ))}
+        <TabsTrigger value="profile_keys">Profile keys</TabsTrigger>
       </TabsList>
       {FILES.map((f) => (
         <TabsContent key={f.id} value={f.id}>
           <KeyTabs file={f.id} keys={data[f.id]} onSaved={load} />
         </TabsContent>
       ))}
+      <TabsContent value="profile_keys">
+        <ProfileKeysTab />
+      </TabsContent>
     </Tabs>
   );
 }
