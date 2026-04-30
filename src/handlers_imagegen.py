@@ -119,7 +119,10 @@ def _is_danbooru_tags(text: str) -> bool:
     return "," in text
 
 
-_HQ_WORKFLOW = "comfyui_workflow/main_character_build_highqual.json"
+_HQ_WORKFLOW = os.getenv(
+    "COMFYUI_WORKFLOW_HQ",
+    "comfyui_workflow/main_character_build_highqual.json",
+)
 
 # Imagegen fixed positive prefix — prepended to every render (custom text + /random).
 # Pushes the model toward Korean + VN style for consistency.

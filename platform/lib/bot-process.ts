@@ -3,6 +3,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 
+import { readEnvValues } from "./env-read";
 import {
   BOT_LOG,
   ENV_FILE,
@@ -130,6 +131,21 @@ export async function getStatus(): Promise<BotStatus> {
 
 export async function start(): Promise<{ pid: number }> {
   return withLock(async () => {
+    // Pre-flight: refuse to start when the main bot is unconfigured. The
+    // Python entry-point also enforces this, but failing here gives a fast,
+    // clean 422 on the dashboard instead of a spawn-then-exit cycle.
+    const env = await readEnvValues(["MAIN_BOT_TOKEN", "MAIN_BOT_USERNAME"]);
+    const missing: string[] = [];
+    if (!env.MAIN_BOT_TOKEN.trim()) missing.push("MAIN_BOT_TOKEN");
+    if (!env.MAIN_BOT_USERNAME.trim()) missing.push("MAIN_BOT_USERNAME");
+    if (missing.length > 0) {
+      const err = new Error(
+        `Main bot is not configured — missing ${missing.join(" + ")} in .env. Set the values in /env (Bot tokens tab) and try again.`,
+      );
+      (err as NodeJS.ErrnoException).code = "MAIN_BOT_NOT_CONFIGURED";
+      throw err;
+    }
+
     const existing = await readPid();
     if (existing !== null && isAlive(existing)) {
       const err = new Error("bot is already running");

@@ -80,17 +80,24 @@ async def main():
     # ── Register bots ──
     apps: list[tuple[str, any]] = []  # list of (name, Application) pairs
 
-    # Main bot
-    main_token = os.getenv("MAIN_BOT_TOKEN")
-    if main_token:
-        main_app = ApplicationBuilder().token(main_token).write_timeout(60).media_write_timeout(120).read_timeout(30).connect_timeout(20).pool_timeout(10).build()
-        main_app.bot_data["characters"] = characters
-        main_app.bot_data["system_config"] = system_config
-        register_main_handlers(main_app)
-        apps.append(("main", main_app))
-        logger.info("main bot registered")
-    else:
-        logger.warning("MAIN_BOT_TOKEN is not set")
+    # Main bot — REQUIRED. The character / imagegen bots assume the main bot is
+    # alive (deep-link handoffs, onboarding redirects). Refuse to start without it.
+    main_token = os.getenv("MAIN_BOT_TOKEN", "").strip()
+    main_username = os.getenv("MAIN_BOT_USERNAME", "").strip()
+    if not main_token or not main_username:
+        missing = []
+        if not main_token: missing.append("MAIN_BOT_TOKEN")
+        if not main_username: missing.append("MAIN_BOT_USERNAME")
+        raise SystemExit(
+            "Main bot is not configured — missing " + " + ".join(missing)
+            + " in .env. Set both values and try again."
+        )
+    main_app = ApplicationBuilder().token(main_token).write_timeout(60).media_write_timeout(120).read_timeout(30).connect_timeout(20).pool_timeout(10).build()
+    main_app.bot_data["characters"] = characters
+    main_app.bot_data["system_config"] = system_config
+    register_main_handlers(main_app)
+    apps.append(("main", main_app))
+    logger.info("main bot registered")
 
     # Character bots — map CHAR_BOT_{char_id} token per char_id
     for char_id, char_data in characters.items():

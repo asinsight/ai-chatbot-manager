@@ -35,15 +35,17 @@ def setup_logging():
     file_handler.setFormatter(formatter)
     file_handler.suffix = "%Y-%m-%d"
 
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
+    # NOTE: no StreamHandler. The platform admin (`platform/lib/bot-process.ts`)
+    # redirects the child's stdout+stderr into `logs/bot.log` for the dashboard
+    # log-tail. Adding a StreamHandler here would duplicate every logger record
+    # in that same file (one write via TimedRotatingFileHandler, one via
+    # stdout → platform redirect). Stray prints / uncaught tracebacks still
+    # land in bot.log via the platform redirect — that's the intended path.
 
     # Root logger config
     root = logging.getLogger()
     root.setLevel(log_level)
     root.addHandler(file_handler)
-    root.addHandler(console_handler)
 
     # Quiet noisy httpx API logs
     logging.getLogger("httpx").setLevel(logging.WARNING)

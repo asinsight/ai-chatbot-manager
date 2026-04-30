@@ -1,0 +1,6 @@
+{
+  "_doc": "Free-form description shown next to each comfyui_workflow/*.json on the platform admin /workflows page. Editable in the UI; the bot does not read this file.",
+  "main_character_build.json": "Default Illustrious render (CheckpointLoaderSimple → CLIP encode → KSampler → VAE decode → SaveImage). Used as the Standard-stage workflow for /random SFW rolls and chat image-gen. Light footprint; fast on RunPod L40S.",
+  "main_character_build_highqual.json": "High-quality variant with additional refiner / upscale stages. ~2.5× slower than the standard workflow. Used as the HQ-stage workflow when the user has toggled /hq on.",
+  "main_character_build_archived.json": "Pre-revision rollback snapshot of the standard workflow. Not loaded at runtime — kept on disk for emergency recovery."
+}

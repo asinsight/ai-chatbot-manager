@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,6 +35,11 @@ type EnvCategory = {
 
 type EnvData = { categories: EnvCategory[] };
 
+// Keys whose values must be set before any /env save is accepted. The bot
+// process refuses to start without these (see src/bot.py + bot-process.ts
+// pre-flight); blocking saves here makes the requirement visible up front.
+const REQUIRED_KEYS = new Set(["MAIN_BOT_TOKEN", "MAIN_BOT_USERNAME"]);
+
 function maskValue(v: string): string {
   if (!v) return "";
   if (v.length <= 4) return "••••";
@@ -41,6 +47,8 @@ function maskValue(v: string): string {
 }
 
 export function EnvForm() {
+  const searchParams = useSearchParams();
+  const requestedCat = searchParams.get("cat");
   const [data, setData] = useState<EnvData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -58,18 +66,38 @@ export function EnvForm() {
       const json = (await res.json()) as EnvData;
       setData(json);
       setEdits({});
-      if (!activeTab && json.categories[0]) setActiveTab(json.categories[0].id);
+      if (!activeTab) {
+        const wanted = requestedCat
+          ? json.categories.find((c) => c.id === requestedCat)
+          : null;
+        setActiveTab(wanted?.id ?? json.categories[0]?.id ?? null);
+      }
       setError(null);
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [activeTab]);
+  }, [activeTab, requestedCat]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   const dirtyKeys = useMemo(() => Object.keys(edits), [edits]);
+
+  // Required keys whose effective value (edits override original) is empty.
+  // Save is blocked until all are filled in.
+  const unsatisfiedRequired = useMemo(() => {
+    if (!data) return [] as string[];
+    const out: string[] = [];
+    for (const cat of data.categories) {
+      for (const v of cat.vars) {
+        if (!REQUIRED_KEYS.has(v.key)) continue;
+        const effective = (edits[v.key] ?? v.value).trim();
+        if (effective === "") out.push(v.key);
+      }
+    }
+    return out;
+  }, [data, edits]);
 
   const handleChange = (key: string, original: string, next: string) => {
     setEdits((prev) => {
@@ -134,15 +162,36 @@ export function EnvForm() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {dirtyKeys.length === 0
-            ? `Root .env (${data.categories.reduce((n, c) => n + c.vars.length, 0)} variables)`
-            : `${dirtyKeys.length} key(s) modified: ${dirtyKeys.join(", ")}`}
-        </p>
+        <div className="space-y-0.5">
+          <p className="text-sm text-muted-foreground">
+            {dirtyKeys.length === 0
+              ? `Root .env (${data.categories.reduce((n, c) => n + c.vars.length, 0)} variables)`
+              : `${dirtyKeys.length} key(s) modified: ${dirtyKeys.join(", ")}`}
+          </p>
+          {unsatisfiedRequired.length > 0 && (
+            <p className="text-xs text-destructive">
+              Required key(s) empty: {unsatisfiedRequired.map((k) => (
+                <code key={k} className="mx-0.5 font-mono">
+                  {k}
+                </code>
+              ))}{" "}
+              — fill them in to enable Save.
+            </p>
+          )}
+        </div>
         <Button
           size="sm"
           onClick={submit}
-          disabled={dirtyKeys.length === 0 || submitting}
+          disabled={
+            dirtyKeys.length === 0 ||
+            submitting ||
+            unsatisfiedRequired.length > 0
+          }
+          title={
+            unsatisfiedRequired.length > 0
+              ? `Required: ${unsatisfiedRequired.join(", ")}`
+              : undefined
+          }
         >
           {submitting ? (
             <Loader2 className="animate-spin" />
@@ -190,13 +239,18 @@ export function EnvForm() {
               showMasked && current === v.value
                 ? maskValue(v.value)
                 : current;
+            const isRequired = REQUIRED_KEYS.has(v.key);
+            const effective = (edits[v.key] ?? v.value).trim();
+            const isRequiredEmpty = isRequired && effective === "";
             const placeholder =
               v.value === ""
-                ? v.default_value
-                  ? `default: ${v.default_value}`
-                  : isUnsetSecret
-                    ? "(not set)"
-                    : "(empty / optional)"
+                ? isRequired
+                  ? "(required — set this value)"
+                  : v.default_value
+                    ? `default: ${v.default_value}`
+                    : isUnsetSecret
+                      ? "(not set)"
+                      : "(empty)"
                 : undefined;
             return (
               <div key={v.key} className="space-y-1.5">
@@ -214,7 +268,18 @@ export function EnvForm() {
                       secret
                     </span>
                   )}
-                  {v.value === "" && !v.is_secret && (
+                  {isRequired && (
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${
+                        isRequiredEmpty
+                          ? "bg-destructive/15 text-destructive"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      required
+                    </span>
+                  )}
+                  {!isRequired && v.value === "" && !v.is_secret && (
                     <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
                       empty
                     </span>
@@ -239,7 +304,11 @@ export function EnvForm() {
                     onChange={(e) =>
                       handleChange(v.key, v.value, e.target.value)
                     }
-                    className="font-mono text-xs"
+                    className={`font-mono text-xs ${
+                      isRequiredEmpty
+                        ? "border-destructive focus-visible:ring-destructive"
+                        : ""
+                    }`}
                   />
                   {v.is_secret && v.value !== "" && (
                     <Button

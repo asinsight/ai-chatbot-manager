@@ -6,7 +6,7 @@
 
 - **`character_card_instruction.md`** — 캐릭터 카드 (`persona/` + `behaviors/` + `images/`) 작성 가이드. Phase 3-5 E3에서 NSFW 필드(`body_nsfw`, `arousal_speech`, `arousal_response`, `curse_heat` 등) 부분이 strip되었고, fork 스키마(`character_card_schema.json`)에 맞춘 SFW 갱신본이다.
 - **`character_sheets.md`** — 캐릭터 시트 작성용 템플릿/체크리스트. Phase 3-5 E3에서 SFW 작성 가이드/템플릿으로 rewrite 됨. NSFW 캐릭터 시트는 fork에 미존재.
-- **`features/`** — 마일스톤별 feature plan MD. 각 feature 브랜치 시작 시 작성. 현재: `M0_admin_skeleton.md`, `M1_env_connections.md`, `M2_prompt_editor.md`, `M3_character_crud.md`, `M4_image_config.md`.
+- **`features/`** — 마일스톤별 feature plan MD. 각 feature 브랜치 시작 시 작성. 현재: `M0_admin_skeleton.md`, `M1_env_connections.md`, `M2_prompt_editor.md`, `M3_character_crud.md`, `M4_image_config.md`, `M5_workflows_logs.md`.
 
 ## SFW invariant
 

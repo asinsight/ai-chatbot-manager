@@ -46,6 +46,8 @@ export const CATEGORIES: EnvCategory[] = [
       "COMFYUI_MAX_QUEUE",
       "COMFYUI_STUCK_TIMEOUT",
       "COMFYUI_VRAM_MIN_MB",
+      "COMFYUI_WORKFLOW",
+      "COMFYUI_WORKFLOW_HQ",
     ],
   },
   {

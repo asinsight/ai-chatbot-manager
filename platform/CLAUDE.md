@@ -16,24 +16,26 @@ npm run dev      # http://127.0.0.1:9000
 
 ## 현재 마일스톤
 
-**M4 완료 (develop 머지 대기)** — Image config editor + Character schema viewer.
+**M5 완료 (develop 머지 대기)** — Workflows + Logs + 메인 봇 strict + UX 정리.
 
 | 페이지 | 상태 |
 |---|---|
-| `/dashboard` | ✅ Bot status card + Connections health card + log tail (5s polling) |
+| `/dashboard` | ✅ Bot status card + Connections health card + log tail (5s polling). M5 에서 메인 봇 미설정 시 경고 배너 + Start 비활성, `/env?cat=tokens` 링크. |
 | `/connections` | ✅ 4 endpoint cards (ComfyUI / OpenWebUI / Grok / Prompt Guard) — URL+token 편집 + Ping + last_ping SQLite 기록 + 전체 Ping |
-| `/env` | ✅ 8 카테고리 tabs + 카테고리 description + 시크릿 마스킹 + 자동 백업 + default placeholder + Bot tokens 탭 grouping (Native / Character read-only with redirect) |
-| `/prompts` | ✅ 3 outer tabs (Grok prompting / System prompt / Profile keys). Grok+System: Monaco 65vh + react-diff-viewer modal + per-key save + ${var} lint + 인라인 metadata. Profile keys: master-detail + chips (M4 에서 추가) |
-| `/characters` | ✅ list (cards + create + duplicate + delete with AlertDialog) + /[charId] (Form 모드: Persona/Behaviors/Images/Bot tokens 4 탭, Raw JSON 모드: 3 Monaco). draft auto-save (localStorage) + first_mes markdown preview + ajv validation + soft-delete. M4 에서 read-only "View schema" Dialog 추가 (`character_card_schema.json` 참고용) |
+| `/env` | ✅ 8 카테고리 tabs + 카테고리 description + 시크릿 마스킹 + 자동 백업 + default placeholder + Bot tokens 탭 grouping (Native / Character read-only with redirect). M5: `MAIN_BOT_*` 빨간 required 배지 + 빈 값 시 Save 차단, `?cat=` URL 파라미터로 탭 자동 선택, `COMFYUI_WORKFLOW{,_HQ}` 노출. |
+| `/prompts` | ✅ 3 outer tabs (Grok prompting / System prompt / Profile keys). Grok+System: Monaco 65vh + react-diff-viewer modal + per-key save + ${var} lint + 인라인 metadata. Profile keys: master-detail + chips (M4) |
+| `/characters` | ✅ list (cards + create + duplicate + delete with AlertDialog) + /[charId] (Form 모드: Persona/Behaviors/Images/Bot tokens 4 탭, Raw JSON 모드: 3 Monaco). draft auto-save (localStorage) + first_mes markdown preview + ajv validation + soft-delete. M4: read-only "View schema" Dialog (`character_card_schema.json` 참고용) |
 | `/config` | ✅ 3 탭 (SFW scenes / Pose motion presets / SFW denylist) — master-detail + chips + Raw JSON fallback + zod 검증 + 자동 백업 |
-| `/workflows` | ⏳ M5 placeholder |
-| `/logs` | ⏳ M5 placeholder |
+| `/workflows` | ✅ Stage assignments (Standard / HQ ↔ `COMFYUI_WORKFLOW{,_HQ}` env) + 워크플로우별 auto facts (node count / Σ steps / refiner+detailer / size) + admin description (`config/workflow_descriptions.json`) + Form / Raw JSON / Replace 3 탭. Replace 시 `%prompt%` + `%negative_prompt%` placeholder 검증 강제. |
+| `/logs` | ✅ file picker (bot.log + dated archives) + tail 200-5000 + refresh 1s/2s/5s/Paused + regex filter (case-insensitive) + auto-scroll + download. |
 
 > M1 단계에서 코드/UI 전체가 영어로 통일됐다 (PM 결정 D). Markdown 문서 (이 파일 포함) 만 한국어 유지. `lib/env-categories.ts` 의 카테고리 라벨, toast 메시지, 컴포넌트 텍스트 모두 영어.
 
 > M3 단계에서 **TEST_/PROD_ 분리 제거** — 오픈소스 단일 deployment 라 `MAIN_BOT_TOKEN` / `CHAR_BOT_<id>` 단일 namespace 만 사용. `src/bot.py` 의 env-prefix 매핑 코드 삭제됨.
 
 > M4 단계에서 `character_card_schema.json` 의 description 필드를 한국어 → 영어로 번역. /characters 의 read-only schema viewer 가 i18n 본 그대로 노출.
+
+> M5 단계에서 사이드바 / browser title 을 "Chatbot Manager" 로 rename. `--popover` CSS 변수 + tailwind `popover` 토큰 추가 (shadcn Select 투명 fix). `src/logging_config.py` 의 StreamHandler 제거 — Python 의 file handler 와 platform stdout redirect 가 같은 `bot.log` 에 중복 기록하던 문제 해결. 메인 봇 strict: `bot.py` 가 `MAIN_BOT_TOKEN` / `MAIN_BOT_USERNAME` 비어있으면 SystemExit, platform 도 spawn 전 pre-flight 422 으로 차단.
 
 ## 디렉터리 구조
 
@@ -51,15 +53,19 @@ platform/
 │   │   └── [charId]/{page,character-editor,persona-form,behaviors-form,images-form,bot-tokens-form,preview-panel,raw-tab,widgets}.tsx
 │   ├── config/                         # M4 — Image config editor (3 tabs)
 │   │   └── {page,config-page,master-detail,raw-json-pane,tab-header,use-config-file,sfw-scenes-tab,pose-motion-presets-tab,sfw-denylist-tab,profile-keys-tab}.tsx
-│   ├── (placeholders)/                 # workflows, logs
+│   ├── workflows/                      # M5 — ComfyUI workflow management
+│   │   └── {page,workflows-page,stage-assignments,workflow-tab,workflow-form,workflow-raw,workflow-replace,workflow-facts}.tsx
+│   ├── logs/                           # M5 — full-page log viewer
+│   │   └── {page,logs-page}.tsx
 │   └── api/
-│       ├── bot/                        # M0 — 5 routes (status/start/stop/restart/logs)
+│       ├── bot/                        # M0 — 5 routes (status/start/stop/restart/logs). M5: status returns main_bot.{token_set,username_set}; start returns 422 MAIN_BOT_NOT_CONFIGURED; logs route accepts ?file= + ?listFiles=1.
 │       ├── env/                        # M1 — GET / PUT
 │       ├── connections/                # M1 — GET, [id] PUT, [id]/ping POST, ping-all POST
 │       ├── prompts/{grok,system}/      # M2 — GET / PUT
 │       ├── characters/                 # M3 — list/create + [charId] CRUD + [charId]/env (token+username) + [charId]/duplicate
 │       ├── character-schema/           # M4 — GET-only read-only schema fetch
-│       └── config/[fileKey]/           # M4 — GET / PUT for sfw_scenes / pose_motion_presets / sfw_denylist / profile_keys
+│       ├── config/[fileKey]/           # M4 — GET / PUT for sfw_scenes / pose_motion_presets / sfw_denylist / profile_keys
+│       └── workflows/                  # M5 — list / [name] (safe_fields|replace) / assignments (env-backed) / descriptions
 ├── components/
 │   ├── ui/                             # shadcn primitives (Button, Card, Badge, Input, Label, Tabs, Sonner, Dialog)
 │   ├── sidebar.tsx                     # 8 nav items
@@ -86,6 +92,9 @@ platform/
 │   ├── config-files.ts                 # M4 — server-side read/write/backup for the 4 config files
 │   ├── config-files-meta.ts            # M4 — client-safe metadata (keys + display paths + tab titles)
 │   ├── config-schemas.ts               # M4 — zod schemas for sfw_scenes / pose_motion_presets / sfw_denylist / profile_keys
+│   ├── workflows.ts                    # M5 — read/write/backup for comfyui_workflow/*.json + auto facts + safe-fields + Replace validation + stage assignments (.env-backed) + descriptions
+│   ├── workflows-meta.ts               # M5 — client-safe types
+│   ├── log-files.ts                    # M5 — list bot.log + dated archives + path-traversal whitelist
 │   └── utils.ts                        # cn() (shadcn util)
 └── data/                               # gitignored — platform.sqlite + backups/.env.*.bak
 ```
@@ -136,6 +145,14 @@ platform/
 | `/api/character-schema` | GET | `{file_path, content}` (read-only) | 500 SCHEMA_READ_FAILED |
 | `/api/config/[fileKey]` | GET | `{key, content, mtime}` | 404 UNKNOWN_FILE_KEY / 500 |
 | `/api/config/[fileKey]` | PUT `{content}` | `{ok, restart_required, backup_path}` | 422 INVALID_SHAPE / MISSING_GENERIC / 500 SAVE_FAILED |
+| `/api/workflows` | GET | `{ workflows: [{name, mtime_ms, size_bytes, facts, description, stage_badges, assignable}] }` | 500 |
+| `/api/workflows/[name]` | GET | `{ name, content, mtime_ms, size_bytes, facts, safe_fields }` | 404 UNKNOWN_WORKFLOW / 422 |
+| `/api/workflows/[name]` | PUT `{kind: "safe_fields"|"replace", ...}` | `{ok, restart_required, backup_path}` | 422 INVALID_SHAPE / NO_CHECKPOINT_LOADER / PLACEHOLDER_MISSING |
+| `/api/workflows/assignments` | GET / PUT `{standard?,hq?}` | `{standard, hq, options}` / `{ok, backup_path}` | 422 UNKNOWN_FILE |
+| `/api/workflows/descriptions` | GET / PUT `{filename, description}` | `{content}` / `{ok, backup_path}` | 422 UNKNOWN_FILE |
+| `/api/bot/status` | GET | (existing) + `main_bot: {token_set, username_set}` | 500 |
+| `/api/bot/start` | POST | `{ pid }` | 422 MAIN_BOT_NOT_CONFIGURED / 409 ALREADY_RUNNING / 500 START_FAILED |
+| `/api/bot/logs` | GET `?file=&tail=&listFiles=` | `{lines, note?}` \| `{files}` | 422 INVALID_FILE / 500 LOGS_FAILED |
 
 `logs` route 는 1MB 읽기 창 + 마지막 N줄 (1 ≤ N ≤ 1000, 기본 200) 추출.
 
