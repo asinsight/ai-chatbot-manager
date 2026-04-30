@@ -17,6 +17,12 @@ export async function POST() {
         { status: 409 },
       );
     }
+    if (e.code === "MAIN_BOT_NOT_CONFIGURED") {
+      return NextResponse.json(
+        { error: e.message, code: e.code },
+        { status: 422 },
+      );
+    }
     return NextResponse.json(
       { error: e.message, code: "START_FAILED" },
       { status: 500 },

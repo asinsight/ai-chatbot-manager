@@ -6,8 +6,8 @@ import { Header } from "@/components/header";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "ella-chat-publish admin",
-  description: "Local admin console for ella-chat-publish (SFW Telegram bot)",
+  title: "Chatbot Manager",
+  description: "Local admin console for the SFW Telegram chatbot platform.",
 };
 
 export default function RootLayout({

@@ -29,8 +29,8 @@ const items: NavItem[] = [
   { href: "/prompts", label: "Prompts", icon: FileText, enabled: true },
   { href: "/characters", label: "Characters", icon: Users, enabled: true },
   { href: "/config", label: "Image Config", icon: ImageIcon, enabled: true },
-  { href: "/workflows", label: "Workflows", icon: Workflow, enabled: false },
-  { href: "/logs", label: "Logs", icon: ScrollText, enabled: false },
+  { href: "/workflows", label: "Workflows", icon: Workflow, enabled: true },
+  { href: "/logs", label: "Logs", icon: ScrollText, enabled: true },
 ];
 
 export function Sidebar() {
@@ -40,7 +40,7 @@ export function Sidebar() {
     <aside className="hidden w-60 shrink-0 border-r bg-muted/30 md:block">
       <div className="flex h-14 items-center border-b px-4">
         <span className="text-sm font-semibold tracking-tight">
-          ella-chat-publish
+          Chatbot Manager
         </span>
       </div>
       <nav className="flex flex-col gap-1 p-3">

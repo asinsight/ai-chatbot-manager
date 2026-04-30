@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Play, RotateCw, Square } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ExternalLink, Loader2, Play, RotateCw, Square } from "lucide-react";
 
 import {
   Card,
@@ -13,10 +14,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
+type MainBotConfig = { token_set: boolean; username_set: boolean };
+
 type BotStatus =
-  | { state: "running"; pid: number; startedAt: string; uptimeSec: number }
-  | { state: "stopped" }
-  | { state: "unknown"; reason: string };
+  | ({ state: "running"; pid: number; startedAt: string; uptimeSec: number } & { main_bot: MainBotConfig })
+  | ({ state: "stopped" } & { main_bot: MainBotConfig })
+  | ({ state: "unknown"; reason: string } & { main_bot: MainBotConfig });
 
 type ApiError = { error: string; code?: string };
 
@@ -100,6 +103,14 @@ export function BotStatusCard() {
   const isRunning = state === "running";
   const isStopped = state === "stopped";
 
+  const mainBot = status?.main_bot;
+  const mainBotMissing = mainBot
+    ? !mainBot.token_set || !mainBot.username_set
+    : false;
+  const missingFields: string[] = [];
+  if (mainBot && !mainBot.token_set) missingFields.push("MAIN_BOT_TOKEN");
+  if (mainBot && !mainBot.username_set) missingFields.push("MAIN_BOT_USERNAME");
+
   return (
     <Card>
       <CardHeader>
@@ -112,6 +123,34 @@ export function BotStatusCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {mainBotMissing && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="flex-1 space-y-1">
+              <p className="font-semibold text-amber-700 dark:text-amber-400">
+                Main bot is not configured
+              </p>
+              <p className="text-amber-700/80 dark:text-amber-400/80">
+                Missing{" "}
+                {missingFields.map((k, i) => (
+                  <span key={k}>
+                    {i > 0 && " + "}
+                    <code className="font-mono">{k}</code>
+                  </span>
+                ))}{" "}
+                in <code className="font-mono">.env</code>. The bot process can
+                still run for character bots, but the main onboarding bot will
+                not respond. Set the values to enable the main bot.
+              </p>
+              <Link
+                href="/env?cat=tokens"
+                className="inline-flex items-center gap-1 font-semibold text-amber-700 underline-offset-2 hover:underline dark:text-amber-400"
+              >
+                Set in /env <ExternalLink className="h-3 w-3" />
+              </Link>
+            </div>
+          </div>
+        )}
         <dl className="grid grid-cols-[120px_1fr] gap-y-1 text-sm">
           <dt className="text-muted-foreground">PID</dt>
           <dd className="font-mono">
@@ -143,8 +182,9 @@ export function BotStatusCard() {
           <Button
             size="sm"
             variant="default"
-            disabled={busy !== null || isRunning}
+            disabled={busy !== null || isRunning || mainBotMissing}
             onClick={() => callAction("start")}
+            title={mainBotMissing ? "Set MAIN_BOT_TOKEN + MAIN_BOT_USERNAME in /env first" : undefined}
           >
             {busy === "start" ? (
               <Loader2 className="animate-spin" />
