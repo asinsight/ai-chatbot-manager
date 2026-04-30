@@ -37,7 +37,7 @@ export function BehaviorsForm({
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
         Fixation-tier behavior table — the bot picks the tier whose range
-        contains the current fixation value and injects only that tier's prompt
+        contains the current fixation value and injects only that tier&apos;s prompt
         into the system prompt.
       </p>
       {tiers.map((t, i) => {

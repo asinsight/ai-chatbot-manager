@@ -48,7 +48,7 @@ export function PreviewPanel({
         )}
       </div>
       <p className="text-[10px] text-muted-foreground">
-        Macros: {"{{user}}"} → "User", {"{{char}}"} → character name.
+        Macros: {"{{user}}"} → &ldquo;User&rdquo;, {"{{char}}"} → character name.
       </p>
     </div>
   );

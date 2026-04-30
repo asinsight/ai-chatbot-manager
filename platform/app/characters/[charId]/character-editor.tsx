@@ -13,6 +13,8 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 
+import { SchemaViewer } from "../schema-viewer";
+
 import { BotTokensForm } from "./bot-tokens-form";
 import { PersonaForm } from "./persona-form";
 import { BehaviorsForm } from "./behaviors-form";
@@ -184,6 +186,7 @@ export function CharacterEditor({ charId }: { charId: string }) {
           </a>
         </Button>
         <div className="flex items-center gap-2">
+          <SchemaViewer />
           <Tabs
             value={mode}
             onValueChange={(v) => setMode(v as "form" | "raw")}
