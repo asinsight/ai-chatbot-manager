@@ -65,8 +65,9 @@ STRIP_PATTERNS = [
     re.compile(r"<tool_response\|>"),
 ]
 
-# Prompt Guard API URL
-PROMPT_GUARD_URL = os.getenv("PROMPT_GUARD_URL", "http://192.168.86.250:8081")
+# Prompt Guard API URL — empty by default; the input filter skips the
+# remote call when unset, leaving regex-only filtering active.
+PROMPT_GUARD_URL = os.getenv("PROMPT_GUARD_URL", "").rstrip("/")
 PROMPT_GUARD_THRESHOLD = float(os.getenv("PROMPT_GUARD_THRESHOLD", "0.8"))
 
 
@@ -128,8 +129,11 @@ async def check_prompt_guard(text: str) -> tuple[bool, float]:
     """Use the Prompt Guard API to decide whether the input is an injection attempt.
 
     Returns:
-        (blocked, score)
+        (blocked, score). When PROMPT_GUARD_URL is unset the call is skipped
+        and the input is treated as not blocked (regex filtering still runs).
     """
+    if not PROMPT_GUARD_URL:
+        return False, 0.0
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             resp = await client.post(

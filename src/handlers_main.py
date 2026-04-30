@@ -19,8 +19,6 @@ import src.comfyui as comfyui
 import src.grok_search as grok_search
 
 logger = logging.getLogger(__name__)
-TOS_URL = ""  # set this to a Terms-of-Service URL appropriate for your deployment
-PRIVACY_URL = ""  # set this to a privacy-policy URL appropriate for your deployment
 
 
 # Character display order (used as the listing order even when persona has no profile_summary_ko)
@@ -159,40 +157,27 @@ async def _send_character_cards(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def main_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/start command — onboarding gate + welcome message + character bot links."""
+    """/start command — register the user (idempotent) + send the welcome message + character cards."""
     user_id = update.effective_user.id
 
-    # Already onboarded -> welcome message
-    if is_onboarded(user_id):
-        await _send_welcome(update, context)
-        return
+    # Auto-register on first /start. The flag is kept so character / imagegen
+    # bots can short-circuit messages from users who never visited the main bot.
+    if not is_onboarded(user_id):
+        set_onboarded(user_id)
+        logger.info("user %s registered", user_id)
 
-    # Onboarding gate
-    text = (
-        "⚠️ This service is for users aged 19 and above.\n"
-        "Please agree to the terms below to continue.\n\n"
-        "• This service is an AI character chatbot that may contain adult content.\n\n"
-        f"📋 Terms of Service:\n{TOS_URL}"
-    )
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("✅ I Agree", callback_data="onboard_agree"),
-            InlineKeyboardButton("❌ Decline", callback_data="onboard_decline"),
-        ]
-    ])
-    await update.message.reply_text(text, reply_markup=keyboard)
+    await _send_welcome(update, context)
 
 
 async def _send_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send the welcome message to onboarded users."""
+    """Send the welcome message + character cards to a registered user."""
     user_id = update.effective_user.id if update.effective_user else 0
     characters = context.bot_data.get("characters", {})
     text = (
-        "Hello! This is the Ella AI character chatbot.\n\n"
+        "Telegram Chatbot Manager\n\n"
         "📋 Available commands:\n"
         "/char — pick a character\n"
         "/profile — view / set your profile\n"
-        "/privacy — privacy policy\n"
         "/deletedata — delete your data\n"
     )
     if check_admin(user_id):
@@ -200,31 +185,9 @@ async def _send_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "\n🔧 Admin:\n"
             "/admin — admin menu\n"
         )
-    text += (
-        "\n📩 Character requests / inquiries: ella.ai.project@gmail.com\n"
-        "\nPick a character below ⬇️\n"
-    )
+    text += "\nPick a character below ⬇️\n"
     await update.effective_chat.send_message(text)
     await _send_character_cards(update, context, characters)
-
-
-async def onboard_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Main bot onboarding agree/decline callback."""
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-
-    if query.data == "onboard_agree":
-        set_onboarded(user_id)
-        logger.info("user %s onboarding accepted", user_id)
-        await query.edit_message_text("✅ Agreed!")
-        await _send_welcome(update, context)
-
-    elif query.data == "onboard_decline":
-        await query.edit_message_text(
-            "You cannot use this service without agreement.\n\n"
-            "Send /start to try again."
-        )
 
 
 async def char_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -392,18 +355,10 @@ async def deletedata_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.info("user %s data deletion done: %s (total %d rows)", user_id, deleted, total)
         await query.edit_message_text(
             "✅ All of your data has been deleted.\n\n"
-            "Send /start again to re-register if you want to use the service later."
+            "Send /start again any time to re-register."
         )
     elif query.data == "deletedata_cancel":
         await query.edit_message_text("Cancelled. Your data is unchanged.")
-
-
-async def privacy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/privacy — privacy policy."""
-    await update.message.reply_text(
-        f"📋 Privacy Policy:\n{PRIVACY_URL}\n\n"
-        "If you'd like to delete your data, send /deletedata."
-    )
 
 
 async def runpod_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -656,10 +611,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id if update.effective_user else 0
     text = (
         "📋 Commands:\n\n"
-        "/start — start the service\n"
+        "/start — register / show character list\n"
         "/char — pick a character\n"
         "/profile — view / set your profile\n"
-        "/privacy — privacy policy\n"
         "/deletedata — delete your data\n"
         "/help — this help message\n"
     )
@@ -668,7 +622,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "\n🔧 Admin:\n"
             "/admin — admin menu\n"
         )
-    text += "\n📩 Contact: ella.ai.project@gmail.com"
     await update.message.reply_text(text)
 
 
@@ -676,7 +629,6 @@ def register_main_handlers(app):
     """Register handlers on the main bot."""
     app.add_handler(CommandHandler("start", main_start))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CallbackQueryHandler(onboard_main_callback, pattern="^onboard_"))
     app.add_handler(CommandHandler("char", char_command))
     app.add_handler(CommandHandler("profile", profile_command))
     app.add_handler(CommandHandler("admin", admin_command))
@@ -685,7 +637,6 @@ def register_main_handlers(app):
     app.add_handler(CommandHandler("unblock", unblock_command))
     app.add_handler(CommandHandler("deletedata", deletedata_command))
     app.add_handler(CallbackQueryHandler(deletedata_callback, pattern="^deletedata_"))
-    app.add_handler(CommandHandler("privacy", privacy_command))
     app.add_handler(CommandHandler("runpod", runpod_command))
     app.add_handler(CommandHandler("runpod_video", runpod_video_command))
     app.add_handler(CommandHandler("search", search_command))

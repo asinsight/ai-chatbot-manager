@@ -1,0 +1,15 @@
+# Prompt Guard server dependencies. CPU-only (no CUDA build of torch).
+# Install in a dedicated venv:
+#   python -m venv venv && source venv/bin/activate
+#   pip install -r requirements.txt
+#
+# The model itself (protectai/deberta-v3-base-prompt-injection-v2) is fetched
+# from the HuggingFace Hub on first run and cached in ~/.cache/huggingface.
+
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.6
+transformers>=4.40
+torch>=2.2
+sentencepiece>=0.2
+protobuf>=4.25

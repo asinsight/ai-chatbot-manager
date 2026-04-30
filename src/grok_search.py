@@ -31,7 +31,7 @@ GROK_SEARCH_MONTHLY_LIMIT = int(os.getenv("GROK_SEARCH_MONTHLY_LIMIT", "500"))
 GROK_SEARCH_PER_USER_DAILY = int(os.getenv("GROK_SEARCH_PER_USER_DAILY", "10"))
 
 # ── API configuration ────────────────────────────────────────
-_API_URL = "https://api.x.ai/v1/responses"
+_API_URL = os.getenv("GROK_BASE_URL", "https://api.x.ai/v1").rstrip("/") + "/responses"
 _TIMEOUT = 60  # safety margin for web_search response (15s wasn't enough — chat search timeouts)
 _LOCATION_TIMEOUT = 60
 _MAX_QUERY_LEN = 200

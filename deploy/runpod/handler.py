@@ -1,7 +1,7 @@
-"""RunPod Serverless Handler — ComfyUI 이미지 생성.
+"""RunPod Serverless handler — ComfyUI image generation.
 
-RunPod Serverless endpoint에서 실행되며,
-ComfyUI를 서브프로세스로 실행하고 API를 통해 이미지를 생성한다.
+Runs as the entry-point of a RunPod Serverless endpoint. Spawns ComfyUI as a
+subprocess and drives it via its HTTP API to generate one image per request.
 """
 
 import json
@@ -20,7 +20,7 @@ comfyui_process = None
 
 
 def start_comfyui():
-    """ComfyUI 서버를 백그라운드로 시작한다."""
+    """Spawn the ComfyUI server in the background (idempotent)."""
     global comfyui_process
     if comfyui_process is not None:
         return
@@ -38,25 +38,25 @@ def start_comfyui():
         stderr=subprocess.PIPE,
     )
 
-    # ComfyUI 시작 대기
+    # Wait for ComfyUI to come up.
     for _ in range(120):
         try:
             resp = requests.get(f"{COMFYUI_URL}/queue", timeout=2)
             if resp.status_code == 200:
-                print("ComfyUI 시작 완료")
+                print("ComfyUI ready")
                 return
         except Exception:
             pass
         time.sleep(1)
 
-    raise RuntimeError("ComfyUI 시작 실패 (120초 타임아웃)")
+    raise RuntimeError("ComfyUI failed to start within 120s")
 
 
 def handler(event):
-    """RunPod handler — 워크플로우 실행 + 이미지 반환.
+    """RunPod handler — run a workflow and return the rendered image.
 
     Input:
-        event["input"]["workflow"]: ComfyUI 워크플로우 JSON (프롬프트 삽입 완료)
+        event["input"]["workflow"]: ComfyUI workflow JSON (prompts already substituted)
 
     Output:
         {"image_base64": "...", "seed": 12345}
@@ -71,7 +71,7 @@ def handler(event):
         workflow = json.loads(workflow)
 
     try:
-        # 1. /prompt에 POST
+        # 1. POST the workflow to /prompt.
         resp = requests.post(
             f"{COMFYUI_URL}/prompt",
             json={"prompt": workflow},
@@ -80,7 +80,7 @@ def handler(event):
         resp.raise_for_status()
         prompt_id = resp.json()["prompt_id"]
 
-        # 2. /history로 완료 대기 (최대 360초)
+        # 2. Poll /history for completion (up to 360s).
         for _ in range(360):
             hist_resp = requests.get(
                 f"{COMFYUI_URL}/history/{prompt_id}",
@@ -90,7 +90,7 @@ def handler(event):
             data = hist_resp.json()
 
             if prompt_id in data:
-                # 완료
+                # Workflow finished.
                 outputs = data[prompt_id].get("outputs", {})
                 save_node = outputs.get("30", {})
                 images = save_node.get("images", [])
@@ -103,7 +103,7 @@ def handler(event):
                 subfolder = image_info.get("subfolder", "")
                 img_type = image_info.get("type", "output")
 
-                # 이미지 다운로드
+                # Fetch the image bytes.
                 view_resp = requests.get(
                     f"{COMFYUI_URL}/view",
                     params={"filename": filename, "subfolder": subfolder, "type": img_type},
@@ -111,7 +111,7 @@ def handler(event):
                 )
                 view_resp.raise_for_status()
 
-                # base64 인코딩하여 반환
+                # Base64-encode + return.
                 image_b64 = base64.b64encode(view_resp.content).decode("utf-8")
                 return {"image_base64": image_b64}
 
