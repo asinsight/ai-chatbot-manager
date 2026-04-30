@@ -27,7 +27,7 @@ const items: NavItem[] = [
   { href: "/connections", label: "Connections", icon: Network, enabled: true },
   { href: "/env", label: "Env", icon: Settings2, enabled: true },
   { href: "/prompts", label: "Prompts", icon: FileText, enabled: true },
-  { href: "/characters", label: "Characters", icon: Users, enabled: false },
+  { href: "/characters", label: "Characters", icon: Users, enabled: true },
   { href: "/config", label: "Image Config", icon: ImageIcon, enabled: false },
   { href: "/workflows", label: "Workflows", icon: Workflow, enabled: false },
   { href: "/logs", label: "Logs", icon: ScrollText, enabled: false },

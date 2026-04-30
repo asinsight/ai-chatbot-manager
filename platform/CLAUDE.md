@@ -16,20 +16,22 @@ npm run dev      # http://127.0.0.1:9000
 
 ## 현재 마일스톤
 
-**M2 완료 (develop 머지 대기)** — `/prompts` 편집기 + Monaco + diff modal.
+**M3 완료 (develop 머지 대기)** — Character CRUD + 단일 bot-token namespace.
 
 | 페이지 | 상태 |
 |---|---|
 | `/dashboard` | ✅ Bot status card + Connections health card + log tail (5s polling) |
 | `/connections` | ✅ 4 endpoint cards (ComfyUI / OpenWebUI / Grok / Prompt Guard) — URL+token 편집 + Ping + last_ping SQLite 기록 + 전체 Ping |
-| `/env` | ✅ 8 카테고리 tabs + 카테고리 description + 시크릿 마스킹 + 자동 백업 + default placeholder |
+| `/env` | ✅ 8 카테고리 tabs + 카테고리 description + 시크릿 마스킹 + 자동 백업 + default placeholder + Bot tokens 탭 grouping (Native / Character read-only with redirect) |
 | `/prompts` | ✅ Outer tabs (Grok prompting / System prompt) × inner tabs (5+3 keys), Monaco 65vh + react-diff-viewer modal + per-key save + ${var} placeholder lint + 인라인 metadata |
-| `/characters` | ⏳ M3 placeholder |
+| `/characters` | ✅ list (cards + create + duplicate + delete with AlertDialog) + /[charId] (Form 모드: Persona/Behaviors/Images/Bot tokens 4 탭, Raw JSON 모드: 3 Monaco). draft auto-save (localStorage) + first_mes markdown preview + ajv validation + soft-delete |
 | `/config` | ⏳ M4 placeholder |
 | `/workflows` | ⏳ M5 placeholder |
 | `/logs` | ⏳ M5 placeholder |
 
 > M1 단계에서 코드/UI 전체가 영어로 통일됐다 (PM 결정 D). Markdown 문서 (이 파일 포함) 만 한국어 유지. `lib/env-categories.ts` 의 카테고리 라벨, toast 메시지, 컴포넌트 텍스트 모두 영어.
+
+> M3 단계에서 **TEST_/PROD_ 분리 제거** — 오픈소스 단일 deployment 라 `MAIN_BOT_TOKEN` / `CHAR_BOT_<id>` 단일 namespace 만 사용. `src/bot.py` 의 env-prefix 매핑 코드 삭제됨.
 
 ## 디렉터리 구조
 
@@ -42,12 +44,16 @@ platform/
 │   ├── env/{page,env-form}.tsx         # M1 — 카테고리 tabs + 시크릿 마스킹 + description
 │   ├── connections/{page,connections-page,connection-card}.tsx  # M1 — 4 endpoint
 │   ├── prompts/{page,prompts-page,prompt-editor,lint,metadata}.tsx  # M2 — Monaco + diff modal
-│   ├── (placeholders)/                 # characters, config, workflows, logs
+│   ├── characters/                     # M3 — CRUD UI
+│   │   ├── {page,characters-list}.tsx  # list + actions (create / duplicate / delete)
+│   │   └── [charId]/{page,character-editor,persona-form,behaviors-form,images-form,bot-tokens-form,preview-panel,raw-tab,widgets}.tsx
+│   ├── (placeholders)/                 # config, workflows, logs
 │   └── api/
 │       ├── bot/                        # M0 — 5 routes (status/start/stop/restart/logs)
 │       ├── env/                        # M1 — GET / PUT
 │       ├── connections/                # M1 — GET, [id] PUT, [id]/ping POST, ping-all POST
-│       └── prompts/{grok,system}/      # M2 — GET / PUT
+│       ├── prompts/{grok,system}/      # M2 — GET / PUT
+│       └── characters/                 # M3 — list/create + [charId] CRUD + [charId]/env (token+username) + [charId]/duplicate
 ├── components/
 │   ├── ui/                             # shadcn primitives (Button, Card, Badge, Input, Label, Tabs, Sonner, Dialog)
 │   ├── sidebar.tsx                     # 8 nav items
@@ -68,6 +74,9 @@ platform/
 │   ├── env-read.ts                     # M1 — .env 값 읽기 helper
 │   ├── ping.ts                         # M1 — 4 endpoint ping (10s timeout, AbortController)
 │   ├── prompts.ts                      # M2 — read/write/validate/lint config/grok_prompts.json + system_prompt.json
+│   ├── characters.ts                   # M3 — 3-file bundle CRUD + soft-delete + nextFreeCharId
+│   ├── char-schema.ts                  # M3 — PERSONA_FIELDS / IMAGES_FIELDS metadata + BLANK_* templates
+│   ├── ajv.ts                          # M3 — Ajv2020 + validatePersona (draft-2020-12 schema)
 │   └── utils.ts                        # cn() (shadcn util)
 └── data/                               # gitignored — platform.sqlite + backups/.env.*.bak
 ```
@@ -107,6 +116,14 @@ platform/
 | `/api/prompts/grok` | GET | `{file, keys: [{name, value, size}]}` | 500 PROMPT_READ_FAILED |
 | `/api/prompts/grok` | PUT `{updates}` | `{ok, backup_path, warnings}` | 422 INVALID_PAYLOAD / MISSING_REQUIRED_KEY |
 | `/api/prompts/system` | GET / PUT | (grok 동일) | (grok 동일) |
+| `/api/characters` | GET | `{characters: [{charId,name,profile_summary_ko,mtime}]}` | 500 |
+| `/api/characters` | POST `{from?}` | `{ok, charId}` | 409 NO_FREE_SLOT / 422 INVALID_CHAR_ID |
+| `/api/characters/[charId]` | GET | `{charId, persona, behaviors, images}` | 404 UNKNOWN_CHARACTER |
+| `/api/characters/[charId]` | PUT `{persona,behaviors,images}` | `{ok, backup_paths, warnings}` | 422 INVALID_CARD / INCOMPLETE_BUNDLE |
+| `/api/characters/[charId]` | DELETE | `{ok, backup_dir}` (soft-delete) | 422 INVALID_CHAR_ID |
+| `/api/characters/[charId]/env` | GET | `{fields:{token,username}, keys}` | 422 INVALID_CHAR_ID |
+| `/api/characters/[charId]/env` | PUT `{token?,username?}` | `{ok, backup_path, updated_keys}` | 422 INVALID_VALUE |
+| `/api/characters/[charId]/duplicate` | POST | `{ok, charId}` (next-free) | 404 UNKNOWN_CHARACTER |
 
 `logs` route 는 1MB 읽기 창 + 마지막 N줄 (1 ≤ N ≤ 1000, 기본 200) 추출.
 
@@ -131,6 +148,9 @@ platform/
 - **@monaco-editor/react** (M2) — VS Code-equivalent editor (dynamic import, SSR off).
 - **@radix-ui/react-dialog** (M2) — shadcn Dialog primitive (diff modal).
 - **react-diff-viewer-continued** (M2) — split-view diff (active React 18 fork).
+- **ajv** + **ajv/dist/2020** (M3) — JSON Schema validator (draft-2020-12).
+- **@radix-ui/react-alert-dialog** (M3) — delete-character confirmation.
+- **react-markdown** + **remark-gfm** (M3) — first_mes preview rendering.
 
 ## 편집 가이드
 
@@ -140,6 +160,6 @@ platform/
 4. **봇 프로세스 외부 영향**: `lib/bot-process.ts` 변경 시 항상 수동 테스트 — start/stop/restart/stale-pid 시나리오. `npm run build` 만으로는 race 검증 안 됨.
 5. **새 마일스톤 시작 시**: 새 feature 브랜치 + `docs/features/M<N>_<name>.md` plan + 사인오프 → 구현. 머지 시 `platform/CLAUDE.md` 의 "현재 마일스톤" 표 갱신.
 
-## M3+ 시작 시 주의
+## M4+ 시작 시 주의
 
-`/characters` (M3), `/config` (M4), `/workflows` + `/logs` (M5) 페이지는 placeholder 만 있음. 새 마일스톤에서는 placeholder 를 실제 UI 로 교체하면 된다 — routing 변경 불필요.
+`/config` (M4), `/workflows` + `/logs` (M5) 페이지는 placeholder 만 있음. 새 마일스톤에서는 placeholder 를 실제 UI 로 교체하면 된다 — routing 변경 불필요.

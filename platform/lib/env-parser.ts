@@ -10,7 +10,10 @@ export type EnvLine =
     }
   | { kind: "comment-var"; key: string; value: string; raw: string };
 
-const KEY_RE = /^[A-Z_][A-Z0-9_]*$/;
+// Allow uppercase prefix + alphanumeric/underscore tail. Lowercase tail is
+// permitted because the bot's own conventions use lowercase suffixes
+// (e.g. CHAR_BOT_imagegen, CHAR_BOT_charNN).
+const KEY_RE = /^[A-Z_][A-Za-z0-9_]*$/;
 
 function parseLine(raw: string): EnvLine {
   if (raw.trim() === "") return { kind: "blank" };

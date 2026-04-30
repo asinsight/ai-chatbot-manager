@@ -1,10 +1,24 @@
-export default function CharactersPage() {
+import { CharactersList } from "./characters-list";
+
+export const dynamic = "force-dynamic";
+
+export default function Page() {
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-semibold">Characters</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Character card CRUD (M3).
-      </p>
+    <div className="mx-auto max-w-4xl space-y-6 p-8">
+      <div>
+        <h1 className="text-2xl font-semibold">Characters</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Each character is a 3-file bundle (
+          <code className="font-mono">behaviors/charNN.json</code> +{" "}
+          <code className="font-mono">persona/charNN.json</code> +{" "}
+          <code className="font-mono">images/charNN.json</code>) plus 2{" "}
+          <code className="font-mono">.env</code> token lines (
+          <code className="font-mono">CHAR_BOT_charNN</code> +{" "}
+          <code className="font-mono">CHAR_USERNAME_charNN</code>). Bot restart
+          required after add / edit / delete.
+        </p>
+      </div>
+      <CharactersList />
     </div>
   );
 }

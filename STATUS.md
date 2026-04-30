@@ -3,15 +3,15 @@
 > 작업 진행 상황 실시간 트래커. 매 의미있는 단계마다 갱신.
 > 자세한 결정 사항·아키텍처는 [CLAUDE.md](CLAUDE.md) / [plan.md](plan.md) / [NSFW_INVENTORY.md](NSFW_INVENTORY.md) 참고.
 
-**마지막 갱신**: 2026-04-29 (M2 — Prompt 편집기 / develop 머지 대기)
+**마지막 갱신**: 2026-04-30 (M3 — Character card CRUD + 단일 bot-token namespace / develop 머지 대기)
 
 ---
 
 ## 현재 상태
 
-- **브랜치**: `feat/feature_M2_prompt_editor`
-- **다음 작업**: Platform M3 — 캐릭터 카드 CRUD (Form + Raw JSON 토글)
-- **진행 중**: M2 develop 머지 대기 (Monaco + diff modal + per-key save + lint + 인라인 metadata)
+- **브랜치**: `feat/feature_M3_character_crud`
+- **다음 작업**: Platform M4 — 이미지 config 편집기 (sfw_scenes / pose_motion_presets / sfw_denylist / profile_keys / character_card_schema)
+- **진행 중**: M3 develop 머지 대기 (Form + Raw JSON CRUD + 인라인 metadata + 단일 bot-token namespace)
 - **블로커**: 없음
 
 ---
@@ -20,7 +20,8 @@
 
 | 일자 | 단계 | 브랜치 | 머지 커밋 | 핵심 |
 |---|---|---|---|---|
-| 2026-04-29 | Platform M2 — Prompt 편집기 | `feat/feature_M2_prompt_editor` | (develop 대기) | /prompts 페이지: Outer tabs (Grok prompting / System prompt) × inner tabs (5+3 keys), Monaco 65vh 에디터, react-diff-viewer modal, ${var} placeholder lint (warn-not-block), per-key save + 자동 백업, 8 키 별 inline metadata (title / summary / used by). |
+| 2026-04-30 | Platform M3 — Character card CRUD + 단일 bot-token namespace | `feat/feature_M3_character_crud` | (develop 대기) | /characters list (Edit/Duplicate/Delete with AlertDialog) + /characters/[charId] editor (Form 모드 + Raw JSON 모드 토글). 22 persona 필드 schema-driven (chips/kv/trigger-list/stat-limits 위젯) + behaviors 4-tier + images 중첩 객체. first_mes markdown 미리보기 ({{user}}/{{char}} 매크로). Soft-delete + draft auto-save + Bot tokens 4번째 탭 + ajv validation + 빈-required 거부. **TEST_/PROD_ 분리 전면 제거** (오픈소스 단일 deployment). /env Bot tokens 탭 grouping (Native/Character) + character bots readonly + redirect link. 봇은 token+username 둘 다 있어야 main listing 노출. |
+| 2026-04-29 | Platform M2 — Prompt 편집기 | `feat/feature_M2_prompt_editor` | `4823d44` | /prompts 페이지: Outer tabs (Grok prompting / System prompt) × inner tabs (5+3 keys), Monaco 65vh 에디터, react-diff-viewer modal, ${var} placeholder lint (warn-not-block), per-key save + 자동 백업, 8 키 별 inline metadata (title / summary / used by). |
 | 2026-04-28 | M1 polish | `feat/feature_M1_polish` | `b1fa27f` | Grok env var 명 통일 (GROK_PROMPTING_*) + VIDEO_COMPOSER_MODEL 노출 + /env UI 시크릿 마스킹 표시 fix + .env.example default 값 placeholder + OpenWebUI label (Gemma → llama-cpp-python). |
 | 2026-04-28 | M1 + i18n full English + char05 sample | `feat/feature_M1_env_connections` | `09334db` | M1: /env (8 카테고리 + 시크릿 마스킹 + 백업 + restart toast) + /connections (4 endpoint Ping + SQLite + Dashboard health card) + GROK_BASE_URL pre-req. 12 시나리오 PASS. i18n scope D: 코드/설정/UI 영어화 (markdown 제외), char01-04 + char06-09 삭제 (24 파일), char05 (Jiwon Han) 만 sample 캐릭터로 영어화 + 잔류. docs cleanup (terms_of_service / video-improve1 drop). |
 | 2026-04-27 | Platform M0 — Admin 골격 | `feat/feature_M0_admin_skeleton` | `7804ea1` | Next.js 14 scaffold + sidebar + bot-process.ts + 5 API routes + Dashboard UI. 9 시나리오 모두 PASS. |
@@ -38,46 +39,49 @@
 
 ---
 
-## M2 머지 체크리스트 (develop ← feat/feature_M2_prompt_editor)
+## M3 머지 체크리스트 (develop ← feat/feature_M3_character_crud)
 
-- [x] /prompts HTTP 200 + Monaco 에디터 정상 로드
-- [x] PUT validation (empty key 422, lint warning passthrough)
-- [x] 백업 누적 (`platform/data/backups/grok_prompts.json.{ts}.bak`)
-- [x] 사용자 수동 테스트 PASS — 인라인 metadata + Env 카테고리 description 추가 반영
+- [x] 14 commits (plan + deps + libs + 6 routes + primitives + list + editor + raw + sidebar + 5 polish iterations)
+- [x] /characters list + /characters/[charId] form/raw 모드 모두 HTTP 200
+- [x] 6 API endpoints (list/create/get/put/delete/duplicate/env) PASS
+- [x] ajv validation + 빈-required 거부 + 자동 백업 + soft-delete
+- [x] TEST_/PROD_ 분리 제거 + bot.py prefix 매핑 코드 삭제
+- [x] /env Bot tokens 탭 grouping (Native/Character) + readonly redirect link
+- [x] _bot_active(char_id) 헬퍼 — token+username 둘 다 있어야 main bot listing 노출
+- [x] 사용자 수동 테스트 PASS (모든 iteration)
 - [x] npx tsc --noEmit → 0 errors
 - [ ] platform/CLAUDE.md / 루트 CLAUDE.md / STATUS.md (본 commit) 갱신
 
 ---
 
-## 다음 단계 — Platform M3 (캐릭터 카드 CRUD)
+## 다음 단계 — Platform M4 (이미지 config 편집기)
 
 ### Plan
-[plan.md §4.2 + §8 M3](plan.md). M3 시작 시 별도 feature plan MD 를 `docs/features/M3_character_crud.md` 에 작성.
+[plan.md §4.4 + §8 M4](plan.md). M4 시작 시 별도 feature plan MD 를 `docs/features/M4_image_config.md` 에 작성.
 
 ### 브랜치 흐름
 ```
 develop
-  └ feat/feature_M3_character_crud
+  └ feat/feature_M4_image_config
 ```
 
 ### Deliverable (요약)
-- `/characters` 페이지 — list + create + duplicate + delete
-- `/characters/[charId]` — Form (schema-driven) + Raw JSON (Monaco) 토글
-- 신규 시 `TEST_/PROD_CHAR_BOT_<charNN>` .env 자동 라인 추가
-- ajv 로 character_card_schema 검증
-- first_mes 미리보기 ({{user}}/{{char}} 매크로 dummy 치환)
+- `/config/[fileKey]` 페이지 — `sfw_scenes` / `pose_motion_presets` / `sfw_denylist` / `profile_keys` / `character_card_schema`
+- scene 카드뷰 + chip input (pose_pool / camera_pool / scene_tags)
+- pose_motion_presets entry 추가/편집
+- denylist + profile_keys chip input
+- character_card_schema Monaco + 모든 캐릭터 dry-run validate
 
 ### 일정 (예상)
-- 2–2.5일
+- 1.5–2일
 
 ---
 
 ## 결정 대기 (PM 답변 받으면 진행)
 
-### M3 시작 시 확인할 항목
-- [ ] M3 착수 신호
-- [ ] 신규 캐릭터 추가 시 anchor_image 처리 — Image Config (M4) 까지 미루고 placeholder? 또는 M3 에서 업로드 슬롯 포함?
-- [ ] `character_card_schema.json` 직접 편집은 M4 에서 하는 게 맞는지 (현재 plan §4.4 위치)
+### M4 시작 시 확인할 항목
+- [ ] M4 착수 신호
+- [ ] 캐릭터 카드 schema 편집 시 dry-run 검증 정책 — 모든 캐릭터 검증 실패 시 거부? warning?
 
 ### 별도 PR 후보
 - [ ] `config/video_models.json` 신규 + `src/video.py` 한 줄 수정 (비디오 모델 카탈로그 + dropdown — plan §9.9)

@@ -3,6 +3,9 @@ const SECRET_PATTERNS: RegExp[] = [
   /_BOT_TOKEN$/,
   /_API_TOKEN$/,
   /_SECRET$/,
+  // Per-bot tokens follow the CHAR_BOT_<id> pattern (no _TOKEN suffix);
+  // treat them as secrets too.
+  /^CHAR_BOT_[A-Za-z0-9_]+$/,
 ];
 
 export function isSecret(key: string): boolean {

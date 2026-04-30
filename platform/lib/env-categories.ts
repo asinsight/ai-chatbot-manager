@@ -66,11 +66,10 @@ export const CATEGORIES: EnvCategory[] = [
     id: "operations",
     label: "Operations",
     description:
-      "Runtime knobs that don't fit the backend categories. IMAGE_AUTONOMY controls how often the LLM proactively sends photos (0–3). FORCE_SFW_SCENE pins the /random scene for debug. ENV chooses the TEST_/PROD_ token group. ADMIN_USER_IDS / ADMIN_NOTIFY / LOG_LEVEL govern logging and admin notifications. The LLM queue + summarization knobs throttle backpressure.",
+      "Runtime knobs that don't fit the backend categories. IMAGE_AUTONOMY controls how often the LLM proactively sends photos (0–3). FORCE_SFW_SCENE pins the /random scene for debug. ADMIN_USER_IDS / ADMIN_NOTIFY / LOG_LEVEL govern logging and admin notifications. The LLM queue + summarization knobs throttle backpressure.",
     keys: [
       "IMAGE_AUTONOMY",
       "FORCE_SFW_SCENE",
-      "ENV",
       "ADMIN_USER_IDS",
       "ADMIN_NOTIFY",
       "LOG_LEVEL",
@@ -83,12 +82,12 @@ export const CATEGORIES: EnvCategory[] = [
   },
   {
     id: "tokens",
-    label: "Bot tokens (Test/Prod)",
+    label: "Bot tokens",
     description:
-      "Telegram bot tokens. The active set is selected by ENV (test or prod) — the matching prefix (`TEST_` or `PROD_`) is auto-mapped on startup. MAIN_BOT_TOKEN drives the onboarding bot; per-character / per-imagegen tokens are added when you register a new bot in @BotFather.",
-    keys: [],
+      "Telegram bot tokens. MAIN_BOT_TOKEN drives the onboarding bot; per-character + imagegen tokens use the CHAR_BOT_<charId> / CHAR_USERNAME_<charId> pattern and are added when you register a new bot in @BotFather. Bot restart required after adding or rotating a token.",
+    keys: ["MAIN_BOT_TOKEN", "MAIN_BOT_USERNAME"],
     dynamicMatch: (k) =>
-      /^(TEST|PROD)_(MAIN_BOT_TOKEN|MAIN_BOT_USERNAME|CHAR_BOT_[A-Za-z0-9]+|CHAR_USERNAME_[A-Za-z0-9]+)$/.test(
+      /^(MAIN_BOT_TOKEN|MAIN_BOT_USERNAME|CHAR_BOT_[A-Za-z0-9]+|CHAR_USERNAME_[A-Za-z0-9]+)$/.test(
         k,
       ),
   },
@@ -110,8 +109,23 @@ export function categoryFor(key: string): string {
   return "misc";
 }
 
+/**
+ * Per-character bot tokens (CHAR_BOT_charNN / CHAR_USERNAME_charNN, EXCLUDING
+ * the imagegen route which is its own special bot, not a character) are
+ * editable only from `/characters/[charId]` to keep the source-of-truth in
+ * one place. They show up in /env as read-only with a redirect link.
+ */
+const CHAR_TOKEN_RE = /^(CHAR_BOT|CHAR_USERNAME)_char(\d{2,3})$/;
+
+export function charIdFromKey(key: string): string | null {
+  const m = key.match(CHAR_TOKEN_RE);
+  return m ? `char${m[2]}` : null;
+}
+
 export function isEditable(key: string): boolean {
-  return !READ_ONLY_KEYS.has(key);
+  if (READ_ONLY_KEYS.has(key)) return false;
+  if (CHAR_TOKEN_RE.test(key)) return false;
+  return true;
 }
 
 /**
