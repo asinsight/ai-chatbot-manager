@@ -56,19 +56,30 @@ def _build_character_descriptions(characters: dict) -> str:
     return "\n\n".join(lines)
 
 
+def _bot_active(char_id: str) -> bool:
+    """Return True only when both CHAR_BOT_<id> and CHAR_USERNAME_<id> are set.
+
+    Either alone is useless: the token alone has nothing to link to in @BotFather,
+    and the username alone has no bot process answering.
+    """
+    return bool(os.getenv(f"CHAR_BOT_{char_id}", "")) and bool(
+        os.getenv(f"CHAR_USERNAME_{char_id}", "")
+    )
+
+
 def _build_character_keyboard(characters: dict) -> InlineKeyboardMarkup | None:
     """Build an inline keyboard with character bot links."""
     keyboard = []
     for char_id, char_data in characters.items():
-        bot_username = os.getenv(f"CHAR_USERNAME_{char_id}", "")
-        if not bot_username:
+        if not _bot_active(char_id):
             continue
+        bot_username = os.getenv(f"CHAR_USERNAME_{char_id}", "")
         name = char_data.get("name", char_id)
         keyboard.append([InlineKeyboardButton(name, url=f"https://t.me/{bot_username}")])
 
-    # Image generator button
-    imagegen_username = os.getenv("CHAR_USERNAME_imagegen", "")
-    if imagegen_username:
+    # Image generator button — only when both token and username are set
+    if _bot_active("imagegen"):
+        imagegen_username = os.getenv("CHAR_USERNAME_imagegen", "")
         keyboard.append([InlineKeyboardButton(
             "🎨 Image Generator", url=f"https://t.me/{imagegen_username}"
         )])
@@ -91,13 +102,18 @@ async def _send_character_cards(update: Update, context: ContextTypes.DEFAULT_TY
     for cid in characters.keys():
         if cid in seen:
             continue
-        if os.getenv(f"CHAR_USERNAME_{cid}", ""):
+        if _bot_active(cid):
             char_ids.append(cid)
             seen.add(cid)
 
     for char_id in char_ids:
-        # Allow imagegen even if it's not in the characters dict (it's a separate bot — only username is needed)
+        # Allow imagegen even if it's not in the characters dict (it's a separate bot)
         if char_id != "imagegen" and char_id not in characters:
+            continue
+
+        # Skip when either CHAR_BOT_<id> or CHAR_USERNAME_<id> is unset.
+        # Either alone is useless: no token = no bot running; no username = no link target.
+        if not _bot_active(char_id):
             continue
 
         bot_username = os.getenv(f"CHAR_USERNAME_{char_id}", "")
@@ -108,11 +124,6 @@ async def _send_character_cards(update: Update, context: ContextTypes.DEFAULT_TY
         # Character metadata (for name extraction)
         char_data = characters.get(char_id, {})
         name = char_data.get("name", char_id)
-
-        # Inline button assembly
-        if not bot_username:
-            # No username configured -> skip this character
-            continue
         if char_id == "imagegen":
             label = "🎨 Start Image Generation"
         else:
