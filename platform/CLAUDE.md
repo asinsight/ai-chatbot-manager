@@ -16,7 +16,7 @@ npm run dev      # http://127.0.0.1:9000
 
 ## 현재 마일스톤
 
-**M5 완료 (develop 머지 대기)** — Workflows + Logs + 메인 봇 strict + UX 정리.
+**M6 완료 (develop 머지 대기)** — Lorebook editor + char→world mapping.
 
 | 페이지 | 상태 |
 |---|---|
@@ -25,6 +25,7 @@ npm run dev      # http://127.0.0.1:9000
 | `/env` | ✅ 8 카테고리 tabs + 카테고리 description + 시크릿 마스킹 + 자동 백업 + default placeholder + Bot tokens 탭 grouping (Native / Character read-only with redirect). M5: `MAIN_BOT_*` 빨간 required 배지 + 빈 값 시 Save 차단, `?cat=` URL 파라미터로 탭 자동 선택, `COMFYUI_WORKFLOW{,_HQ}` 노출. |
 | `/prompts` | ✅ 3 outer tabs (Grok prompting / System prompt / Profile keys). Grok+System: Monaco 65vh + react-diff-viewer modal + per-key save + ${var} lint + 인라인 metadata. Profile keys: master-detail + chips (M4) |
 | `/characters` | ✅ list (cards + create + duplicate + delete with AlertDialog) + /[charId] (Form 모드: Persona/Behaviors/Images/Bot tokens 4 탭, Raw JSON 모드: 3 Monaco). draft auto-save (localStorage) + first_mes markdown preview + ajv validation + soft-delete. M4: read-only "View schema" Dialog (`character_card_schema.json` 참고용) |
+| `/lorebook` | ✅ Mapping card (per-char dropdown ↔ `world_info/mapping.json`, "(legacy fallback)" 옵션) + World list (Add/Duplicate/Delete with WORLD_IN_USE 안내) + World editor (Test pane mirrors `src/prompt.py _match_world_info()` + entry CRUD: keywords chips / content textarea / position background\|active select). |
 | `/config` | ✅ 3 탭 (SFW scenes / Pose motion presets / SFW denylist) — master-detail + chips + Raw JSON fallback + zod 검증 + 자동 백업 |
 | `/workflows` | ✅ Stage assignments (Standard / HQ ↔ `COMFYUI_WORKFLOW{,_HQ}` env) + 워크플로우별 auto facts (node count / Σ steps / refiner+detailer / size) + admin description (`config/workflow_descriptions.json`) + Form / Raw JSON / Replace 3 탭. Replace 시 `%prompt%` + `%negative_prompt%` placeholder 검증 강제. |
 | `/logs` | ✅ file picker (bot.log + dated archives) + tail 200-5000 + refresh 1s/2s/5s/Paused + regex filter (case-insensitive) + auto-scroll + download. |
@@ -57,6 +58,8 @@ platform/
 │   │   └── {page,workflows-page,stage-assignments,workflow-tab,workflow-form,workflow-raw,workflow-replace,workflow-facts}.tsx
 │   ├── logs/                           # M5 — full-page log viewer
 │   │   └── {page,logs-page}.tsx
+│   ├── lorebook/                       # M6 — per-character world knowledge editor
+│   │   └── {page,lorebook-page,world-list,world-editor,entry-form,test-pane,mapping-card}.tsx
 │   └── api/
 │       ├── bot/                        # M0 — 5 routes (status/start/stop/restart/logs). M5: status returns main_bot.{token_set,username_set}; start returns 422 MAIN_BOT_NOT_CONFIGURED; logs route accepts ?file= + ?listFiles=1.
 │       ├── env/                        # M1 — GET / PUT
@@ -65,7 +68,8 @@ platform/
 │       ├── characters/                 # M3 — list/create + [charId] CRUD + [charId]/env (token+username) + [charId]/duplicate
 │       ├── character-schema/           # M4 — GET-only read-only schema fetch
 │       ├── config/[fileKey]/           # M4 — GET / PUT for sfw_scenes / pose_motion_presets / sfw_denylist / profile_keys
-│       └── workflows/                  # M5 — list / [name] (safe_fields|replace) / assignments (env-backed) / descriptions
+│       ├── workflows/                  # M5 — list / [name] (safe_fields|replace) / assignments (env-backed) / descriptions
+│       └── lorebook/                   # M6 — worlds list/CRUD/duplicate + char→world mapping
 ├── components/
 │   ├── ui/                             # shadcn primitives (Button, Card, Badge, Input, Label, Tabs, Sonner, Dialog)
 │   ├── sidebar.tsx                     # 8 nav items
@@ -95,6 +99,9 @@ platform/
 │   ├── workflows.ts                    # M5 — read/write/backup for comfyui_workflow/*.json + auto facts + safe-fields + Replace validation + stage assignments (.env-backed) + descriptions
 │   ├── workflows-meta.ts               # M5 — client-safe types
 │   ├── log-files.ts                    # M5 — list bot.log + dated archives + path-traversal whitelist
+│   ├── comfyui-client.ts               # post-M5 — fetchCheckpoints() proxy → ComfyUI /object_info/CheckpointLoaderSimple
+│   ├── lorebook.ts                     # M6 — server-side read/write/backup + zod-validated CRUD for world_info/*.json + mapping
+│   ├── lorebook-meta.ts                # M6 — client-safe types + previewMatches() (mirrors src/prompt.py _match_world_info)
 │   └── utils.ts                        # cn() (shadcn util)
 └── data/                               # gitignored — platform.sqlite + backups/.env.*.bak
 ```
@@ -153,6 +160,11 @@ platform/
 | `/api/bot/status` | GET | (existing) + `main_bot: {token_set, username_set}` | 500 |
 | `/api/bot/start` | POST | `{ pid }` | 422 MAIN_BOT_NOT_CONFIGURED / 409 ALREADY_RUNNING / 500 START_FAILED |
 | `/api/bot/logs` | GET `?file=&tail=&listFiles=` | `{lines, note?}` \| `{files}` | 422 INVALID_FILE / 500 LOGS_FAILED |
+| `/api/comfyui/checkpoints` | GET | `{ok, comfyui_url, checkpoints}` \| `{ok:false, reason, message, checkpoints:[]}` | 200 always (failures inline) |
+| `/api/lorebook/worlds` | GET / POST `{name}` | `{worlds: [...]}` / `{ok, name}` | 422 INVALID_NAME / 409 ALREADY_EXISTS |
+| `/api/lorebook/worlds/[name]` | GET / PUT `{content}` / DELETE | `{name, content, mtime_ms, size_bytes, mapped_chars}` / `{ok, restart_required, backup_path}` | 422 INVALID_SHAPE / WORLD_IN_USE / 404 UNKNOWN_WORLD |
+| `/api/lorebook/worlds/[name]/duplicate` | POST | `{ok, name}` | 404 UNKNOWN_WORLD |
+| `/api/lorebook/mapping` | GET / PUT `{mapping}` | `{mapping, characters, worlds}` / `{ok, restart_required, backup_path}` | 422 UNKNOWN_WORLD / UNKNOWN_CHARACTER |
 
 `logs` route 는 1MB 읽기 창 + 마지막 N줄 (1 ≤ N ≤ 1000, 기본 200) 추출.
 
@@ -191,8 +203,13 @@ platform/
 4. **봇 프로세스 외부 영향**: `lib/bot-process.ts` 변경 시 항상 수동 테스트 — start/stop/restart/stale-pid 시나리오. `npm run build` 만으로는 race 검증 안 됨.
 5. **새 마일스톤 시작 시**: 새 feature 브랜치 + `docs/features/M<N>_<name>.md` plan + 사인오프 → 구현. 머지 시 `platform/CLAUDE.md` 의 "현재 마일스톤" 표 갱신.
 
-## M5+ 시작 시 주의
+## Post-M6 시작 시 주의
 
-`/workflows` + `/logs` (M5) 페이지는 placeholder 만 있음. 새 마일스톤에서는 placeholder 를 실제 UI 로 교체하면 된다 — routing 변경 불필요.
+핵심 8 페이지가 모두 활성. 새 페이지를 추가할 땐:
+- 사이드바 ([components/sidebar.tsx](components/sidebar.tsx)) `items` 배열에 항목 추가
+- 같은 폴더 패턴 따르기: `app/<page>/page.tsx` (서버 entry) + `<page>-page.tsx` (클라이언트) + 보조 컴포넌트들
+- 서버 lib 와 클라이언트 lib 분리 (`*.ts` 와 `*-meta.ts`) — 클라이언트에서 `node:fs`/`node:path`를 import 하면 webpack build 가 깨짐 (M4 / M6 에서 모두 겪음)
+- API route 는 `runtime = 'nodejs'` + `dynamic = 'force-dynamic'`
+- 자동 backup 은 `lib/backup.ts` 의 KST timestamp 패턴 재사용
 
 `character_card_schema.json` 은 read-only viewer 만 노출 (M4). 직접 편집 시 platform UI 우회 — 변경 시 char05 round-trip ajv 검증 필요.

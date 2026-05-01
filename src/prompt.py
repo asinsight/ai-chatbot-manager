@@ -214,6 +214,7 @@ def _build_discovery_hint(profile: dict, turn_count: int, character: dict, mood:
 _behaviors_cache = {}
 _world_info_cache = {}
 _job_context_cache = {}
+_world_mapping_cache: dict | None = None
 
 # Per-job background block token cap — plan_roleplay_realism.md Phase 1
 # Measured for English content: 8 facts + vocab + routines ≈ 270-300 tokens.
@@ -223,12 +224,46 @@ _JOB_CONTEXT_MAX_TOKENS = 300
 _JOB_CONTEXT_MIN_FACTS = 8
 
 
+def _load_world_mapping() -> dict:
+    """Cached read of world_info/mapping.json. Returns {} when the file is
+    absent or contains no string-valued entries (every char then falls back to
+    the legacy <char_id>.json convention)."""
+    global _world_mapping_cache
+    if _world_mapping_cache is not None:
+        return _world_mapping_cache
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(base, "world_info", "mapping.json")
+    out: dict[str, str] = {}
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            if isinstance(raw, dict):
+                for k, v in raw.items():
+                    if k.startswith("_"):
+                        continue  # _doc and friends are passthrough metadata
+                    if isinstance(v, str) and v:
+                        out[k] = v
+        except Exception:
+            out = {}
+    _world_mapping_cache = out
+    return out
+
+
 def _load_world_info(char_id: str) -> dict:
-    """Load world_info/char*.json (cached)."""
+    """Load the lorebook for a character (cached).
+
+    Resolution order:
+      1. world_info/mapping.json[char_id] -> world_info/<value>.json
+      2. legacy fallback: world_info/<char_id>.json
+      3. {} when neither exists.
+    """
     if char_id in _world_info_cache:
         return _world_info_cache[char_id]
+    mapping = _load_world_mapping()
+    world_id = mapping.get(char_id, char_id)
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    path = os.path.join(base, "world_info", f"{char_id}.json")
+    path = os.path.join(base, "world_info", f"{world_id}.json")
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             _world_info_cache[char_id] = json.load(f)
