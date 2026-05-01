@@ -1,7 +1,7 @@
 {
   "2": {
     "inputs": {
-      "ckpt_name": "illustrious/oneObsession_v20Bold.safetensors"
+      "ckpt_name": "PLACEHOLDER_CHECKPOINT.safetensors"
     },
     "class_type": "CheckpointLoaderSimple",
     "_meta": {
