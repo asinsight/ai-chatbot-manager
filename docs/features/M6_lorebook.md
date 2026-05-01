@@ -68,7 +68,7 @@ Recommend A — explicit > implicit; the operator should consciously remap befor
 - **A (recommended)**: dedicated sidebar item "Lorebook" + dedicated `/lorebook` page.
 - **B**: tab inside `/characters` / `/config`. More compact but worsens navigation when an operator is editing a shared world that touches multiple characters.
 
-Recommend A — sidebar item, matches the user's brief ("Lorebook 탭으로 따로 만들어야해").
+Recommend A — sidebar item, matches the user's brief (a separate Lorebook tab).
 
 ### #6 — Sample char05 lorebook content
 - Will seed 4–6 short entries plausible for Jiwon Han (Korean R&D office worker — see her persona). Examples: her boss, her commute, her favorite cafe, her current project. Keywords in English (matches the rest of the SFW fork's i18n).
