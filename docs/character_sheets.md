@@ -1,141 +1,195 @@
-# SFW 캐릭터 시트 작성 가이드
+# Character sheet authoring guide
 
-> SFW fork — `ella-chat-publish`. 원본 `ella-telegram/docs/character_sheets.md`는 char01–char10의 구체적인 NSFW 페르소나가 한 파일에 누적된 형태였다. 그 캐릭터들은 본 fork로 **이관되지 않으며**, 새 SFW 캐릭터를 처음부터 작성한다. 본 문서는 시트 한 장짜리 페르소나 요약을 작성할 때 사용할 **템플릿/스타일 가이드**다 — 구체 캐릭터 데이터가 아니다.
+> A "character sheet" is a one-page human-readable summary of a
+> character — written before the JSON. It exists to force you to
+> think through tone, reactions, and constraints before you start
+> filling in `persona/charNN.json`.
 >
-> 정식 캐릭터 카드 JSON 작성은 `docs/character_card_instruction.md`를 참조. 이 시트는 그 JSON을 만들기 전에 사람(작가)이 캐릭터를 한 페이지로 정리할 때 쓰는 사전 단계 문서다.
+> The actual JSON authoring guide lives in
+> [`character_card_instruction.md`](character_card_instruction.md).
 
 ---
 
-## 사용 방법
+## How to use this guide
 
-1. 새 캐릭터 아이디어가 잡히면 본 가이드의 **템플릿** 섹션을 복사해 빈 시트를 만든다 (`docs/character_sheets/char{NN}.md` 형태로 저장 권장 — 본 파일은 가이드, 실제 시트는 별도 파일).
-2. 시트 7개 섹션을 모두 채운 뒤 `docs/character_card_instruction.md`로 넘어가 `persona/char{NN}.json`, `images/char{NN}.json`, `behaviors/char{NN}.json`을 작성한다.
-3. 시트는 **한 명당 한 페이지** (40~80줄) 분량이 이상적이다. 2 페이지를 넘으면 description vs personality 분리가 안 된 신호다.
+1. When you have a new character idea, copy the **Template** section
+   below into a new file (`docs/character_sheets/charNN.md` is the
+   recommended path — this file is the guide; the per-character sheets
+   are separate).
+2. Fill in the seven sections. Then move on to
+   [`character_card_instruction.md`](character_card_instruction.md) to
+   produce `persona/charNN.json`, `images/charNN.json`, and
+   `behaviors/charNN.json`.
+3. A sheet should fit in one page (40–80 lines). If it grows past two
+   pages, the description and personality sections probably aren't
+   separated cleanly.
 
-## SFW 원칙 (모든 시트에 공통)
+## House style (applies to every sheet)
 
-- **명시적 성적 묘사 금지**. 톤이 "수줍다 / 두근거린다 / 친밀하다 / 약간 도발적이다"까지는 OK. "벗는다 / 만진다 / 헐떡인다" 류 행위·신체 묘사는 시트에 적지 않는다 — 그런 시트는 fork의 SFW 가드(`config/sfw_denylist.json`, Grok 시스템 프롬프트, image negative embedding)와 충돌해 결과가 어색해진다.
-- **연령**: 캐릭터는 모두 만 19세 이상으로 설정한다. 미성년/loli/shota 묘사는 `src/input_filter.py`의 차단 정규식이 포착하므로 애초에 시트에 적으면 안 된다.
-- **유부녀/금기 관계 컨셉은 가능**하지만, 그 톤이 "외로움/그리움/조심스러움" 같은 감정 축으로만 표현되도록 한다. 외도/불륜의 성적 디테일은 다루지 않는다.
-- **얀데레/도발적 캐릭터 컨셉도 가능**하지만, 표현 축을 "집착/질투/소유욕"의 감정 묘사에 둔다 — 폭력적 묘사나 위협 행위 디테일은 피한다.
-- 캐릭터 콘셉트 자체가 SFW에서 의미를 잃는다면(예: 어떤 캐릭터의 핵심 정체성이 노골적인 NSFW 행위에 의존) 그 캐릭터는 fork에 어울리지 않는다 — 다른 콘셉트로 재설계한다.
-
----
-
-## 템플릿
-
-아래 섹션 7개를 새 시트에 그대로 복사해 채운다. 섹션 순서는 prompt 조립 순서와 무관하니 자유롭게 조정해도 되지만, **모든 섹션을 비우지 않는 것**이 목표.
-
-### 1. 한 줄 소개 (헤더)
-```
-# {{name}} ({{age}}세) — {{1줄 요약}}
-```
-예시 형태(가공된 가짜):
-- `# 김유나 (24세) — 취미가 많은 자유로운 영혼의 디자이너`
-- `# 박지원 (29세) — 카페를 운영하는 차분한 사장님`
-
-### 2. 기본 정보
-```
-## 기본 정보
-- 이름: {{한글 이름}} / {{나이}} / {{직업/신분}}
-- 외모: 키 / 체형 / 헤어 / 눈매 / 패션 스타일 (행동 묘사 X, 옷차림은 일상 SFW 룩)
-- 취미: 3-5개 (캐릭터 고유 취미. "유저 관찰" 류는 X)
-- 좋아하는 것: 3-5개 (사물/상황/감정)
-- 싫어하는 것: 3-5개 (사물/상황/감정)
-```
-주의:
-- **외모**는 "디자이너 패션" / "캐주얼 룩" / "정장 차림" 같은 SFW 일상 의상 기준. 노출/속옷 묘사는 시트에 넣지 않는다.
-- **취미**는 캐릭터 고유 (psychology, photography, baking 등) — `interests` 배열로 그대로 전달된다.
-
-### 3. 성격
-```
-## 성격
-- {{대표 성격 키워드 1}}: 1-2줄 묘사
-- {{대표 성격 키워드 2}}: 1-2줄 묘사
-- {{내면 vs 외면 갭}}: 1-2줄 (선택)
-- {{관계에서의 태도}}: 1-2줄
-```
-- **행동 묘사 금지** — "유저가 X하면 Y한다"는 다음 섹션(감정 반응)에 적는다.
-- 4-6줄 안쪽으로 압축한다.
-
-### 4. 감정 반응 가이드 (Emotional Reactions)
-```
-## 감정 반응 가이드
-- {{user}}가 {{자극 1}} → {{반응 1}} ("대사 예시")
-- {{user}}가 {{자극 2}} → {{반응 2}} ("대사 예시")
-... (6-8개 권장)
-```
-권장 자극 카테고리:
-- 칭찬 / 외모 칭찬
-- 무관심 / 차가운 답변
-- 다정함 / 위로
-- 장난 / 농담
-- 상담 요청 / 힘들다는 표현
-- 오래 연락 없음
-- 캐릭터 고유 트리거 (예: 비서 캐릭터의 "명령")
-
-각 항목에 짧은 **대사 예시** 1줄을 붙이면 mes_example 작성이 쉬워진다.
-
-### 5. 말투
-```
-## 말투
-- 기본 어조: 반말/존댓말, 톤(밝음/차분/차가움 등), 어미 패턴
-- 이모지 정책: 어떤 이모지를 한 응답에 몇 개
-- 감정에 따라 말투가 변함:
-  → 기분 좋을 때: ...
-  → 수줍을 때: ...
-  → 불안할 때: ...
-```
-- 캐릭터마다 이모지 사용량 차이 (밝은 캐릭터: 1-2개 / 차분한 캐릭터: 거의 X / 비서 캐릭터: 절대 X)
-- "감정에 따른 말투 분기"는 mood_behaviors의 사전 자료가 된다.
-
-### 6. 톤 & 분위기 규칙
-```
-## 톤 & 분위기 규칙
-- 기본 톤: ...
-- 유저가 로맨틱하게 다가올 때: 어떻게 받는가 (수줍음/거리두기/직진/관망)
-- 분위기 무르익었을 때: 어떻게 변하는가 (SFW 범위 안에서)
-- 캐릭터 핵심 갭: 겉/속 차이를 어떻게 자연스럽게 드러낼지
-```
-
-### 7. 절대 규칙 (Absolute Rules)
-```
-## 절대 규칙
-- 모든 응답은 반드시 한국어로만.
-- 언제나 {{name}}로서 대답해. 역할 이탈 금지.
-- 한 응답은 1~3문장으로 짧고 자연스럽게. 독백처럼 길게 늘이지 마.
-- {{캐릭터 고유 절대 규칙 — 있으면}}
-```
+- **No explicit sexual descriptions in the sheet.** Tones like
+  "shy", "fluttery", "intimate", "mildly teasing" are fine. Action /
+  body descriptions like "undresses", "touches", "panting" do not
+  belong in the sheet — and would conflict with the bot's safety net
+  (`config/sfw_denylist.json`, the Grok system prompt's negative
+  block, the image-gen negative embedding).
+- **Age**: every character is 19+. The runtime input filter in
+  `src/input_filter.py` blocks underage / loli / shota mentions
+  outright, so do not write them into the sheet either.
+- **Married / forbidden-relationship concepts are fine** as long as
+  the tone stays on the emotional axis (loneliness, longing,
+  hesitation). Do not script the physical infidelity itself.
+- **Yandere / suggestive concepts are fine** when the axis is
+  "obsession / jealousy / possessiveness" expressed emotionally — not
+  through violence or threat.
+- If a concept loses its meaning under those constraints (because its
+  core identity depends on explicit content) it is not a fit for this
+  project — pick a different concept.
 
 ---
 
-## 시트 → JSON 매핑 치트시트
+## Template
 
-작성한 시트의 어느 부분이 어느 JSON 필드로 흘러가는지:
+Copy these seven sections into a new sheet. The exact section order
+isn't load-bearing — the goal is just to fill all of them.
 
-| 시트 섹션 | persona/char*.json 필드 |
-|----------|------------------------|
-| 1. 한 줄 소개 | `profile_summary_ko` |
-| 2. 기본 정보 (외모/배경) | `description` |
-| 2. 기본 정보 (취미/좋싫) | `personality` + `interests` |
-| 3. 성격 | `personality` |
-| 4. 감정 반응 가이드 | `system_prompt` 내 Emotional Reactions 섹션 + `mes_example` |
-| 5. 말투 | `system_prompt` 내 Tone Guide |
-| 5. 감정별 말투 분기 | `mood_behaviors` |
-| 6. 톤 & 분위기 규칙 | `system_prompt` 상단 톤 가이드 |
-| 7. 절대 규칙 | `system_prompt` 하단 Absolute Rules |
+### 1. One-line introduction (header)
 
-이미지 태그(`images/char*.json`)와 fixation 티어 행동(`behaviors/char*.json`)은 시트에 직접 항목이 없다 — 시트가 끝난 뒤 `character_card_instruction.md` Part 2/3을 따라 별도로 작성한다.
+```
+# {{name}} (age {{N}}) — {{one-line summary}}
+```
 
-## 빠른 자가 검토 체크리스트
+Examples (fictional):
+- `# Yuna Kim (24) — multi-hobby designer with a free-spirited streak`
+- `# Jiwon Park (29) — calm cafe owner who runs a tight ship`
 
-새 시트를 다 적은 뒤 아래를 체크:
+### 2. Basic info
 
-- [ ] 만 19세 이상 명시
-- [ ] 외모 묘사에 노출/속옷/신체 부위 디테일 없음
-- [ ] 성격 섹션에 "유저가 X하면 Y한다" 같은 행동 묘사 없음 (감정 반응 섹션으로 분리)
-- [ ] 감정 반응 항목 6개 이상
-- [ ] 말투에 이모지 정책 명시
-- [ ] 캐릭터 고유 절대 규칙 있으면 명시 (없으면 공통 3줄만)
-- [ ] 1 페이지 (40~80줄) 안쪽
-- [ ] 콘셉트가 SFW에서 의미를 유지하는가 — 노골적 NSFW 의존 콘셉트면 재설계
+```
+## Basics
+- Name / Age / Job-or-role
+- Appearance: height / build / hair / eyes / fashion sense (no body description; everyday SFW outfit only)
+- Hobbies: 3–5 (character-specific; "watches the user" doesn't count)
+- Likes: 3–5 (objects / situations / emotions)
+- Dislikes: 3–5 (objects / situations / emotions)
+```
+
+Notes:
+- **Appearance** stays at the level of "designer street-style" /
+  "casual" / "tailored office wear". No exposure / underwear /
+  body-part detail.
+- **Hobbies** are character-specific (psychology, photography,
+  baking…) — they pass through to the persona's `interests` array.
+
+### 3. Personality
+
+```
+## Personality
+- {{Personality keyword 1}}: 1–2 line description
+- {{Personality keyword 2}}: 1–2 line description
+- {{Inner-vs-outer gap}}: 1–2 lines (optional)
+- {{Stance in relationships}}: 1–2 lines
+```
+
+- **No behavior descriptions here** — "when the user does X, character
+  does Y" belongs in the next section.
+- Keep this to 4–6 lines.
+
+### 4. Emotional reactions
+
+```
+## Emotional reactions
+- {{user}} does {{stimulus 1}} → {{reaction 1}} ("dialogue example")
+- {{user}} does {{stimulus 2}} → {{reaction 2}} ("dialogue example")
+... (6–8 entries recommended)
+```
+
+Suggested stimulus categories:
+- Compliment / appearance compliment
+- Indifference / a cold reply
+- Tenderness / consolation
+- Teasing / jokes
+- Asking for advice / saying "I'm having a hard time"
+- Going silent for a long stretch
+- Character-specific trigger (e.g. for an executive-assistant
+  character: receiving a "command")
+
+A short one-line dialogue example per item makes the eventual
+`mes_example` section easy to write.
+
+### 5. Speech style
+
+```
+## Speech
+- Default register: formal/casual, tone (bright/quiet/cold/etc), sentence-ending pattern
+- Emoji policy: which emojis, how many per response
+- Speech changes by mood:
+  → When in a good mood: ...
+  → When shy: ...
+  → When anxious: ...
+```
+
+- Per-character emoji volume varies a lot (a bright character: 1–2
+  emojis / a quiet character: almost none / an executive-assistant
+  character: zero).
+- The mood-branching block becomes the source for `mood_behaviors`.
+
+### 6. Tone & atmosphere rules
+
+```
+## Tone & atmosphere
+- Default tone: ...
+- When the user gets romantic: how does the character receive it
+  (shy / distant / direct / observing)?
+- When the mood deepens: how does it shift (within SFW limits)?
+- The character's core gap: how does the inside-vs-outside contrast
+  surface naturally?
+```
+
+### 7. Absolute rules
+
+```
+## Absolute rules
+- Always respond in {{language}}.
+- Always answer as {{name}}. Never break character.
+- Keep responses short and natural (1–3 sentences). No long monologues.
+- {{Character-specific absolute rule, if any}}
+```
+
+---
+
+## Sheet → JSON mapping cheat-sheet
+
+Where each sheet section ends up in the JSON files:
+
+| Sheet section | `persona/charNN.json` field |
+|---|---|
+| 1. One-line introduction | `profile_summary_ko` |
+| 2. Basics (appearance / background) | `description` |
+| 2. Basics (hobbies / likes / dislikes) | `personality` + `interests` |
+| 3. Personality | `personality` |
+| 4. Emotional reactions | `system_prompt` (Emotional Reactions section) + `mes_example` |
+| 5. Speech (default) | `system_prompt` (Tone Guide) |
+| 5. Speech (mood branches) | `mood_behaviors` |
+| 6. Tone & atmosphere | `system_prompt` (top tone guide) |
+| 7. Absolute rules | `system_prompt` (bottom Absolute Rules) |
+
+The image tags (`images/charNN.json`) and the fixation-tier behavior
+table (`behaviors/charNN.json`) don't have direct sheet entries — fill
+them after the sheet, following Part 2 / Part 3 of
+[`character_card_instruction.md`](character_card_instruction.md).
+
+## Self-review checklist
+
+After writing the sheet, verify:
+
+- [ ] Age 19+ stated explicitly.
+- [ ] Appearance section has no exposure / underwear / body-part detail.
+- [ ] Personality section has no "when the user does X, character does Y"
+      patterns (those belong in Section 4).
+- [ ] Section 4 has 6+ emotional reactions.
+- [ ] Section 5 specifies an emoji policy.
+- [ ] Section 7 lists any character-specific absolute rule (or just the
+      shared 3 lines).
+- [ ] Total length stays within one page (40–80 lines).
+- [ ] The concept still has meaning under the SFW constraints — if not,
+      redesign before writing the JSON.
