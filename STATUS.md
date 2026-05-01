@@ -3,15 +3,15 @@
 > 작업 진행 상황 실시간 트래커. 매 의미있는 단계마다 갱신.
 > 자세한 결정 사항·아키텍처는 [CLAUDE.md](CLAUDE.md) / [plan.md](plan.md) / [NSFW_INVENTORY.md](NSFW_INVENTORY.md) 참고.
 
-**마지막 갱신**: 2026-04-30 (M5 — Workflows + Logs + 메인 봇 strict + UX 정리 / develop 머지 대기)
+**마지막 갱신**: 2026-05-01 (M6 — Lorebook editor + char→world mapping / develop 머지 대기)
 
 ---
 
 ## 현재 상태
 
-- **브랜치**: `feat/feature_M5_workflows_logs`
-- **다음 작업**: 별도 PR 후보 (video_models.json catalog, Prompt Guard 인증, 라이브 SSE 등)
-- **진행 중**: M5 develop 머지 대기
+- **브랜치**: `feat/feature_M6_lorebook`
+- **다음 작업**: 별도 PR 후보 (video_models.json catalog, Prompt Guard 인증, SSE 로그 등)
+- **진행 중**: M6 develop 머지 대기
 - **블로커**: 없음
 
 ---
@@ -20,7 +20,9 @@
 
 | 일자 | 단계 | 브랜치 | 머지 커밋 | 핵심 |
 |---|---|---|---|---|
-| 2026-04-30 | Platform M5 — Workflows + Logs + 메인 봇 strict + UX 정리 | `feat/feature_M5_workflows_logs` | (develop 대기) | `/workflows`: Stage assignments (Standard / HQ dropdown ↔ `COMFYUI_WORKFLOW{,_HQ}` env), 워크플로우별 auto facts (node count / Σ steps / refiner+detailer 감지 / size) + admin description (`config/workflow_descriptions.json`), Form / Raw JSON / Replace 3 탭. Replace 는 `%prompt%` + `%negative_prompt%` placeholder 검증 강제 (PM #8 B). `/logs`: file picker + tail 200-5000 + refresh interval + regex filter + auto-scroll + download (`/api/bot/logs` 에 `?file=` + `?listFiles=1` 추가). 메인 봇 strict: `bot.py` SystemExit + `bot-process.ts` pre-flight 422 + dashboard 경고 배너 + Start 버튼 disabled + `/env` 빨간 required 배지 + Save 차단. UX: 사이드바 / title "Chatbot Manager" rename, shadcn Select 투명 fix (`--popover` 추가), `bot.log` duplicate 라인 fix (StreamHandler 제거). 새 의존성 0개. |
+| 2026-05-01 | Platform M6 — Lorebook editor + char→world mapping | `feat/feature_M6_lorebook` | (develop 대기) | `world_info/char05.json` (Jiwon Han sample lorebook 6 entries) + `world_info/mapping.json` (`char_id → world_id`) 추가. `src/prompt.py` 가 mapping 우선 조회 + legacy `<char_id>.json` fallback. `/lorebook` 페이지 신설 (사이드바 Lorebook): Mapping card (per-char dropdown + legacy fallback 옵션) + World list (Add/Duplicate/Delete with WORLD_IN_USE 안내) + World editor (Test pane mirrors `_match_world_info()` + entry CRUD: chips/textarea/position select). 4 new API routes under `/api/lorebook` + `lib/lorebook.ts` (zod 검증) + `lib/lorebook-meta.ts` (클라이언트 안전). 새 의존성 0개. |
+| 2026-04-30 | Post-M5 cleanup — security + deploy + onboarding strip + workflows polish | `feat/feature_M5_polish_cleanup` + `feat/feature_M5_polish_workflow_cleanup` | `d1be949` + `aea64a4` | 보안: 192.168.86.250 사설 IP 제거 + 3 hardcoded x.ai URL → GROK_BASE_URL env + grok.py 5 callsite 단일 상수화. deploy: 모든 .service / install.sh / backup_db.sh 제거 (서비스 아님), Korean comment 영어화, `deploy/prompt-guard/` 신설 (FastAPI 서버 + README). 봇 UX: TOS / privacy / consent 다이얼로그 제거, /privacy 명령 제거, "Telegram Chatbot Manager" rename, 📷 Capture fixation > 50 게이트 제거 (모든 메시지 노출). 워크플로우: HQ JSON 의 NSFW 4 노드 strip + checkpoint dropdown auto-populate from ComfyUI. |
+| 2026-04-30 | Platform M5 — Workflows + Logs + 메인 봇 strict + UX 정리 | `feat/feature_M5_workflows_logs` | `b36338b` | `/workflows`: Stage assignments (Standard / HQ dropdown ↔ `COMFYUI_WORKFLOW{,_HQ}` env), 워크플로우별 auto facts (node count / Σ steps / refiner+detailer 감지 / size) + admin description (`config/workflow_descriptions.json`), Form / Raw JSON / Replace 3 탭. Replace 는 `%prompt%` + `%negative_prompt%` placeholder 검증 강제 (PM #8 B). `/logs`: file picker + tail 200-5000 + refresh interval + regex filter + auto-scroll + download (`/api/bot/logs` 에 `?file=` + `?listFiles=1` 추가). 메인 봇 strict: `bot.py` SystemExit + `bot-process.ts` pre-flight 422 + dashboard 경고 배너 + Start 버튼 disabled + `/env` 빨간 required 배지 + Save 차단. UX: 사이드바 / title "Chatbot Manager" rename, shadcn Select 투명 fix (`--popover` 추가), `bot.log` duplicate 라인 fix (StreamHandler 제거). 새 의존성 0개. |
 | 2026-04-30 | Platform M4 — Image config editor + Character schema viewer | `feat/feature_M4_image_config` | `4621d27` | `/config` 3 탭 (sfw_scenes / pose_motion_presets / sfw_denylist) — master-detail + chips form + Raw JSON fallback + zod 검증 + 자동 백업 + restart-required toast. `profile_keys` 는 LLM 프로필 캐노니컬화 config 라서 `/prompts` 3번째 탭으로 이동. `character_card_schema` 는 `/characters` 의 read-only "View schema" Dialog 로 분리 (편집 불가, 전용 GET-only `/api/character-schema`) + 한국어 description 전부 영어로 번역. 부수: 4 pre-existing react/no-unescaped-entities lint 에러 (develop 에서 `npm run build` 막던 것) 수정. zod + @radix-ui/react-select 추가. |
 | 2026-04-30 | Platform M3 — Character card CRUD + 단일 bot-token namespace | `feat/feature_M3_character_crud` | `6fb059a` | /characters list (Edit/Duplicate/Delete with AlertDialog) + /characters/[charId] editor (Form 모드 + Raw JSON 모드 토글). 22 persona 필드 schema-driven (chips/kv/trigger-list/stat-limits 위젯) + behaviors 4-tier + images 중첩 객체. first_mes markdown 미리보기 ({{user}}/{{char}} 매크로). Soft-delete + draft auto-save + Bot tokens 4번째 탭 + ajv validation + 빈-required 거부. **TEST_/PROD_ 분리 전면 제거** (오픈소스 단일 deployment). /env Bot tokens 탭 grouping (Native/Character) + character bots readonly + redirect link. 봇은 token+username 둘 다 있어야 main listing 노출. |
 | 2026-04-29 | Platform M2 — Prompt 편집기 | `feat/feature_M2_prompt_editor` | `4823d44` | /prompts 페이지: Outer tabs (Grok prompting / System prompt) × inner tabs (5+3 keys), Monaco 65vh 에디터, react-diff-viewer modal, ${var} placeholder lint (warn-not-block), per-key save + 자동 백업, 8 키 별 inline metadata (title / summary / used by). |
@@ -41,15 +43,13 @@
 
 ---
 
-## M5 머지 체크리스트 (develop ← feat/feature_M5_workflows_logs)
+## M6 머지 체크리스트 (develop ← feat/feature_M6_lorebook)
 
-- [x] 1 feature commit (`335a75c`) — bot strict + workflows + logs + UX
-- [x] /workflows + /logs 사용자 수동 테스트 PASS
-- [x] Stage assignments PUT/GET, workflow Replace 검증 (PLACEHOLDER_MISSING / NO_CHECKPOINT_LOADER)
-- [x] `?file=` 화이트리스트, path traversal 차단
-- [x] 메인 봇 strict: 빈 main → 422 MAIN_BOT_NOT_CONFIGURED, dashboard 경고 + /env required gate
+- [x] 1 feature commit (`90257dd`) — bot loader + sample lorebook + mapping + 4 API + UI + sidebar
+- [x] /lorebook 사용자 수동 테스트 PASS
+- [x] 5 endpoints + INVALID_NAME (mapping 예약어 / 대문자) + WORLD_IN_USE 거부 + 자동 backup smoke test PASS
 - [x] `npm run build` clean
-- [ ] platform / 루트 / src / config / comfyui_workflow / docs CLAUDE.md + STATUS.md (본 commit) 갱신
+- [ ] platform / 루트 / src / docs / world_info CLAUDE.md + STATUS.md (본 commit) 갱신
 
 ---
 
@@ -93,7 +93,7 @@ main 머지 시 갱신 의무. 현재 상태:
 | `scripts/` | ✅ | 변경 없음 |
 | `tools/` | ✅ | 변경 없음 |
 | `jobs/` | ❌ | (비어있음 — 미작성 OK) |
-| `world_info/` | ❌ | (비어있음 — 미작성 OK) |
+| `world_info/` | ✅ | M6 에서 sample (char05.json) + mapping.json + CLAUDE.md 추가 |
 | `platform/` | ✅ | 본 commit 에서 M1 (env / connections / db / ping) 반영 |
 
 ---
