@@ -1,6 +1,6 @@
 # `src/` — Module organization (SFW fork)
 
-This directory holds the runtime Python modules for `ella-chat-publish`. The fork is a SFW-only descendant of `ella-telegram` — all NSFW pathways were removed at fork time.
+This directory holds the runtime Python modules for the AI Chat Manager bot — the `python-telegram-bot`-based runtime that hosts the main bot + N character bots, talks to the LLM / ComfyUI / Atlas Cloud, and persists chat state to SQLite.
 
 ## Entry point
 

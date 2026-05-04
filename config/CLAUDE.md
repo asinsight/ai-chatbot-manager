@@ -1,6 +1,6 @@
 # `config/` — JSON configuration (SFW fork)
 
-Runtime configuration for `ella-chat-publish`. All five files in this directory are required at startup; the bot will fail to import `grok.py` if `grok_prompts.json` is missing or invalid.
+Runtime configuration for the bot. All five files in this directory are required at startup; the bot will fail to import `grok.py` if `grok_prompts.json` is missing or invalid.
 
 ## Files
 

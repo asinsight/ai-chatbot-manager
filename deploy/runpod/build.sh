@@ -12,7 +12,7 @@ COMFYUI_DIR="${COMFYUI_DIR:-$HOME/ComfyUI}"
 IMAGE_NAME="ella-comfyui-serverless"
 IMAGE_TAG="latest"
 
-echo "=== Building ella-chat-publish ComfyUI RunPod serverless image ==="
+echo "=== Building ai-chat-manager ComfyUI RunPod serverless image ==="
 echo "ComfyUI directory: $COMFYUI_DIR"
 echo "Dockerfile:        $SCRIPT_DIR/Dockerfile"
 

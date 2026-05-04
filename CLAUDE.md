@@ -1,4 +1,4 @@
-# Telegram Chatbot Manager
+# AI Chat Manager
 
 A self-hosted admin platform for running Telegram character chatbots.
 
@@ -67,7 +67,7 @@ text-only bots.
 
 ```bash
 # 1. Bot
-git clone <your-fork> && cd telegram-chatbot-manager
+git clone <your-fork> && cd ai-chat-manager
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env       # then fill MAIN_BOT_TOKEN + MAIN_BOT_USERNAME at minimum
@@ -190,6 +190,4 @@ context belongs in `docs/features/M*.md`.
 
 ## License
 
-This project ships without an explicit license at the moment. Until a
-LICENSE file is added, treat all rights as reserved by the original
-author.
+MIT License — see [`LICENSE`](LICENSE). Copyright (c) 2026 Junhee Yoon.

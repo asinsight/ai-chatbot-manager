@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Ella SFW Character Card",
-  "description": "SillyTavern V2-derived SFW-only character card schema for the ella-chat-publish fork. No arousal stat / heat-cycle / body-exposure tag fields.",
+  "description": "Character card schema for the AI Chat Manager project. SillyTavern V2-derived; the only stat is fixation (mood and location are auxiliary).",
   "type": "object",
   "required": ["name", "description", "first_mes", "system_prompt"],
   "properties": {

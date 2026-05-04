@@ -4,12 +4,10 @@
 Compiled research from Civitai guides, Danbooru wiki, and community best practices.
 Target model: oneObsession (Illustrious-XL based, Danbooru-trained, v-prediction).
 
-**Scope (SFW fork)**: This document is the SFW-only Danbooru tagging reference for the
-`ella-chat-publish` fork. All explicit / questionable / lingerie-state /
-undressing-state / sex-act / body-fluid / ahegao tag inventories that existed in the
-original guide have been removed. Only `rating:safe` (a.k.a. `rating:general`) is
-discussed. The companion external prompt file `config/grok_prompts.json` enforces the
-same SFW boundary for the Grok-side rule set.
+**Scope**: SFW-only Danbooru tagging reference for the AI Chat Manager
+project. Only `rating:safe` (a.k.a. `rating:general`) is discussed. The
+companion external prompt file `config/grok_prompts.json` enforces the
+same SFW boundary on the Grok-side rule set.
 
 ---
 
