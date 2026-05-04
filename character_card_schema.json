@@ -1,108 +1,108 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Ella SFW Character Card",
-  "description": "SillyTavern V2 기반 SFW 전용 캐릭터 카드 스키마. ella-chat-publish fork 전용. 성적 자극 스탯/주기적 자극 사이클/신체 노출 태그 필드는 미존재.",
+  "description": "Character card schema for the AI Chat Manager project. SillyTavern V2-derived; the only stat is fixation (mood and location are auxiliary).",
   "type": "object",
   "required": ["name", "description", "first_mes", "system_prompt"],
   "properties": {
     "name": {
       "type": "string",
-      "description": "캐릭터 이름. 프롬프트 내 {{char}} 매크로로 치환됨"
+      "description": "Character display name. Substituted into prompts via the {{char}} macro."
     },
     "profile_summary_ko": {
       "type": "string",
-      "description": "한국어 한 줄 요약 (관리/UI용 짧은 설명)",
+      "description": "One-line profile summary shown in the admin list (originally Korean; can be any language).",
       "default": ""
     },
     "jobs": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "이 캐릭터가 연결된 직업 키 목록. jobs/<key>.json 파일과 매칭됨. 비어 있어도 됨 — 직업 fact 데이터는 별도 단계에서 ingest됨.",
+      "description": "Job keys associated with this character. Each entry must match a `jobs/<key>.json` file. May be empty — job fact data is ingested in a separate step.",
       "default": []
     },
     "description": {
       "type": "string",
-      "description": "캐릭터 설명 (외모, 배경, 성격 등 자유 형식 — SFW 한정)"
+      "description": "Free-form character description (appearance, background, personality). SFW only."
     },
     "personality": {
       "type": "string",
-      "description": "성격 요약 (짧은 키워드/문장)",
+      "description": "Short personality summary (keywords or a couple of sentences).",
       "default": ""
     },
     "scenario": {
       "type": "string",
-      "description": "현재 RP 시나리오/상황 설정 (SFW)",
+      "description": "Current RP scenario / situational setup. SFW only.",
       "default": ""
     },
     "first_mes": {
       "type": "string",
-      "description": "첫 번째 메시지. 새 대화 시작 시 캐릭터가 보내는 인사"
+      "description": "First message — the line the character sends when a new conversation starts. Supports the {{user}} / {{char}} macros."
     },
     "mes_example": {
       "type": "string",
-      "description": "Few-shot 대화 예시. <START> 구분자로 블록 분리. {{user}}/{{char}} 매크로 사용. SFW 톤 유지.",
+      "description": "Few-shot dialogue example. Use <START> blocks to separate dialogues. The {{user}} / {{char}} macros are supported. Keep the SFW tone.",
       "default": ""
     },
     "system_prompt": {
       "type": "string",
-      "description": "시스템 프롬프트. 캐릭터의 행동 규칙과 말투. SFW 한정 — 성적 지시문 미포함."
+      "description": "System prompt — the character's behavior rules and speech style. SFW only — no sexual instructions."
     },
     "post_history_instructions": {
       "type": "string",
-      "description": "Character's Note. 히스토리 뒤에 삽입되는 리마인더 지시문",
+      "description": "Character's Note. Reminder instructions injected after the chat history.",
       "default": ""
     },
     "creator_notes": {
       "type": "string",
-      "description": "카드 제작자 메모 (프롬프트에 삽입 안됨, 참고용)",
+      "description": "Card creator memo. Not injected into prompts; reference only.",
       "default": ""
     },
     "anchor_image": {
       "type": "string",
-      "description": "ComfyUI IPAdapter FaceID reference image 파일명. ComfyUI input 디렉터리에 미리 업로드되어 있어야 함.",
+      "description": "ComfyUI IPAdapter FaceID reference image filename. Must already be uploaded to the ComfyUI input directory.",
       "default": ""
     },
     "image_prompt_prefix": {
       "type": "string",
-      "description": "Positive 프롬프트용 Danbooru tag prefix. 캐릭터 외형 + 품질 태그.",
+      "description": "Positive Danbooru-tag prefix for image generation. Character appearance + quality tags.",
       "default": ""
     },
     "image_negative_prefix": {
       "type": "string",
-      "description": "Negative 프롬프트용 Danbooru tag prefix. 일반 품질 제외 태그.",
+      "description": "Negative Danbooru-tag prefix for image generation. General quality-exclusion tags.",
       "default": ""
     },
     "stat_personality": {
       "type": "string",
-      "description": "캐릭터별 수치 성격 설명. fixation의 의미와 증감 조건이 캐릭터마다 다름. 프롬프트에 주입됨.",
+      "description": "Per-character description of stat personality. The meaning of `fixation` and the conditions that raise/lower it differ per character. Injected into the prompt.",
       "default": ""
     },
     "stat_moods": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "캐릭터가 표현 가능한 mood 목록 (예: happy, focused, tired). [STAT:] 시그널의 mood 값으로 사용됨.",
+      "description": "List of mood values the character may express (e.g. happy, focused, tired). Used as the `mood` value of the [STAT:] signal.",
       "default": []
     },
     "proactive_behaviors": {
       "type": "string",
-      "description": "캐릭터의 능동 행동 패턴. 유저 입력 없이도 자발적으로 취하는 행동/대화 패턴. {{user}} 매크로 사용. 프롬프트에 주입됨.",
+      "description": "Self-driven behavior patterns. Behaviors / dialogue patterns the character takes without explicit user input. The {{user}} macro is supported. Injected into the prompt.",
       "default": ""
     },
     "interests": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "캐릭터의 관심사 목록. 캐릭터가 대화에서 능동적으로 탐구하는 주제. {{user}} 매크로 사용.",
+      "description": "Topics the character is interested in. The character actively explores these in conversation. The {{user}} macro is supported.",
       "default": []
     },
     "discovery_hint_template": {
       "type": "string",
-      "description": "캐릭터별 탐색 힌트 템플릿. {topic}이 미지 토픽명으로 치환됨. 빈 문자열이면 기본 DISCOVERY_TOPICS 템플릿 사용.",
+      "description": "Per-character discovery-hint template. The literal {topic} is substituted with the unfamiliar topic name. An empty string falls back to the default DISCOVERY_TOPICS template.",
       "default": ""
     },
     "mood_behaviors": {
       "type": "object",
       "additionalProperties": { "type": "string" },
-      "description": "각 mood 값에 대응하는 행동 가이드. 현재 mood와 매칭되는 가이드만 프롬프트에 주입됨.",
+      "description": "Behavior guide for each mood value. Only the guide matching the current mood is injected into the prompt.",
       "default": {}
     },
     "mood_triggers": {
@@ -110,12 +110,12 @@
       "items": {
         "type": "object",
         "properties": {
-          "trigger": { "type": "string", "description": "트리거 조건 자연어 설명 (예: '유저가 칭찬했을 때')" },
-          "mood": { "type": "string", "description": "전이될 mood 값" }
+          "trigger": { "type": "string", "description": "Trigger condition described in natural language (e.g. 'when the user gives a compliment')." },
+          "mood": { "type": "string", "description": "Mood value to transition to." }
         },
         "required": ["trigger", "mood"]
       },
-      "description": "mood 전이를 일으키는 SFW 상황 트리거 목록. 캐릭터별 2-3개 권장.",
+      "description": "List of SFW situational triggers that cause a mood transition. 2–3 entries per character recommended.",
       "default": []
     },
     "stat_limits": {
@@ -126,7 +126,7 @@
           "properties": {"up": {"type": "integer"}, "down": {"type": "integer"}}
         }
       },
-      "description": "캐릭터별 수치 변화 한도. 없으면 글로벌 기본값(fixation ±5) 사용.",
+      "description": "Per-character stat-change caps. If absent, the global default (fixation ±5) applies.",
       "default": {}
     }
   },

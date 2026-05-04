@@ -1,0 +1,4 @@
+{
+  "_doc": "Maps each character to its lorebook (world_info file). Lookup: world_info/<value>.json. Characters not present in this mapping fall back to the legacy convention world_info/<char_id>.json. The platform admin /lorebook page edits this file.",
+  "char05": "char05"
+}

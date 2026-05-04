@@ -26,7 +26,7 @@ def _sanitize_llm_output(text: str) -> str:
 
 
 async def chat_completion(messages: list[dict], max_tokens: int = 250) -> str:
-    """Open WebUI API로 채팅 완성 요청"""
+    """Request a chat completion through the Open WebUI API."""
     url = os.getenv("OPENWEBUI_URL", "").rstrip("/")
     api_key = os.getenv("OPENWEBUI_API_KEY", "")
     model = os.getenv("MODEL_NAME", "")
@@ -47,7 +47,7 @@ async def chat_completion(messages: list[dict], max_tokens: int = 250) -> str:
             return _sanitize_llm_output(data["choices"][0]["message"]["content"])
     except httpx.HTTPStatusError as e:
         import logging
-        logging.getLogger(__name__).error("LLM HTTP 에러: status=%s body=%s", e.response.status_code, e.response.text[:500])
-        return f"[오류] LLM 응답 실패: {e}"
+        logging.getLogger(__name__).error("LLM HTTP error: status=%s body=%s", e.response.status_code, e.response.text[:500])
+        return f"[error] LLM response failed: {e}"
     except Exception as e:
-        return f"[오류] LLM 응답 실패: {e}"
+        return f"[error] LLM response failed: {e}"

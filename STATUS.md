@@ -1,115 +1,80 @@
-# STATUS — ella-chat-publish
+# STATUS
 
-> 작업 진행 상황 실시간 트래커. 매 의미있는 단계마다 갱신.
-> 자세한 결정 사항·아키텍처는 [CLAUDE.md](CLAUDE.md) / [plan.md](plan.md) / [NSFW_INVENTORY.md](NSFW_INVENTORY.md) 참고.
+> Live milestone tracker. Update on every meaningful step.
+> Architecture / conventions live in [CLAUDE.md](CLAUDE.md).
 
-**마지막 갱신**: 2026-04-27 (정책 셋업 + main 안정)
-
----
-
-## 현재 상태
-
-- **브랜치**: `main` (안정)
-- **다음 작업**: Platform M0 — Admin 웹앱 골격 (Next.js 풀스택)
-- **진행 중**: 없음 (M0 시작 신호 대기)
-- **블로커**: 없음
+**Last updated**: 2026-05-01 (M6 merged into develop)
 
 ---
 
-## 완료 (역순)
+## Current state
 
-| 일자 | 단계 | 브랜치 | 머지 커밋 | 핵심 |
+- **Branch**: `develop`
+- **Next**: candidate follow-up PRs (see "Backlog" below)
+- **Blocker**: none
+
+---
+
+## Completed milestones (newest first)
+
+| Date | Milestone | Branch | Merge commit | Highlights |
 |---|---|---|---|---|
-| 2026-04-27 | Plan v2 + 정책 셋업 | main 직접 | `b11108e` 외 | Next.js 풀스택 plan 확정, git workflow 정책 추가, STATUS.md 시작 |
-| 2026-04-27 | LoRA 슬롯 제거 | main 직접 | `271f2d5` | 3개 ComfyUI 워크플로우 LoRA 14개 슬롯 모두 제거 (archived 의 NSFW LoRA 9개 포함) |
-| 2026-04-27 | Lighting purge | main 직접 | `af6a3f0` | 이미지 배경 green leak 수정 (lighting 태그 ABSOLUTE 금지) + LLM `<\|channel\|>` 토큰 sanitizer |
-| 2026-04-27 | Phase 6 — Env + 결제 제거 | main 직접 | `4eb3068` | 운영 secrets 채움 + Telegram Stars/tier/payment 코드 일괄 삭제 (-979 라인) |
-| 2026-04-27 | char09 추가 | main 직접 | `8e3423a` | 오하늘 (수줍은 꽃집 점원, 짝사랑) |
-| 2026-04-27 | Phase 3-5 | main 직접 | `cf12855` | Denylist + SFW 캐릭터 카드 8명 + docs SFW 갱신 |
-| 2026-04-27 | Phase 2D | main 직접 | `f9e83cf` | 최종 NSFW 잔재 정리 (audiogen-workflow.json 삭제) |
-| 2026-04-27 | Phase 2C | main 직접 | `efa9bf8` | Cross-agent integration 수정 + config 잔존 + 서브 CLAUDE.md |
-| 2026-04-27 | Phase 2B | main 직접 | `69f98a4` | 핸들러 레이어 재작성 + 잔존 정리 |
-| 2026-04-27 | Phase 2A | main 직접 | `16ced9b` | 독립 모듈 재작성 (history, trait_pools, video, comfyui, grok 외부화) |
-| 2026-04-27 | Phase 1 | main 직접 | `b607910` | fork 골격 (디렉터리 / verbatim 복사 / 시스템드 unit rename) |
-
-> 이전 phase 들은 main 에 직접 commit 됨 — 정책(브랜치 전략) 도입 이전.
+| 2026-05-01 | M6 — Lorebook editor + char→world mapping | `feat/feature_M6_lorebook` | `f49f2fb` | `world_info/char05.json` (sample lorebook, 6 entries) + `world_info/mapping.json` (`char_id → world_id`). `src/prompt.py` consults the mapping first and falls back to the legacy `<char_id>.json` convention. New `/lorebook` page: Mapping card (per-char dropdown + "(legacy fallback)" option) + World list (Add / Duplicate / Delete with `WORLD_IN_USE` pre-warning) + World editor (Test pane that mirrors `_match_world_info()` + entry CRUD: chips / textarea / position select). 4 new API routes + `lib/lorebook.ts` (zod) + `lib/lorebook-meta.ts` (client-safe). Zero new dependencies. |
+| 2026-04-30 | Post-M5 cleanup — security + deploy + onboarding strip + workflows polish | `feat/feature_M5_polish_cleanup` + `feat/feature_M5_polish_workflow_cleanup` | `d1be949` + `aea64a4` | Security: stripped 192.168.86.250 private IP fallback; routed 3 hard-coded `https://api.x.ai/v1` callsites through `GROK_BASE_URL`; collapsed 5 `grok.py` callsites into a single module-level constant. Deploy: removed all systemd `.service` files + `install.sh` + `backup_db.sh` (this isn't a managed service); translated all Korean comments / log messages to English; added self-contained `deploy/prompt-guard/` (FastAPI server + README). Bot UX: removed TOS / privacy / consent dialog from `/start`, removed `/privacy` command, renamed welcome header to "Telegram Chatbot Manager", removed `fixation > 50` gate so the 📷 Capture button shows on every reply. Workflows: stripped 4 NSFW nodes from `main_character_build_highqual.json`; bundled workflows now ship with `PLACEHOLDER_CHECKPOINT.safetensors`; `/workflows` Form replaces the checkpoint text input with a Select auto-populated from ComfyUI's `/object_info`. |
+| 2026-04-30 | M5 — Workflows + Logs + strict main bot + UX polish | `feat/feature_M5_workflows_logs` | `b36338b` | `/workflows`: Stage assignments (Standard / HQ dropdown ↔ `COMFYUI_WORKFLOW{,_HQ}` env), per-workflow auto-facts (node count / Σ KSampler steps / refiner+detailer detection / size) + admin description (`config/workflow_descriptions.json`), Form / Raw JSON / Replace 3 inner tabs. Replace enforces `%prompt%` + `%negative_prompt%` placeholder validation. `/logs`: file picker (current + dated archives) + tail 200-5000 + 1s/2s/5s/Paused refresh + regex filter + auto-scroll + download (`/api/bot/logs` extended with `?file=` + `?listFiles=1`). Strict main bot: `bot.py` raises `SystemExit` if `MAIN_BOT_TOKEN` / `MAIN_BOT_USERNAME` is empty; platform `start()` does the same pre-flight check (422 `MAIN_BOT_NOT_CONFIGURED`); dashboard shows an amber warning banner + Start button disabled; `/env` marks the keys as required and blocks Save until they're filled. UX: sidebar / browser title renamed to "Chatbot Manager"; shadcn Select transparency fix (`--popover` CSS var added); `bot.log` line-duplication fix (Python `StreamHandler` removed). Zero new dependencies. |
+| 2026-04-30 | M4 — Image config editor + Character schema viewer | `feat/feature_M4_image_config` | `4621d27` | `/config` 3 tabs (`sfw_scenes` / `pose_motion_presets` / `sfw_denylist`) — master-detail + chips form + Raw JSON fallback + zod validation + auto-backup + restart-required toast. `profile_keys` moved to `/prompts` as a 3rd outer tab (it controls LLM canonicalization, not image config). `character_card_schema` moved to `/characters` as a read-only "View schema" Dialog (editing it through the UI was a foot-gun) + descriptions translated to English. Bonus: fixed 4 pre-existing `react/no-unescaped-entities` lint errors that were blocking `npm run build` on develop. Added `zod` + `@radix-ui/react-select`. |
+| 2026-04-30 | M3 — Character CRUD + single bot-token namespace | `feat/feature_M3_character_crud` | `6fb059a` | `/characters` list (Edit / Duplicate / Delete with AlertDialog) + `/characters/[charId]` editor (Form mode: Persona / Behaviors / Images / Bot tokens 4 tabs; Raw JSON mode: 3 Monaco editors). 22 persona fields are schema-driven (chips / kv / trigger-list / stat-limits widgets) + behaviors as a 4-tier fixation table + nested images object. `first_mes` markdown preview with `{{user}}` / `{{char}}` macro substitution. Soft-delete + draft auto-save + ajv validation + empty-required rejection. Dropped the `TEST_` / `PROD_` env namespace split — single namespace is enough for an open-source single-deployment build. `/env` Bot tokens tab groups Native (`MAIN_BOT_*`, `CHAR_BOT_imagegen`) vs Character (read-only with redirect link). The bot only lists a character on the main bot's menu when both `CHAR_BOT_<id>` AND `CHAR_USERNAME_<id>` are set. |
+| 2026-04-29 | M2 — Prompt editor | `feat/feature_M2_prompt_editor` | `4823d44` | `/prompts` page: outer tabs (Grok prompting / System prompt) × inner tabs (5+3 keys), Monaco 65vh editor, react-diff-viewer modal, `${var}` placeholder lint (warn-not-block), per-key save with auto-backup, inline metadata (title / summary / used-by) per key. |
+| 2026-04-28 | M1 polish | `feat/feature_M1_polish` | `b1fa27f` | Renamed Grok env vars to `GROK_PROMPTING_*`, exposed `VIDEO_COMPOSER_MODEL`, fixed `/env` UI secret-mask display, added default-value placeholders in `.env.example`, corrected the OpenWebUI label (Gemma → llama-cpp-python). |
+| 2026-04-28 | M1 — Env + Connections + i18n + sample character | `feat/feature_M1_env_connections` | `09334db` | `/env` (8 categories + secret masking + auto-backup + restart-required toast) + `/connections` (4 endpoint cards with Ping + SQLite audit log + Dashboard health card). Added `GROK_BASE_URL` env var as a prerequisite. Codebase i18n: every code / config / character file translated to English (markdown excluded). Trimmed sample characters down to one (`char05` — Jiwon Han). |
+| 2026-04-27 | M0 — Admin skeleton | `feat/feature_M0_admin_skeleton` | `7804ea1` | Next.js 14 scaffold + sidebar + `bot-process.ts` (spawn / kill / PID file / log redirect) + 5 API routes (status / start / stop / restart / logs) + Dashboard UI. 9 manual smoke-test scenarios passed. |
 
 ---
 
-## 다음 단계 — Platform M0 (Next.js admin 웹앱 골격)
+## Backlog (candidate follow-up PRs)
 
-### Plan
-[plan.md §8 M0](plan.md) 참고. 본 마일스톤 시작 시 별도 feature plan MD 를 `docs/features/M0_admin_skeleton.md` 에 작성.
-
-### 브랜치 흐름
-```
-main
-  └ develop (M0 부터 도입)
-      └ feat/feature_M0_admin_skeleton
-```
-
-### Deliverable (요약)
-- `platform/` Next.js 프로젝트 초기화 (`create-next-app` + TypeScript + Tailwind)
-- shadcn/ui 컴포넌트 설치 + 기본 layout (Sidebar + Header + Main)
-- Dashboard 페이지: 봇 status 카드 + Start/Stop/Restart 버튼 + uptime + bot count
-- `lib/bot-process.ts` (Node `child_process.spawn` + PID file 추적)
-- `app/api/bot/{status,start,stop,restart}/route.ts`
-- 로그 tail (M5 까지는 polling — `GET /api/bot/logs?tail=500`)
-- 첫 commit: `chore: scaffold platform/ Next.js app`
-
-### 테스트 시나리오
-- `cd platform && npm run dev` → http://127.0.0.1:9000
-- Start 버튼 → 봇 PID 표시 → 텔레그램 봇 응답 확인
-- Stop 버튼 → 봇 종료
-- Restart 버튼 → 5초 안에 재기동
-- 봇 stdout/stderr 가 `logs/bot.log` 에 누적
-
-### 일정 (예상)
-- 1.5–2일
+- `config/video_models.json` catalog + dropdown in `/env` for `VIDEO_MODEL`
+- Prompt Guard authentication (when the server adds an auth layer)
+- SSE-based live log streaming on `/logs` (currently 1s polling)
+- Workflow versioning page (browse the `.bak` snapshots in `platform/data/backups/`)
+- Title-based prompt injection in `src/comfyui.py` — find Positive / Negative
+  `CLIPTextEncode` nodes by `_meta.title` and assign directly, dropping the
+  `%prompt%` / `%negative_prompt%` placeholder convention. Risk: changes
+  render semantics, do as its own PR.
+- License file (`MIT` or similar) once the maintainer picks one.
 
 ---
 
-## 결정 대기 (PM 답변 받으면 진행)
+## Per-folder `CLAUDE.md` status
 
-### M0 시작 시 확인할 항목
-- [ ] 현재 텔레그램 봇 (PID 92612) 처리 — admin 에서 띄울지, 그대로 두고 admin 따로 시도할지
-- [ ] M0 시작 신호
+Updated whenever a feature touches a folder. All files describe the
+current code, not history (history goes in `docs/features/M*.md`).
 
-### 별도 PR 후보 (M0 진행 중 결정 가능)
-- [ ] `GROK_BASE_URL` env 변수 추가 + `src/grok.py` 한 줄 수정 (Connections 페이지 Grok URL 편집 지원)
-- [ ] `config/video_models.json` 신규 + `src/video.py` 한 줄 수정 (비디오 모델 카탈로그 + dropdown — plan §9.9)
-- [ ] Prompt Guard 토큰 추가 (서버에 인증 도입 시)
-
----
-
-## 폴더별 CLAUDE.md 상태
-
-main 머지 시 갱신 의무. 현재 상태:
-
-| 폴더 | CLAUDE.md | 비고 |
-|---|---|---|
-| (root) | ✅ | 본 STATUS 와 함께 갱신 |
-| `src/` | ✅ | Phase 2C C9 작성, 이후 Phase 2D 변경 반영 필요 (다음 main 머지 시) |
-| `config/` | ✅ | Phase 2C C9 작성 |
-| `deploy/` | ✅ | Phase 2C C9 작성 |
-| `comfyui_workflow/` | ✅ | Phase 2C C9 작성, audiogen-workflow.json drop 반영됨 (Phase 2D D3) |
-| `behaviors/` | ❌ | 작성 필요 — SFW 캐릭터 카드 8개 (char01-char09) |
-| `persona/` | ❌ | 작성 필요 — 동일 |
-| `images/` | ❌ | 작성 필요 — 동일 |
-| `docs/` | ❌ | 작성 필요 — 4개 문서 안내 |
-| `scripts/` | ❌ | 작성 필요 — 현재 비어있음 (`.gitkeep` 만) |
-| `tools/` | ❌ | 작성 필요 — 현재 비어있음 (`.gitkeep` 만) |
-| `jobs/` | ❌ | (비어있음 — 미작성 OK) |
-| `world_info/` | ❌ | (비어있음 — 미작성 OK) |
-| `platform/` | — | M0 에서 신설 시 함께 추가 |
+| Folder | `CLAUDE.md` |
+|---|---|
+| (root) | ✅ |
+| `src/` | ✅ |
+| `platform/` | ✅ |
+| `config/` | ✅ |
+| `deploy/` | ✅ |
+| `comfyui_workflow/` | ✅ |
+| `behaviors/` | ✅ |
+| `persona/` | ✅ |
+| `images/` | ✅ |
+| `world_info/` | ✅ |
+| `docs/` | ✅ |
+| `scripts/` | ✅ |
+| `tools/` | ✅ |
+| `jobs/` | — (folder is empty in this distribution) |
 
 ---
 
-## 갱신 규약
+## Update conventions
 
-- **이 파일은 매 의미있는 단계 완료마다 갱신.**
-- "진행 중" → "완료" 이동 시 머지 커밋 해시 기록.
-- 결정 대기 항목은 PM 답변 후 즉시 제거.
-- 마지막 갱신 시각/날짜를 상단에 명시.
-- `develop` 머지 시 STATUS.md 갱신 commit 동반.
-- `main` 머지 시 STATUS.md + 모든 CLAUDE.md 갱신 commit 동반 (CLAUDE.md 워크플로우 섹션 참고).
+- Update this file on every meaningful step (feature merge, blocker, decision).
+- Move "in progress" → "completed" with the merge commit hash.
+- Drop "decision pending" entries as soon as they are resolved.
+- Always include the absolute date on the top line.
+- A feature merge to `develop` ships a docs-update commit on the same branch.
+- A `develop` → `main` promotion ships every `CLAUDE.md` updated for the
+  changes in the bundle (see workflow rules in [CLAUDE.md](CLAUDE.md)).

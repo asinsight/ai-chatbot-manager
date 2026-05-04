@@ -1,16 +1,16 @@
 # `src/` — Module organization (SFW fork)
 
-This directory holds the runtime Python modules for `ella-chat-publish`. The fork is a SFW-only descendant of `ella-telegram` — all NSFW pathways were removed at fork time.
+This directory holds the runtime Python modules for the AI Chat Manager bot — the `python-telegram-bot`-based runtime that hosts the main bot + N character bots, talks to the LLM / ComfyUI / Atlas Cloud, and persists chat state to SQLite.
 
 ## Entry point
 
-- **`bot.py`** — Telegram bot entry. Wires up handlers (main / char / imagegen / common), starts the LLM queue, watchdog, and rate limiter, then enters polling.
+- **`bot.py`** — Telegram bot entry. Wires up handlers (main / char / imagegen / common), starts the LLM queue, watchdog, and rate limiter, then enters polling. **Main bot is required** — `bot.py` raises `SystemExit` when `MAIN_BOT_TOKEN` or `MAIN_BOT_USERNAME` is empty (M5 strict-main change). The earlier "warn-and-skip-main" behavior was dropped because character / imagegen handlers assume the main bot is alive (deep-link handoffs, onboarding redirects). The platform admin (`platform/lib/bot-process.ts`) mirrors this with a pre-flight 422 (`MAIN_BOT_NOT_CONFIGURED`) before spawn.
 
 ## Telegram handlers
 
 - **`handlers_main.py`** — Top-level commands (`/start`, `/help`, `/scene` admin, character selection menu). Routes free-text input to `handlers_char.py` or `handlers_imagegen.py` via `intent_router.py`.
 - **`handlers_char.py`** — Character chat loop. Builds the system prompt from `prompt.py`, calls `llm.py`, parses `[STAT:]` tokens to update fixation/mood/location through `history.py`, and exposes the 📷 send-photo button when fixation crosses the threshold (the original arousal gate has been rebound to fixation; arousal does not exist in this fork).
-- **`handlers_imagegen.py`** — Image-generation flows: `/random` SFW scene roll, `/edit` partial edits, character-card image rendering. Calls `grok.py` to compose Danbooru tags, then `comfyui.py` to render. There is no `/random NSFW`, no `body_nsfw` merge, and no NSFW LoRA override.
+- **`handlers_imagegen.py`** — Image-generation flows: `/random` SFW scene roll, `/edit` partial edits, character-card image rendering. Calls `grok.py` to compose Danbooru tags, then `comfyui.py` to render. There is no `/random NSFW`, no `body_nsfw` merge, and no NSFW LoRA override. The HQ workflow path is read from `os.getenv("COMFYUI_WORKFLOW_HQ", "comfyui_workflow/main_character_build_highqual.json")` (M5) — the platform admin's `/workflows` Stage assignments card writes this env var.
 - **`handlers_common.py`** — Shared button/callback helpers used by both char and imagegen handlers (image-action keyboards, message edits, error replies).
 
 ## Generation backends
@@ -36,7 +36,7 @@ This directory holds the runtime Python modules for `ella-chat-publish`. The for
 
 ## Prompt assembly
 
-- **`prompt.py`** — System prompt assembly for character chat. Reads `config/system_prompt.json` master_prompt + the active character card (from `behaviors/`, `persona/`, `images/`) and weaves in fixation/mood/location into a single prompt. The original "Layered Lust" 3-tier structure and arousal-gated speech/response branching are gone — the SFW build has a single fixation-driven IMAGE_AUTONOMY decision.
+- **`prompt.py`** — System prompt assembly for character chat. Reads `config/system_prompt.json` master_prompt + the active character card (from `behaviors/`, `persona/`, `images/`) and weaves in fixation/mood/location into a single prompt. The original "Layered Lust" 3-tier structure and arousal-gated speech/response branching are gone — the SFW build has a single fixation-driven IMAGE_AUTONOMY decision. Lorebook injection (M6): `_load_world_info(char_id)` consults `world_info/mapping.json` first (`char_id → world_id`), falling back to the legacy `world_info/<char_id>.json` convention; matched entries with `position: "background"` are spliced in early ("World setting:" block), `position: "active"` entries are appended to `post_history_instructions` so the LLM weights them more strongly via recency.
 - **`trait_pools.py`** — Trait pools for character generation (clothing, underwear, hair, eye color, build, scenes). SFW-only: the `BODY_NSFW_*` constants and `roll_nsfw_scene()` / `FORCE_NSFW_SCENE` were removed. `roll_sfw_scene()` reads `config/sfw_scenes.json`.
 - **`pose_motion_presets.py`** — Pose-motion preset registry for video generation. Single tier — text-only motion strings keyed by pose. There is no LoRA tier, no `general_nsfw` fallback. Reads `config/pose_motion_presets.json`.
 
@@ -54,7 +54,7 @@ This directory holds the runtime Python modules for `ella-chat-publish`. The for
 
 - **`watchdog.py`** — Health monitor that pings the LLM queue and ComfyUI/Atlas backends, surfacing failures to logs and (when configured) admin Telegram chat.
 - **`rate_limiter.py`** — Per-user sliding-window rate limit (chat messages and image generations counted separately).
-- **`logging_config.py`** — Logger setup; structured JSON logs to stdout for journald.
+- **`logging_config.py`** — Logger setup. Uses a single `TimedRotatingFileHandler` writing to `logs/bot.log` (daily rotation, 30-day retention). The previous `StreamHandler` was removed in M5 — when the bot runs under the platform admin (`platform/lib/bot-process.ts` redirects child stdout+stderr to the same `bot.log`), having both a `StreamHandler` and the `TimedRotatingFileHandler` produced duplicate lines. Stray prints / uncaught tracebacks still land in `bot.log` via the platform's stdout redirect — that's the intended path.
 
 ## Reference files
 

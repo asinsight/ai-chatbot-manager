@@ -4,12 +4,10 @@
 Compiled research from Civitai guides, Danbooru wiki, and community best practices.
 Target model: oneObsession (Illustrious-XL based, Danbooru-trained, v-prediction).
 
-**Scope (SFW fork)**: This document is the SFW-only Danbooru tagging reference for the
-`ella-chat-publish` fork. All explicit / questionable / lingerie-state /
-undressing-state / sex-act / body-fluid / ahegao tag inventories that existed in the
-original guide have been removed. Only `rating:safe` (a.k.a. `rating:general`) is
-discussed. The companion external prompt file `config/grok_prompts.json` enforces the
-same SFW boundary for the Grok-side rule set.
+**Scope**: SFW-only Danbooru tagging reference for the AI Chat Manager
+project. Only `rating:safe` (a.k.a. `rating:general`) is discussed. The
+companion external prompt file `config/grok_prompts.json` enforces the
+same SFW boundary on the Grok-side rule set.
 
 ---
 
@@ -360,17 +358,17 @@ visible clothing layer.
 #### Uniforms
 `school uniform`, `serafuku` (sailor uniform), `military uniform`, `police uniform`, `nurse`, `lab coat`, `chef uniform`, `maid`, `gym uniform`
 
-#### For This Project's Characters
+#### Outfit examples (per role / archetype)
 
-| Character | Key Outfit Tags |
+| Archetype | Key Outfit Tags |
 |-----------|----------------|
-| 서진혁 (야상) | `1boy, jacket, dark jacket, collared shirt, necktie, pants, dark pants` |
-| 서진혁 (와이셔츠) | `1boy, dress shirt, white shirt, rolled up sleeves, pants` |
-| 윤시하 (앞치마) | `1girl, apron, green apron, long sleeves, casual` |
-| 윤시하 (외출) | `1girl, coat, long coat, casual, dress` |
-| 오세진 | `1boy, glasses, semi-rimless eyewear, suit, dress shirt, necktie` |
-| 장미란 | `1girl, lab coat, white coat, professional` |
-| 이강수 | `1boy, suit, dress shirt, necktie, formal` |
+| Office worker (jacket) | `1boy, jacket, dark jacket, collared shirt, necktie, pants, dark pants` |
+| Office worker (shirt) | `1boy, dress shirt, white shirt, rolled up sleeves, pants` |
+| Florist (apron) | `1girl, apron, green apron, long sleeves, casual` |
+| Day-out / casual | `1girl, coat, long coat, casual, dress` |
+| Spectacled professional | `1boy, glasses, semi-rimless eyewear, suit, dress shirt, necktie` |
+| Researcher / lab | `1girl, lab coat, white coat, professional` |
+| Formal executive | `1boy, suit, dress shirt, necktie, formal` |
 
 ### Color Specification
 
@@ -590,13 +588,12 @@ multiple boys, multiple girls, 2boys, 2girls, crowd, group, everyone
 5. **Heterochromia**: Use `heterochromia` plus specific colors: `heterochromia, blue eyes, red eyes`
 6. **Special eye types**: `glowing eyes`, `empty eyes`, `slit pupils`, `sparkling eyes`, `teary eyes`
 
-### For This Project
+### Per-character notes
 
-| Character | Eye Tag |
-|-----------|---------|
-| 서진혁 | (Refer to character bible for specific color) |
-| 윤시하 | (Refer to character bible for specific color) |
-| 오세진 | (Add `glasses` which interacts with eye rendering) |
+For each character, set the eye-color tag in
+`persona/charNN.json:image_prompt_prefix` so it's applied to every
+render. If the character wears glasses, the `glasses` tag interacts
+with eye rendering — verify a few generations.
 
 ### Known Issues
 
@@ -642,15 +639,15 @@ facial hair (for older men), wrinkles (for 40s+)
 loli, shota, child, aged down, baby face
 ```
 
-### Age Ranges by Character
+### Age-range strategies
 
-| Age Range | Strategy |
+| Age range | Strategy |
 |-----------|----------|
-| Child (10, e.g., 하준) | `1boy, child, young, short` — let the model default to young-looking |
-| 20s (시하, 세진, etc.) | `1girl/1boy, adult` + mature physical features like `toned`, `collarbone` |
-| 30s (진혁) | `1boy, adult, mature male` + `stubble` or `facial hair` if appropriate |
-| 40s (미란) | `1girl, adult, mature female` + subtle age markers |
-| 50s (강수) | `1boy, mature male, old` + `grey hair`, `wrinkles` if appropriate |
+| Child (~10) | `1boy/1girl, child, young, short` — let the model default to young-looking |
+| 20s | `1girl/1boy, adult` + mature physical features like `toned`, `collarbone` |
+| 30s | `1boy, adult, mature male` + `stubble` or `facial hair` if appropriate |
+| 40s | `1girl, adult, mature female` + subtle age markers |
+| 50s+ | `1boy, mature male, old` + `grey hair`, `wrinkles` if appropriate |
 
 ### Important Notes
 
@@ -754,7 +751,7 @@ signature, watermark, text, multiple boys, multiple girls,
 monochrome, greyscale, comic, multiple views
 ```
 
-### Example: 서진혁 (야상 + 침울한 표정)
+### Example: male office worker (jacket + brooding expression)
 
 ```
 Positive:
@@ -773,7 +770,7 @@ multiple boys, monochrome, greyscale, comic, multiple views,
 child, shota, loli
 ```
 
-### Example: 윤시하 (꽃집 앞치마 + 부드러운 미소)
+### Example: female florist (apron + soft smile)
 
 ```
 Positive:

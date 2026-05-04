@@ -1,59 +1,76 @@
-# `persona/` — Per-character persona cards (SFW fork)
+# `persona/` — Per-character persona cards
 
-캐릭터의 *정체성*을 보유하는 JSON 카드. SillyTavern V2 character card 포맷의 SFW-only 변형으로, `character_card_schema.json` (repo root)이 스키마를 정의한다. `src/prompt.py` 가 활성 캐릭터의 persona 카드를 읽어 system_prompt에 description / personality / scenario / mes_example 등을 주입한다.
+JSON cards that hold each character's *identity*. The schema is a
+SillyTavern V2-style character card defined in
+`character_card_schema.json` at the repo root. At runtime
+[`src/prompt.py`](../src/prompt.py) reads the active character's persona
+card and splices `description` / `personality` / `scenario` /
+`mes_example` / `system_prompt` etc. into the system prompt that is
+sent to the LLM.
 
-## 파일 명명 규칙
+## File naming
 
-`charNN.json` (behaviors / images 와 같은 번호 공유). 현재 fork:
+`charNN.json` (numbering is shared with `behaviors/` and `images/`).
+The bundled distribution ships with one sample:
 
-| 파일 | 캐릭터 | Phase |
+| File | Character | Notes |
 |---|---|---|
-| `char01.json` ~ `char08.json` | Phase 3-5에서 신규 작성된 SFW 캐릭터 8명 | 3-5 |
-| `char09.json` | 오하늘 — 수줍은 꽃집 점원 | char09 추가 |
+| `char05.json` | Jiwon Han — 31-year-old executive assistant (responds in English) | The only sample shipped — operators add more via the platform's `/characters` page or by hand. |
 
-## 핵심 필드
+## Required + optional fields
 
-`character_card_schema.json` 정의 기준. 필수: `name`, `description`, `first_mes`, `system_prompt`. 그 외는 빈 값 허용.
+Defined by `character_card_schema.json`. Required: `name`, `description`,
+`first_mes`, `system_prompt`. Everything else is optional.
 
-| 필드 | 의미 |
+| Field | Meaning |
 |---|---|
-| `name` | 캐릭터 이름. 프롬프트 내 `{{char}}` 매크로로 치환됨 |
-| `profile_summary_ko` | 한 줄 한국어 요약 (UI/관리용) |
-| `description` | 외모/배경/성격 자유 서술 (영어 OK, SFW 한정) |
-| `personality` | 성격 키워드/짧은 문장 |
-| `scenario` | 현재 RP 상황 설정 |
-| `first_mes` | 첫 인사 메시지 |
-| `mes_example` | `<START>` 구분 few-shot 대화 예시 |
-| `system_prompt` | Speech style / Response Rules / Tone Guide / Emoji Rules — 캐릭터의 코어 지시문 |
-| `post_history_instructions` | 히스토리 뒤에 붙는 리마인더 |
-| `creator_notes` | 제작 메모 (프롬프트 미주입) |
-| `anchor_image` | ComfyUI IPAdapter FaceID 레퍼런스 파일명 |
-| `image_prompt_prefix` / `image_negative_prefix` | 이미지 생성 시 positive/negative 프리픽스 |
-| `stat_personality` | fixation의 캐릭터별 의미/증감 조건 설명 (프롬프트 주입) |
-| `stat_moods` | 표현 가능한 mood 문자열 배열 |
-| `mood_behaviors` / `mood_triggers` | `behaviors/` 와 같은 의미 — persona 측에 두는 경우 짧은 inline 사용 |
-| `proactive_behaviors` | 짧은 능동 행동 요약 (보통 "Follows behaviors/ rules based on fixation level." 류) |
-| `interests` | 능동 탐구 주제 배열 |
-| `discovery_hint_template` | 미지 토픽 탐색 힌트. 빈 문자열이면 기본 DISCOVERY_TOPICS 템플릿 사용 |
-| `jobs` | 직업 키 배열. `jobs/<key>.json` 매칭용 (현재 fork의 jobs/ 폴더 데이터는 비어 있음) |
-| `stat_limits` | `{ "fixation": { "up": N, "down": -N } }` — 캐릭터별 fixation 변화 한도 |
+| `name` | Display name. Substituted into prompts via the `{{char}}` macro. |
+| `profile_summary_ko` | One-line summary shown in the admin list (originally Korean; can be any language). |
+| `description` | Free-form description — appearance, background, personality. |
+| `personality` | Personality keywords / short sentences. |
+| `scenario` | Current RP situation. |
+| `first_mes` | Opening message sent on a fresh conversation. |
+| `mes_example` | Few-shot dialogue separated by `<START>` blocks. |
+| `system_prompt` | Speech style / response rules / tone guide / emoji rules — the character's core directive. |
+| `post_history_instructions` | Reminder injected after the chat history. |
+| `creator_notes` | Card-author memo (not injected into prompts). |
+| `anchor_image` | ComfyUI IPAdapter FaceID reference image filename (must already be uploaded to the ComfyUI input directory). |
+| `image_prompt_prefix` / `image_negative_prefix` | Positive / negative Danbooru-tag prefix prepended to every image render for this character. |
+| `stat_personality` | Per-character description of what `fixation` means and what raises / lowers it. Injected into the prompt. |
+| `stat_moods` | Allowed mood strings (the `mood:` value of the `[STAT:]` signal). |
+| `mood_behaviors` / `mood_triggers` | Same shape as in `behaviors/`. Use the persona variant when the table is short and you want it inline. |
+| `proactive_behaviors` | Short summary of the character's self-driven behaviors (often `"Follows behaviors/ rules based on fixation level."`). |
+| `interests` | Topics the character actively explores. |
+| `discovery_hint_template` | Hint template for unfamiliar topics. Empty string falls back to the default `DISCOVERY_TOPICS` template. |
+| `jobs` | Job-key list. Each key matches `jobs/<key>.json` for background-knowledge injection. The bundled `jobs/` folder is empty in this distribution. |
+| `stat_limits` | `{ "fixation": { "up": N, "down": -N } }` — per-character cap on per-turn fixation deltas. |
 
-## 매크로
+## Macros
 
-- `{{user}}` — 런타임 화자 사용자. chat 처리 시 치환.
-- `{{char}}` — `name` 필드 값으로 치환.
+- `{{user}}` — replaced at runtime with the chatting user's name.
+- `{{char}}` — replaced with the persona card's `name` field.
 
-`description`, `scenario`, `first_mes`, `mes_example`, `system_prompt`, `proactive_behaviors`, `mood_behaviors`, `interests` 등 어디에서나 사용 가능.
+Both macros work in `description`, `scenario`, `first_mes`, `mes_example`,
+`system_prompt`, `proactive_behaviors`, `mood_behaviors`, `interests`, etc.
 
-## SFW invariant
+## Adding a new character
 
-- 성적 personality descriptor 부재. 원본 카드의 sexual personality / kink / arousal speech / arousal response 류 필드는 fork 스키마에 없으며, `additionalProperties: false`로 추가 자체가 차단된다.
-- `body_nsfw_json` 류 필드 없음 (이미지 생성 외형은 `images/charNN.json`에서 다루고, 그쪽에도 노출 태그는 미존재).
-- `system_prompt`에 성행위/노출/체액 관련 지시문 포함 금지. SFW 안전망은 `config/grok_prompts.json`의 `system` Danbooru 룰과 `config/sfw_denylist.json`로 다중 방어된다.
+1. Pick a `charNN` number (shared with `behaviors/` and `images/`).
+2. Write `persona/charNN.json` — fill the 4 required fields at minimum.
+   Recommended baseline: 3+ `<START>`-separated blocks in `mes_example`,
+   4–5 entries in `stat_moods`, 3+ entries in `interests`.
+3. The platform's `/characters` page validates the file against
+   `character_card_schema.json` before saving — field-name typos and
+   type mismatches surface as ajv errors. The same validation runs
+   when you create the character through the admin in the first place.
+4. See [`docs/character_card_instruction.md`](../docs/character_card_instruction.md)
+   for an authoring guide.
 
-## 새 캐릭터 추가 절차
+## Editing through the admin
 
-1. `charNN` 번호 선정 (behaviors / images 와 동일 번호)
-2. `persona/charNN.json` 작성 — 최소 4개 필수 필드는 채우고, 권장: `mes_example` 3블록 이상, `stat_moods` 4-5개, `interests` 3개 이상
-3. `character_card_schema.json`으로 검증 — 필드명 오타 / 타입 미스매치 시 schema 위반
-4. `docs/character_card_instruction.md`의 SFW 작성 가이드를 따른다
+The `/characters` page in the platform admin gives you a schema-driven
+form (22 fields with widget dispatch: text / textarea / Monaco / chips
+/ kv / trigger-list / stat-limits) plus a Raw JSON mode that mounts
+each of the three files (`persona/` + `behaviors/` + `images/`) in
+its own Monaco editor. Saves are atomic, write a `.bak` next to each
+file, and validate against `character_card_schema.json` before writing.

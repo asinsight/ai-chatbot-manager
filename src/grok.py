@@ -15,20 +15,27 @@ from src.pose_motion_presets import (
 
 logger = logging.getLogger(__name__)
 
+# Grok API base URL (X.AI by default; set GROK_BASE_URL to point at an
+# OpenAI-compatible proxy). Sourced once at module import — every
+# AsyncOpenAI call below uses this constant.
+GROK_BASE_URL = os.getenv("GROK_BASE_URL", "https://api.x.ai/v1")
+
 # ───────────────────────────────────────────────────────────────────────
 # Externalized prompts — config/grok_prompts.json
 # ───────────────────────────────────────────────────────────────────────
-# 5개의 시스템 프롬프트(system / video_analyzer / random / classify / partial_edit)는
-# 코드에서 분리되어 config/grok_prompts.json에 저장된다. 모듈 import 시 한 번 로드
-# (fail-fast — 누락/빈 키 시 즉시 RuntimeError). 코드 수정 없이 프롬프트 튜닝 가능.
+# The five system prompts (system / video_analyzer / random / classify / partial_edit)
+# live in config/grok_prompts.json instead of in code. Loaded once at module import
+# (fail-fast — missing/empty key raises RuntimeError immediately). Lets you tune the
+# prompts without touching code.
 _PROMPTS_PATH = Path(__file__).resolve().parent.parent / "config" / "grok_prompts.json"
 _REQUIRED_PROMPT_KEYS = ("system", "video_analyzer", "random", "classify", "partial_edit")
 
 
 def _load_grok_prompts() -> dict:
-    """grok_prompts.json 로드 + 필수 키/빈 문자열 검증. 실패 시 RuntimeError.
+    """Load grok_prompts.json and validate required keys / non-empty strings. Raises RuntimeError on failure.
 
-    fallback 문자열을 두지 않는다 — 잘못된 빈 프롬프트로 운영되는 사고를 방지.
+    Deliberately no fallback strings — prevents accidentally running with an
+    empty/wrong prompt.
     """
     try:
         raw = _PROMPTS_PATH.read_text(encoding="utf-8")
@@ -62,9 +69,9 @@ def _load_grok_prompts() -> dict:
 
 PROMPTS = _load_grok_prompts()
 
-# VIDEO_SYSTEM_PROMPT — Wan i2v 가이드 파일 (src/wan_i2v_prompting_guide.md) 로드
-# SFW fork: 원본 wan_nsfw_i2v_prompting_guide.md를 NSFW 섹션 strip 후 새 파일명으로 저장.
-# Composer(Stage 2) 전용 system prompt.
+# VIDEO_SYSTEM_PROMPT — load the Wan i2v guide (src/wan_i2v_prompting_guide.md).
+# SFW fork: original wan_nsfw_i2v_prompting_guide.md was renamed and the NSFW
+# sections stripped. Used as the system prompt for Composer (Stage 2).
 _GUIDE_PATH = Path(__file__).parent / "wan_i2v_prompting_guide.md"
 try:
     VIDEO_SYSTEM_PROMPT = _GUIDE_PATH.read_text(encoding="utf-8")
@@ -75,20 +82,22 @@ except FileNotFoundError:
 # ───────────────────────────────────────────────────────────────────────
 # video-improve2 (P15) — Stage 1 Analyzer system prompt
 # ───────────────────────────────────────────────────────────────────────
-# Analyzer 역할: 이미지 + danbooru 태그(optional) + chat intent hint(optional)를 받아
-# WAN 2.2 i2v Composer가 바로 소비할 수 있는 구조화된 JSON을 반환.
-# Safety-first: CSAM/minor 감지 시 즉시 BLOCKED 반환 + 다른 필드는 비워둠.
-# pose_key enum은 pose_motion_presets에서 module-load time에 주입.
+# Analyzer role: takes an image + (optional) danbooru tags + (optional) chat
+# intent hint and returns structured JSON the WAN 2.2 i2v Composer consumes
+# directly.
+# Safety-first: on CSAM / minor detection, return BLOCKED immediately with the
+# other fields blank.
+# pose_key enum is injected from pose_motion_presets at module load time.
 _ANALYZER_POSE_KEYS_ENUM = ", ".join(f'"{k}"' for k in _list_pose_keys())
 
-# JSON에 정의된 ${pose_keys_enum} placeholder를 module-load 시점에 substitute.
+# Substitute the ${pose_keys_enum} placeholder defined in the JSON at module-load time.
 VIDEO_ANALYZER_PROMPT = Template(PROMPTS["video_analyzer"]).safe_substitute(
     pose_keys_enum=_ANALYZER_POSE_KEYS_ENUM,
 )
 
 
 def _strip_emojis(text: str) -> str:
-    """텍스트에서 이모지 제거 — Grok 태그 생성에 이모지가 영향주는 것 방지"""
+    """Strip emojis from text — keeps emojis from contaminating Grok tag generation."""
     return re.sub(
         r"[\U0001F600-\U0001F64F"   # Emoticons
         r"\U0001F300-\U0001F5FF"    # Misc Symbols and Pictographs
@@ -110,7 +119,7 @@ def _strip_emojis(text: str) -> str:
 
 
 def _format_chat_history(chat_history: list[dict]) -> str:
-    """채팅 히스토리를 텍스트로 변환 (이모지 제거)"""
+    """Convert chat history to plain text (with emojis stripped)."""
     lines = []
     for msg in chat_history:
         role = msg.get("role", "unknown")
@@ -121,7 +130,7 @@ def _format_chat_history(chat_history: list[dict]) -> str:
 
 
 def _parse_json_response(text: str) -> dict | None:
-    """Grok 응답에서 JSON 추출 및 파싱"""
+    """Extract and parse a JSON object from a Grok response."""
     json_block = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
     if json_block:
         text_to_parse = json_block.group(1).strip()
@@ -147,7 +156,7 @@ def _parse_json_response(text: str) -> dict | None:
 
 
 def _default_tags() -> dict:
-    """파싱 실패 또는 API 에러 시 기본 태그 반환"""
+    """Default tag set returned on parse failure or API error."""
     return {
         "pos_prompt": "upper body, looking at viewer, smile, blush, simple background, rating:safe",
         "neg_prompt": "",
@@ -157,9 +166,9 @@ def _default_tags() -> dict:
 
 
 def _load_image_config(char_id: str) -> dict:
-    """images/char*.json에서 body_shape / breast / clothing / underwear 태그 로드.
+    """Load body_shape / breast / clothing / underwear tags from images/char*.json.
 
-    SFW fork 스키마: body_shape{size,build,curve,accent,ass}, breast{size,feature}, clothing, underwear, special, expressions.
+    SFW fork schema: body_shape{size,build,curve,accent,ass}, breast{size,feature}, clothing, underwear, special, expressions.
     """
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     path = os.path.join(base, "images", f"{char_id}.json")
@@ -179,7 +188,7 @@ _prompting_guide_cache = None
 
 
 def _load_prompting_guide() -> str:
-    """danbooru_prompting_guide.md 로드 (캐시)"""
+    """Load danbooru_prompting_guide.md (cached)."""
     global _prompting_guide_cache
     if _prompting_guide_cache is not None:
         return _prompting_guide_cache
@@ -203,26 +212,26 @@ async def generate_danbooru_tags(
     identity_override: dict | None = None,
     scene_lock: dict | None = None,
 ) -> dict:
-    """대화 맥락을 분석하여 완전한 Danbooru 프롬프트(positive + negative)를 생성한다.
+    """Analyze the conversation context and produce a full Danbooru prompt (positive + negative).
 
     Args:
-        chat_history: 대화 히스토리 [{"role": "user"/"assistant", "content": "..."}]
-        custom_command: /image 뒤에 입력한 커스텀 지시 (예: "lying on bed")
-        character: 캐릭터 딕셔너리 (image_prompt_prefix, image_negative_prefix 포함)
-        char_id: 캐릭터 ID (예: "char01") — images/char01.json 로드용
-        location_background: 현재 장소의 danbooru 배경 태그
-        identity_override: 저장된 캐릭터 dict (saved_characters DB row).
-            제공 시 image_config 기반 body/clothing/underwear 블록을 saved_characters의
-            태그 블록(appearance/body_shape/clothing/underwear)으로 대체.
-        scene_lock: SFW 씬 사전 결정 dict — person_tags / pose / camera를 verbatim 강제하고,
-            exclude_tags를 negative에 강제 추가하도록 지시.
+        chat_history: chat history [{"role": "user"/"assistant", "content": "..."}]
+        custom_command: custom directive entered after /image (e.g. "lying on bed")
+        character: character dict (must include image_prompt_prefix, image_negative_prefix)
+        char_id: character id (e.g. "char01") — used to load images/char01.json
+        location_background: danbooru background tags for the current location
+        identity_override: saved-character dict (saved_characters DB row).
+            When provided, replaces the image_config-based body/clothing/underwear blocks
+            with the saved_characters tag blocks (appearance / body_shape / clothing / underwear).
+        scene_lock: pre-decided SFW scene dict. Forces person_tags / pose / camera verbatim
+            and instructs Grok to add exclude_tags to the negative prompt.
             Schema: {"person_tags", "scene_tags", "pose", "camera", "exclude_tags": list, ...}
 
     Returns:
         {"pos_prompt": "complete positive prompt", "neg_prompt": "complete negative prompt"}
     """
     api_key = os.getenv("GROK_API_KEY", "")
-    model = os.getenv("GROK_IMAGE_MODEL") or os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+    model = os.getenv("GROK_PROMPTING_IMAGE_MODEL") or os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
 
     if not api_key:
         return _default_tags()
@@ -230,7 +239,7 @@ async def generate_danbooru_tags(
     pos_prefix = character.get("image_prompt_prefix", "") if character else ""
     neg_prefix = character.get("image_negative_prefix", "") if character else ""
 
-    # 6개 메시지를 Earlier context / Recent conversation으로 분리
+    # Split the 6 messages into Earlier context / Recent conversation
     if len(chat_history) > 3:
         earlier = chat_history[:-3]
         recent = chat_history[-3:]
@@ -307,7 +316,7 @@ async def generate_danbooru_tags(
         + _fmt("Breast — Feature [IDENTITY, include when breasts framed/visible]", breast.get('feature', ''))
     )
 
-    # Random character tag block — /random으로 생성된 pseudo-character의 SFW 태그를 Grok에 전달.
+    # Random character tag block — passes SFW tags of a /random-generated pseudo-character to Grok.
     random_tags_block = ""
     if character and character.get("name") == "random":
         _sfw = character.get("_random_sfw_tags", {}) or {}
@@ -325,7 +334,7 @@ async def generate_danbooru_tags(
             "3. Always include the SFW identity tags (appearance + body) and the base clothing.\n\n"
         )
 
-    # Scene Lock block — SFW pose-scene directive. person_tags / pose / camera verbatim 강제.
+    # Scene Lock block — SFW pose-scene directive. Forces person_tags / pose / camera verbatim.
     scene_lock_block = ""
     if scene_lock:
         _exclude = scene_lock.get("exclude_tags") or []
@@ -373,7 +382,7 @@ async def generate_danbooru_tags(
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url="https://api.x.ai/v1",
+        base_url=GROK_BASE_URL,
     )
 
     messages = [
@@ -391,10 +400,10 @@ async def generate_danbooru_tags(
         result = _parse_json_response(content)
         if result:
             return result
-        logger.warning("Grok 태그 파싱 실패: %s", content[:200])
+        logger.warning("Grok tag parse failed: %s", content[:200])
         return _default_tags()
     except Exception as e:
-        logger.error("Grok 태그 생성 실패: %s", e)
+        logger.error("Grok tag generation failed: %s", e)
         if "CSAM" in str(e) or "403" in str(e):
             return {"pos_prompt": "BLOCKED", "neg_prompt": "", "orientation": "portrait", "skip_face": False}
         return _default_tags()
@@ -405,22 +414,23 @@ async def generate_danbooru_tags_random(
     mode: str = "sfw",
     sfw_scene: dict | None = None,
 ) -> dict:
-    """랜덤 캐릭터 trait + SFW 모드로 완전한 Danbooru 프롬프트를 생성한다.
+    """Build a complete Danbooru prompt from random character traits in SFW mode.
 
-    SFW fork: NSFW 모드/씬은 미지원 — `mode` 인자는 형식적으로만 유지하며 항상 SFW 경로로 처리된다.
+    SFW fork: NSFW mode/scenes are not supported — `mode` is kept for ABI compat only
+    and is always forced to the SFW path.
 
     Args:
-        traits: `src.trait_pools.roll_character()`의 반환값
-        mode: 형식적 모드 인자 (실제로는 항상 SFW로 처리됨)
-        sfw_scene: `src.trait_pools.roll_sfw_scene()` 결과.
+        traits: return value of `src.trait_pools.roll_character()`
+        mode: formal mode argument (always treated as SFW)
+        sfw_scene: result of `src.trait_pools.roll_sfw_scene()`
 
     Returns:
         {"pos_prompt": ..., "neg_prompt": ..., "orientation": ..., "skip_face": ..., "scene_description": ...}
     """
     api_key = os.getenv("GROK_API_KEY", "")
-    model = os.getenv("GROK_IMAGE_MODEL") or os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+    model = os.getenv("GROK_PROMPTING_IMAGE_MODEL") or os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
 
-    # SFW fork — 모드 인자 무시하고 항상 SFW 처리
+    # SFW fork — ignore the mode argument; always handle as SFW
     mode_norm = "sfw"
 
     if not api_key:
@@ -469,7 +479,7 @@ async def generate_danbooru_tags_random(
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url="https://api.x.ai/v1",
+        base_url=GROK_BASE_URL,
     )
 
     messages = [
@@ -481,7 +491,7 @@ async def generate_danbooru_tags_random(
         response = await client.chat.completions.create(
             model=model,
             messages=messages,
-            temperature=1.3,  # 다양성 확보
+            temperature=1.3,  # encourages variety
         )
         content = response.choices[0].message.content or ""
         result = _parse_json_response(content)
@@ -506,12 +516,12 @@ async def generate_danbooru_tags_random(
                     if "underwear_resolved" not in result:
                         result["underwear_resolved"] = ""
             return result
-        logger.warning("Grok 랜덤 태그 파싱 실패: %s", content[:200])
+        logger.warning("Grok random tag parse failed: %s", content[:200])
         fallback = _default_tags()
         fallback["scene_description"] = f"random_{mode_norm}"
         return fallback
     except Exception as e:
-        logger.error("Grok 랜덤 태그 생성 실패: %s", e)
+        logger.error("Grok random tag generation failed: %s", e)
         if "CSAM" in str(e) or "403" in str(e):
             return {
                 "pos_prompt": "BLOCKED",
@@ -526,17 +536,18 @@ async def generate_danbooru_tags_random(
 
 
 # ───────────────────────────────────────────────────────────────────────
-# Nested 분류 (savechar_init_callback 전용) — /random과 custom 텍스트 통일
-# images/char*.json sub-attribute 구조와 동일.
+# Nested classifier (used only by savechar_init_callback) — unifies the
+# /random and custom-text paths into the same nested structure as
+# images/char*.json sub-attributes.
 # ───────────────────────────────────────────────────────────────────────
 
-# 분류 결과의 nested 구조 키
+# Sub-keys for the classifier's nested structure
 _CLASSIFY_BODY_SHAPE_KEYS = ("size", "build", "curve", "accent", "ass")
 _CLASSIFY_BREAST_KEYS = ("size", "feature")
 
 
 def _empty_classify_result() -> dict:
-    """nested classifier 빈 결과 dict 생성."""
+    """Empty result dict for the nested classifier."""
     return {
         "appearance_tags": "",
         "clothing": "",
@@ -547,8 +558,8 @@ def _empty_classify_result() -> dict:
 
 
 def _coerce_nested(data: dict, key: str, sub_keys: tuple[str, ...]) -> dict:
-    """data[key]가 dict이면 sub_keys만 추출하고 누락분은 빈 문자열로 채운다.
-    dict가 아니거나 누락이면 모든 sub_key가 ""인 dict 반환."""
+    """If data[key] is a dict, project to sub_keys (filling missing ones with empty strings).
+    If it is not a dict or missing entirely, return a dict with every sub_key set to ""."""
     raw = data.get(key)
     out = {k: "" for k in sub_keys}
     if not isinstance(raw, dict):
@@ -560,16 +571,17 @@ def _coerce_nested(data: dict, key: str, sub_keys: tuple[str, ...]) -> dict:
 
 
 async def classify_tags_to_nested_blocks(pos_prompt: str) -> dict:
-    """포지티브 prompt blob을 saved_characters nested 스키마로 분류 (SFW 전용).
+    """Classify a positive-prompt blob into the saved_characters nested schema (SFW only).
 
-    💾 캐릭터 저장 시 호출 — /random과 custom 텍스트 모든 경로에서 통일된 nested 구조로
-    저장하기 위함. 카테고리에 안 맞는 태그(pose/scene/expression/location/activity/quality)는 DROP.
+    💾 Called when saving a character — keeps the /random and custom-text paths
+    aligned on a single nested structure. Tags that do not match any of the
+    target categories (pose/scene/expression/location/activity/quality) are dropped.
 
     Args:
-        pos_prompt: 이미지 생성 시 사용된 전체 positive prompt
+        pos_prompt: full positive prompt that was used at image-generation time
 
     Returns:
-        dict — 키 구조:
+        dict — key shape:
             {
               "appearance_tags": str,
               "clothing": str,
@@ -577,12 +589,13 @@ async def classify_tags_to_nested_blocks(pos_prompt: str) -> dict:
               "body_shape": {"size", "build", "curve", "accent", "ass"},
               "breast": {"size", "feature"}
             }
-        실패 시 모든 string 값이 빈 문자열인 dict 반환 (호출자가 저장 자체를 막을지 결정).
+        On failure, returns a dict with every string set to "" — the caller decides
+        whether to abort the save.
     """
     empty_result = _empty_classify_result()
 
     api_key = os.getenv("GROK_API_KEY", "")
-    model = os.getenv("GROK_IMAGE_MODEL") or os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+    model = os.getenv("GROK_PROMPTING_IMAGE_MODEL") or os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
     if not api_key:
         return empty_result
 
@@ -591,7 +604,7 @@ async def classify_tags_to_nested_blocks(pos_prompt: str) -> dict:
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url="https://api.x.ai/v1",
+        base_url=GROK_BASE_URL,
     )
 
     messages = [
@@ -616,10 +629,10 @@ async def classify_tags_to_nested_blocks(pos_prompt: str) -> dict:
                 try:
                     data = json.loads(json_block.group(1).strip())
                 except json.JSONDecodeError:
-                    logger.warning("classify_tags_to_nested_blocks: JSON 파싱 실패: %s", content[:300])
+                    logger.warning("classify_tags_to_nested_blocks: JSON parse failed: %s", content[:300])
                     return empty_result
             else:
-                logger.warning("classify_tags_to_nested_blocks: JSON 파싱 실패: %s", content[:300])
+                logger.warning("classify_tags_to_nested_blocks: JSON parse failed: %s", content[:300])
                 return empty_result
 
         if not isinstance(data, dict):
@@ -634,33 +647,34 @@ async def classify_tags_to_nested_blocks(pos_prompt: str) -> dict:
         result["breast"] = _coerce_nested(data, "breast", _CLASSIFY_BREAST_KEYS)
         return result
     except Exception as e:
-        logger.error("classify_tags_to_nested_blocks 실패: %s", e)
+        logger.error("classify_tags_to_nested_blocks failed: %s", e)
         return empty_result
 
 
 # ───────────────────────────────────────────────────────────────────────
-# Partial-edit intent analyzer (저장 캐릭터 영구 수정)
+# Partial-edit intent analyzer (persistent edit on a saved character)
 # ───────────────────────────────────────────────────────────────────────
-# @name 호출 시 유저가 입력한 한글 텍스트에서 영구 수정 의도를 감지하고
-# nested block 중 변경된 블록의 FULL NEW VALUE를 surgical edit로 산출.
-# SFW fork: 명시적/성적 sub-attribute 수정 요청은 거절.
+# When the user invokes @name with Korean text, detect any persistent-edit
+# intent and produce the FULL NEW VALUE of the affected nested block(s) as a
+# surgical edit.
+# SFW fork: explicit / sexual sub-attribute edits are refused.
 
 
 async def analyze_partial_edit_intent(
     text: str,
     current_blocks: dict,
 ) -> dict:
-    """저장 캐릭터 부분 수정 의도 분석 (SFW 전용).
+    """Analyze partial-edit intent on a saved character (SFW only).
 
     Args:
-        text: @name 다음 입력 텍스트 (이미 @name 토큰은 strip됨)
-        current_blocks: 저장 캐릭터의 nested block dict
+        text: input text following @name (the @name token is already stripped)
+        current_blocks: nested block dict of the saved character
             {appearance_tags, clothing, underwear, body_shape, breast}
 
     Returns:
         {
-            "edits": {                   # 수정된 항목만 — sub-attribute 단위
-                "appearance_tags": str,  # 수정 시 FULL new value
+            "edits": {                   # only changed entries — sub-attribute granularity
+                "appearance_tags": str,  # FULL new value when edited
                 "clothing": str,
                 "underwear": str,
                 "body_shape": {sub_key: new_value, ...},
@@ -668,12 +682,12 @@ async def analyze_partial_edit_intent(
             },
             "scene_description": str,
         }
-        수정 의도 없거나 호출 실패 시 {"edits": {}, "scene_description": text}
+        On no-intent or call failure, returns {"edits": {}, "scene_description": text}.
     """
     fallback = {"edits": {}, "scene_description": text or ""}
 
     api_key = os.getenv("GROK_API_KEY", "")
-    model = os.getenv("GROK_IMAGE_MODEL") or os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+    model = os.getenv("GROK_PROMPTING_IMAGE_MODEL") or os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
     if not api_key:
         return fallback
 
@@ -696,7 +710,7 @@ async def analyze_partial_edit_intent(
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url="https://api.x.ai/v1",
+        base_url=GROK_BASE_URL,
     )
 
     messages = [
@@ -721,10 +735,10 @@ async def analyze_partial_edit_intent(
                 try:
                     data = json.loads(json_block.group(1).strip())
                 except json.JSONDecodeError:
-                    logger.warning("analyze_partial_edit_intent: JSON 파싱 실패: %s", content[:300])
+                    logger.warning("analyze_partial_edit_intent: JSON parse failed: %s", content[:300])
                     return fallback
             else:
-                logger.warning("analyze_partial_edit_intent: JSON 파싱 실패: %s", content[:300])
+                logger.warning("analyze_partial_edit_intent: JSON parse failed: %s", content[:300])
                 return fallback
 
         raw_edits = data.get("edits") or {}
@@ -755,15 +769,15 @@ async def analyze_partial_edit_intent(
 
         return {"edits": edits, "scene_description": scene.strip()}
     except Exception as e:
-        logger.error("analyze_partial_edit_intent 실패: %s", e)
+        logger.error("analyze_partial_edit_intent failed: %s", e)
         return fallback
 
 
 def _parse_video_json_response(text: str) -> dict | None:
-    """Grok 비디오 프롬프트 응답에서 JSON 추출 및 파싱.
+    """Extract and parse JSON from a Grok video-prompt response.
 
-    _parse_json_response()와 같은 추출 로직을 사용하되,
-    video 전용 키(motion_prompt)를 검증한다.
+    Uses the same extraction logic as _parse_json_response() but validates
+    video-specific keys (motion_prompt).
     """
     json_block = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
     if json_block:
@@ -789,7 +803,7 @@ def _parse_video_json_response(text: str) -> dict | None:
 # video-improve2 (P15) — 2-stage pipeline helpers
 # ───────────────────────────────────────────────────────────────────────
 
-# 최종 fallback 네거티브 프롬프트 (Composer 실패 시 손에 들고 있는 기본값)
+# Final fallback negative prompt (kept ready for the case where the Composer fails)
 _COMPOSER_FALLBACK_NEGATIVE = (
     "blurry, face morphing, extra fingers, deformed hands, limb distortion, "
     "multiple tongues, extra tongue, tongue on wrong body part, clothing reconstruction, "
@@ -801,7 +815,7 @@ _COMPOSER_FALLBACK_AUDIO_NEGATIVE = (
 
 
 def _summarize_chat_intent(chat_history: list[dict] | None) -> str:
-    """최근 대화에서 Analyzer/Composer에 넘길 1-2문장 intent hint를 추출."""
+    """Extract a 1-2 sentence intent hint from recent conversation, to pass to Analyzer/Composer."""
     if not chat_history:
         return ""
     recent_assistant = [m for m in chat_history[-6:] if m.get("role") == "assistant"]
@@ -830,17 +844,17 @@ async def _analyze_video_scene(
 ) -> dict | None:
     """Stage 1 — visual decomposition. Returns Analyzer JSON dict or None on failure.
 
-    - include_tags=False (Step 1): 태그 빼고 호출 — xAI CSAM 오발동 회피.
-    - include_tags=True  (Step 2): 태그 넣고 재시도 — 명시적 맥락으로 안전 해석 유도.
-    - API 에러/파싱 실패/CSAM refusal → None 반환 (caller가 fallback 결정).
-    - 응답에 safety_level=BLOCKED 가 담겨 있으면 dict를 그대로 반환 (caller가 해석).
+    - include_tags=False (Step 1): call without tags — sidesteps xAI CSAM false positives.
+    - include_tags=True  (Step 2): retry with tags — provides explicit context for safe interpretation.
+    - API error / parse failure / CSAM refusal → returns None (caller decides on fallback).
+    - If the response contains safety_level=BLOCKED, the dict is returned as-is (caller interprets).
     """
     import base64
 
     model = (
-        os.getenv("VIDEO_ANALYZER_MODEL")
-        or os.getenv("VIDEO_GROK_MODEL")
-        or os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+        os.getenv("GROK_PROMPTING_VIDEO_ANALYZER_MODEL")
+        or os.getenv("GROK_PROMPTING_VIDEO_MODEL")
+        or os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
     )
 
     with open(image_path, "rb") as f:
@@ -896,7 +910,7 @@ async def _analyze_video_scene(
         if is_csam:
             logger.warning("Analyzer CSAM refusal (include_tags=%s): %s", include_tags, error_str[:200])
         else:
-            logger.error("Analyzer API 실패 (include_tags=%s): %s", include_tags, e)
+            logger.error("Analyzer API failed (include_tags=%s): %s", include_tags, e)
         return None
 
     json_block = re.search(r"```(?:json)?\s*(.*?)```", content, re.DOTALL)
@@ -907,17 +921,17 @@ async def _analyze_video_scene(
         if json_obj:
             text_to_parse = json_obj.group(0)
         else:
-            logger.warning("Analyzer JSON 블록 추출 실패: %s", content[:200])
+            logger.warning("Analyzer JSON block extraction failed: %s", content[:200])
             return None
 
     try:
         data = json.loads(text_to_parse)
     except json.JSONDecodeError as e:
-        logger.warning("Analyzer JSON 파싱 실패: %s (body=%s)", e, text_to_parse[:200])
+        logger.warning("Analyzer JSON parse failed: %s (body=%s)", e, text_to_parse[:200])
         return None
 
     if "safety_level" not in data or "pose_key" not in data:
-        logger.warning("Analyzer 응답에 필수 필드 누락: %s", text_to_parse[:200])
+        logger.warning("Analyzer response missing required fields: %s", text_to_parse[:200])
         return None
 
     data.setdefault("static_appearance", [])
@@ -938,11 +952,12 @@ async def _compose_video_prompt(
     motion_override: str | None,
     client: AsyncOpenAI,
 ) -> dict | None:
-    """Stage 2 — Composer. Analyzer JSON + preset → WAN 2.2 i2v 최종 JSON.
+    """Stage 2 — Composer. Analyzer JSON + preset → final WAN 2.2 i2v JSON.
 
-    - safety_level=BLOCKED 또는 preset=None → 즉시 BLOCKED dict 반환 (API 호출 생략).
-    - motion_override가 있으면 preset.primary 대신 유저 지정 모션을 존중하라고 지시.
-    - API 실패 / JSON 파싱 실패 → None 반환 (caller가 ambient fallback 결정).
+    - safety_level=BLOCKED or preset=None → return BLOCKED dict immediately (skip API call).
+    - With motion_override, instructs Composer to honour the user-specified motion
+      instead of preset.primary.
+    - API failure / JSON parse failure → returns None (caller decides on ambient fallback).
     """
     from src.video import VIDEO_DURATION
 
@@ -954,9 +969,9 @@ async def _compose_video_prompt(
         }
 
     model = (
-        os.getenv("VIDEO_COMPOSER_MODEL")
-        or os.getenv("VIDEO_GROK_MODEL")
-        or os.getenv("GROK_MODEL_NAME", "grok-3-mini")
+        os.getenv("GROK_PROMPTING_VIDEO_COMPOSER_MODEL")
+        or os.getenv("GROK_PROMPTING_VIDEO_MODEL")
+        or os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
     )
 
     analyzer_block = json.dumps(analyzer_json or {}, ensure_ascii=False, indent=2)
@@ -1060,12 +1075,12 @@ async def _compose_video_prompt(
                 "audio_prompt": "",
                 "_csam_blocked": True,
             }
-        logger.error("Composer API 실패: %s", e)
+        logger.error("Composer API failed: %s", e)
         return None
 
     result = _parse_video_json_response(content)
     if not result:
-        logger.warning("Composer JSON 파싱 실패: %s", content[:200])
+        logger.warning("Composer JSON parse failed: %s", content[:200])
         return None
 
     return result
@@ -1081,44 +1096,45 @@ async def generate_video_prompts(
     danbooru_tags_fallback: bool = True,
     preferred_pose_key: str | None = None,
 ) -> dict:
-    """이미지 + 대화 히스토리 → motion_prompt + audio_prompt 생성 (video-improve2 P15 2-stage).
+    """Image + chat history → motion_prompt + audio_prompt (video-improve2 P15, 2-stage).
 
-    SFW fork: arousal 인자는 제거됨. mood만 hint로 전달.
+    SFW fork: the arousal argument was removed. Only `mood` is passed as a hint.
 
-    **파이프라인 (`motion_override` 경로 제외)**:
+    **Pipeline (excluding the `motion_override` path)**:
       Stage 1 — Analyzer (Vision): image + (optional) danbooru_tags + chat_intent_hint →
                   structured JSON {static_appearance, pose_state, motion_hints, environment,
                   safety_level, pose_key, framing, anchor_risk}.
-                  CSAM fallback: Step 1(태그 OFF) → Step 2(태그 ON) → BLOCKED.
-      Preset lookup — pose_key + safety_level로 pose_motion_presets.lookup() 조회.
+                  CSAM fallback: Step 1 (tags OFF) → Step 2 (tags ON) → BLOCKED.
+      Preset lookup — pose_motion_presets.lookup(pose_key, safety_level).
       Stage 2 — Composer (text-only): Analyzer JSON + preset + mood + chat_intent_hint →
-                  최종 WAN 2.2 i2v JSON.
+                  final WAN 2.2 i2v JSON.
 
-    호출부 API 보존:
-      - 성공: `{"motion_prompt": ..., "audio_prompt": ..., ...}` — 필요 시 `_csam_fallback_used=True`.
+    Call-site API contract:
+      - success: `{"motion_prompt": ..., "audio_prompt": ..., ...}` — possibly with `_csam_fallback_used=True`.
       - BLOCKED: `{"motion_prompt": "BLOCKED", "audio_prompt": "", "_csam_blocked": True}`.
 
     Args:
-        scene_description: 씬 설명. 이미지 생성 description.
-        image_path: Vision 인풋 이미지 경로.
-        chat_history: 최근 대화. None이면 ImageGen 경로 — chat_intent_hint는 ""로 처리.
-        danbooru_tags: 이미지 생성 시 Grok이 만든 danbooru 태그. Step 1 OFF / Step 2 ON.
-        mood: 캐릭터 mood. Composer에 hint 전달.
-        motion_override: 유저 지정 모션. 주어지면 Stage 1/preset 생략하고 Composer 단독 호출.
-        danbooru_tags_fallback: Stage 1 Step 2 fallback 활성화 여부.
+        scene_description: scene description; reused as image-generation description.
+        image_path: Vision input image path.
+        chat_history: recent conversation. If None (ImageGen path), chat_intent_hint becomes "".
+        danbooru_tags: danbooru tags Grok produced during image generation. Step 1 OFF / Step 2 ON.
+        mood: character mood. Passed to Composer as a hint.
+        motion_override: user-specified motion. When set, skip Stage 1/preset and call Composer alone.
+        danbooru_tags_fallback: whether Stage 1 Step 2 fallback is enabled.
 
     Returns:
-        dict with motion_prompt / audio_prompt / ... — BLOCKED 시 `_csam_blocked=True`.
-        VIDEO_DEBUG_DUMP=1 환경변수일 때 `_debug_analyzer_json` / `_debug_preset` / `_debug_pose_key_resolved` 포함.
+        dict with motion_prompt / audio_prompt / ... — when BLOCKED, `_csam_blocked=True`.
+        With env var VIDEO_DEBUG_DUMP=1, also includes `_debug_analyzer_json` /
+        `_debug_preset` / `_debug_pose_key_resolved`.
     """
     api_key = os.getenv("GROK_API_KEY", "")
 
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url="https://api.x.ai/v1",
+        base_url=GROK_BASE_URL,
     )
 
-    # ── motion_override 경로 — Stage 1 bypass, Composer 단독 호출 ──
+    # ── motion_override path — bypass Stage 1, call Composer alone ──
     if motion_override:
         preset = _pose_lookup("generic", "sfw")
         try:
@@ -1127,7 +1143,7 @@ async def generate_video_prompts(
                 (preset.get("pose_key_resolved") if preset else None) or "generic"
             )
         except Exception as _usage_e:
-            logger.warning("LoRA usage tracking 실패 (motion_override): %s", _usage_e)
+            logger.warning("LoRA usage tracking failed (motion_override): %s", _usage_e)
         stub_analyzer = {
             "static_appearance": [],
             "pose_state": [],
@@ -1151,19 +1167,19 @@ async def generate_video_prompts(
             if not result.get("audio_prompt") and not result.get("_csam_blocked"):
                 result["audio_prompt"] = "soft breath, ambient quiet"
             return result
-        logger.warning("motion_override Composer 실패 — 원본 텍스트 반환")
+        logger.warning("motion_override Composer failed — returning original text")
         return {
             "motion_prompt": motion_override,
             "audio_prompt": "soft breath, ambient quiet",
         }
 
     # ────────────────────────────────────────────────────────────
-    # 일반 경로 — 2-stage 파이프라인
+    # Normal path — 2-stage pipeline
     # ────────────────────────────────────────────────────────────
 
     chat_intent_hint = _summarize_chat_intent(chat_history)
 
-    # ── Stage 1 Step 1 — 태그 OFF로 Analyzer 호출 ──
+    # ── Stage 1 Step 1 — call Analyzer with tags OFF ──
     analyzer = await _analyze_video_scene(
         image_path=image_path,
         danbooru_tags="",
@@ -1175,7 +1191,7 @@ async def generate_video_prompts(
 
     if analyzer is None or analyzer.get("safety_level") == "BLOCKED":
         if danbooru_tags_fallback and danbooru_tags and danbooru_tags.strip():
-            logger.info("Analyzer Step 2 fallback 발동 — 태그 ON 재시도")
+            logger.info("Analyzer Step 2 fallback triggered — retrying with tags ON")
             analyzer = await _analyze_video_scene(
                 image_path=image_path,
                 danbooru_tags=danbooru_tags,
@@ -1185,7 +1201,7 @@ async def generate_video_prompts(
             )
             csam_fallback_used = True
         if analyzer is None:
-            logger.warning("Analyzer 두 호출 모두 실패 — BLOCKED")
+            logger.warning("both Analyzer calls failed — BLOCKED")
             return {
                 "motion_prompt": "BLOCKED",
                 "audio_prompt": "",
@@ -1227,7 +1243,7 @@ async def generate_video_prompts(
         _resolved_key = (preset.get("pose_key_resolved") if preset else None) or pose_key
         _history.increment_lora_usage(_resolved_key)
     except Exception as _usage_e:
-        logger.warning("LoRA usage tracking 실패: %s", _usage_e)
+        logger.warning("LoRA usage tracking failed: %s", _usage_e)
 
     # ── Stage 2 — Composer ──
     result = await _compose_video_prompt(
@@ -1241,7 +1257,7 @@ async def generate_video_prompts(
     )
 
     if result is None:
-        logger.error("Composer 실패 — ambient fallback dict 반환")
+        logger.error("Composer failed — returning ambient fallback dict")
         if preset is None:
             return {
                 "motion_prompt": "BLOCKED",

@@ -1,11 +1,11 @@
-"""Grok Web Search 클라이언트.
+"""Grok Web Search client.
 
-텔레그램 챗봇에서 웹 검색 결과를 가져오기 위한 모듈.
-Grok Responses API (web_search tool) → 프롬프트 주입 파이프라인.
-인메모리 rate limiting (글로벌 월간 + 유저별 일일) + LRU 캐시.
-API 키 미설정 또는 GROK_SEARCH_ENABLED=0 이면 비활성화 (빈 문자열 반환).
+Module that fetches web-search results for the Telegram chatbot.
+Grok Responses API (web_search tool) → prompt-injection pipeline.
+In-memory rate limiting (global monthly + per-user daily) + LRU cache.
+Disabled (returns empty string) if the API key is unset or GROK_SEARCH_ENABLED=0.
 
-SFW fork: 검색 결과는 SFW로 필터링하도록 시스템 프롬프트가 명시한다.
+SFW fork: the system prompt explicitly tells Grok to filter results to SFW only.
 """
 
 import json
@@ -22,23 +22,23 @@ from src.token_counter import count_tokens
 
 logger = logging.getLogger(__name__)
 
-# ── 환경변수 설정 ──────────────────────────────────────────────
+# ── Env-var configuration ────────────────────────────────────
 GROK_API_KEY = os.getenv("GROK_API_KEY", "")
-GROK_MODEL_NAME = os.getenv("GROK_MODEL_NAME", "grok-3-mini")
-GROK_SEARCH_MODEL = os.getenv("GROK_SEARCH_MODEL", GROK_MODEL_NAME)
+GROK_PROMPTING_MODEL = os.getenv("GROK_PROMPTING_MODEL", "grok-3-mini")
+GROK_PROMPTING_SEARCH_MODEL = os.getenv("GROK_PROMPTING_SEARCH_MODEL", GROK_PROMPTING_MODEL)
 GROK_SEARCH_ENABLED = os.getenv("GROK_SEARCH_ENABLED", "1") == "1"
 GROK_SEARCH_MONTHLY_LIMIT = int(os.getenv("GROK_SEARCH_MONTHLY_LIMIT", "500"))
 GROK_SEARCH_PER_USER_DAILY = int(os.getenv("GROK_SEARCH_PER_USER_DAILY", "10"))
 
-# ── API 설정 ──────────────────────────────────────────────────
-_API_URL = "https://api.x.ai/v1/responses"
-_TIMEOUT = 60  # web_search tool 응답 시간 안전마진 (15초로는 부족 — chat 검색 timeout 발생)
+# ── API configuration ────────────────────────────────────────
+_API_URL = os.getenv("GROK_BASE_URL", "https://api.x.ai/v1").rstrip("/") + "/responses"
+_TIMEOUT = 60  # safety margin for web_search response (15s wasn't enough — chat search timeouts)
 _LOCATION_TIMEOUT = 60
 _MAX_QUERY_LEN = 200
 _MAX_TOKENS = 400
-_CACHE_TTL = 30 * 60  # 30분
+_CACHE_TTL = 30 * 60  # 30 minutes
 
-# ── 시스템 프롬프트 ──────────────────────────────────────────────
+# ── System prompt ────────────────────────────────────────────
 _SYSTEM_PROMPT = (
     "You are a real-time information assistant for a Korean chatbot. "
     "Search the web and provide a concise answer in Korean (2-3 sentences). "
@@ -48,34 +48,34 @@ _SYSTEM_PROMPT = (
     "Keep your answer under 150 words."
 )
 
-# ── 인메모리 카운터 + 캐시 ────────────────────────────────────
-# 글로벌 월간 사용량: {"2026-04": 123, ...}
+# ── In-memory counters + cache ───────────────────────────────
+# Global monthly usage: {"2026-04": 123, ...}
 _monthly_count: dict[str, int] = {}
 
-# 유저별 일일 사용량: {(user_id, "2026-04-18"): 5, ...}
+# Per-user daily usage: {(user_id, "2026-04-18"): 5, ...}
 _daily_user_count: dict[tuple[int, str], int] = {}
 
-# 검색 캐시: {normalized_query: {"result": str, "timestamp": float}}
+# Search cache: {normalized_query: {"result": str, "timestamp": float}}
 _search_cache: dict[str, dict] = {}
 
 
 def _now_month() -> str:
-    """현재 월 키 반환 (YYYY-MM)."""
+    """Return the current month key (YYYY-MM)."""
     return datetime.now(timezone.utc).strftime("%Y-%m")
 
 
 def _now_date() -> str:
-    """현재 날짜 키 반환 (YYYY-MM-DD)."""
+    """Return the current date key (YYYY-MM-DD)."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
 def _normalize_query(query: str) -> str:
-    """캐시 키용 정규화: 공백 제거 + 소문자."""
+    """Normalize for cache key: strip + lowercase."""
     return query.strip().lower()
 
 
 def _check_cache(normalized: str) -> str | None:
-    """캐시에서 결과 조회. 만료 시 삭제 후 None 반환."""
+    """Look up a cached result. Evicts and returns None if expired."""
     entry = _search_cache.get(normalized)
     if entry is None:
         return None
@@ -86,7 +86,7 @@ def _check_cache(normalized: str) -> str | None:
 
 
 def _save_cache(normalized: str, result: str) -> None:
-    """결과를 캐시에 저장."""
+    """Store a result in the cache."""
     _search_cache[normalized] = {
         "result": result,
         "timestamp": time.time(),
@@ -94,30 +94,30 @@ def _save_cache(normalized: str, result: str) -> None:
 
 
 def _check_global_limit() -> bool:
-    """글로벌 월간 한도 확인. 초과 시 False."""
+    """Check the global monthly limit. Returns False if exceeded."""
     month = _now_month()
     count = _monthly_count.get(month, 0)
     if count >= GROK_SEARCH_MONTHLY_LIMIT:
-        logger.warning("Grok Search 월간 한도 초과: %d/%d (%s)", count, GROK_SEARCH_MONTHLY_LIMIT, month)
+        logger.warning("Grok Search monthly limit exceeded: %d/%d (%s)", count, GROK_SEARCH_MONTHLY_LIMIT, month)
         return False
     return True
 
 
 def _check_user_limit(user_id: int) -> bool:
-    """유저별 일일 한도 확인. 초과 시 False."""
+    """Check the per-user daily limit. Returns False if exceeded."""
     if user_id == 0:
         return True
     date = _now_date()
     key = (user_id, date)
     count = _daily_user_count.get(key, 0)
     if count >= GROK_SEARCH_PER_USER_DAILY:
-        logger.warning("Grok Search 유저 일일 한도 초과: user=%d count=%d/%d (%s)", user_id, count, GROK_SEARCH_PER_USER_DAILY, date)
+        logger.warning("Grok Search per-user daily limit exceeded: user=%d count=%d/%d (%s)", user_id, count, GROK_SEARCH_PER_USER_DAILY, date)
         return False
     return True
 
 
 def _increment_counters(user_id: int) -> None:
-    """API 호출 성공 후 카운터 증가."""
+    """Increment counters after a successful API call."""
     month = _now_month()
     _monthly_count[month] = _monthly_count.get(month, 0) + 1
 
@@ -128,7 +128,7 @@ def _increment_counters(user_id: int) -> None:
 
 
 def _extract_text_from_response(data: dict) -> str:
-    """Grok Responses API 응답에서 텍스트 추출."""
+    """Extract the text payload from a Grok Responses API response."""
     output = data.get("output", [])
     for item in output:
         if item.get("type") == "message":
@@ -140,41 +140,41 @@ def _extract_text_from_response(data: dict) -> str:
 
 
 async def search(query: str, user_id: int = 0) -> str:
-    """Grok Responses API (web_search)로 웹 검색 후 요약 반환.
+    """Run a web search via the Grok Responses API (web_search) and return a summary.
 
     Args:
-        query: 검색 쿼리
-        user_id: 텔레그램 유저 ID (rate limiting 용, 0이면 유저 제한 무시)
+        query: search query
+        user_id: Telegram user id (used for rate limiting; 0 disables per-user limit)
 
     Returns:
-        검색 결과 요약 (한국어, ~400 토큰 이내) 또는 빈 문자열
+        Search result summary (Korean, within ~400 tokens), or an empty string.
     """
-    # 마스터 스위치 확인
+    # Master switch check
     if not GROK_SEARCH_ENABLED or not GROK_API_KEY:
         return ""
 
-    # 쿼리 정리
+    # Normalize the query
     query = query.strip()
     if not query:
         return ""
     query = query[:_MAX_QUERY_LEN]
     normalized = _normalize_query(query)
 
-    # 1. 캐시 확인 (캐시 히트는 rate limit에 포함 안됨)
+    # 1. Cache check (cache hits are not counted against the rate limit)
     cached = _check_cache(normalized)
     if cached is not None:
-        logger.debug("Grok Search 캐시 히트: %s", normalized[:50])
+        logger.debug("Grok Search cache hit: %s", normalized[:50])
         return cached
 
-    # 2. 글로벌 월간 한도 확인
+    # 2. Global monthly limit
     if not _check_global_limit():
         return ""
 
-    # 3. 유저 일일 한도 확인
+    # 3. Per-user daily limit
     if not _check_user_limit(user_id):
         return ""
 
-    # 4. Grok Responses API 호출 (web_search tool)
+    # 4. Grok Responses API call (web_search tool)
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.post(
@@ -184,7 +184,7 @@ async def search(query: str, user_id: int = 0) -> str:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": GROK_SEARCH_MODEL,
+                    "model": GROK_PROMPTING_SEARCH_MODEL,
                     "tools": [{"type": "web_search"}],
                     "input": [
                         {"role": "system", "content": _SYSTEM_PROMPT},
@@ -196,38 +196,38 @@ async def search(query: str, user_id: int = 0) -> str:
             )
 
             if resp.status_code != 200:
-                logger.error("Grok Search HTTP 에러: status=%d body=%s", resp.status_code, resp.text[:500])
+                logger.error("Grok Search HTTP error: status=%d body=%s", resp.status_code, resp.text[:500])
                 return ""
 
             try:
                 data = resp.json()
             except Exception:
-                logger.error("Grok Search JSON 파싱 실패: body=%s", resp.text[:500])
+                logger.error("Grok Search JSON parse failed: body=%s", resp.text[:500])
                 return ""
 
     except Exception as e:
-        logger.error("Grok Search API 호출 실패: %s", e)
+        logger.error("Grok Search API call failed: %s", e)
         return ""
 
-    # 결과 텍스트 추출
+    # Extract the result text
     result = _extract_text_from_response(data)
     if not result:
-        logger.debug("Grok Search 결과 없음: %s", query[:50])
+        logger.debug("Grok Search no result: %s", query[:50])
         return ""
 
-    # 카운터 증가 (API 성공 시)
+    # Increment counters on API success
     _increment_counters(user_id)
-    logger.info("Grok Search 성공: query='%s' → %d자 응답", query[:50], len(result))
+    logger.info("Grok Search success: query='%s' → %d-char response", query[:50], len(result))
 
-    # 토큰 예산 확인
+    # Enforce the token budget
     if count_tokens(result) > _MAX_TOKENS:
-        # 문장 단위로 자르기
+        # Truncate sentence-by-sentence
         sentences = result.split(". ")
         while sentences and count_tokens(". ".join(sentences)) > _MAX_TOKENS:
             sentences.pop()
         result = ". ".join(sentences)
 
-    # 캐시 저장
+    # Save to cache
     _save_cache(normalized, result)
 
     return result
@@ -258,15 +258,15 @@ _LOCATION_SYSTEM_PROMPT = (
 
 
 def _humanize_location_key(location_key: str) -> str:
-    """snake_case 로케이션 키를 검색 쿼리용 문자열로 변환."""
+    """Convert a snake_case location key into a search-query string."""
     return location_key.strip().replace("_", " ").lower()
 
 
 def _extract_location_json(text: str) -> dict | None:
-    """Grok 응답에서 JSON 추출 (```json ... ``` 펜스 및 bare 객체 지원)."""
+    """Extract JSON from a Grok response (supports ```json ... ``` fences and bare objects)."""
     if not text:
         return None
-    # ```json ... ``` 또는 ``` ... ``` 블록
+    # ```json ... ``` or ``` ... ``` block
     fence = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
     if fence:
         candidate = fence.group(1).strip()
@@ -289,18 +289,18 @@ def _extract_location_json(text: str) -> dict | None:
 
 
 async def search_location(location_key: str) -> dict | None:
-    """로케이션 키에 대한 description + danbooru_background을 반환.
+    """Return the description + danbooru_background for a location key.
 
-    플로우:
-      1. history.get_location_context() 캐시 우선 조회 (글로벌 캐시).
-      2. 캐시 미스 시 Grok Responses API (web_search tool) 호출.
-      3. 결과를 history.save_location_context()로 upsert.
+    Flow:
+      1. Look up history.get_location_context() in the (global) cache first.
+      2. On cache miss, call the Grok Responses API (web_search tool).
+      3. Upsert the result into history.save_location_context().
 
-    유저별 일일 한도는 체크하지 않음 (글로벌 캐시 — 유저 예산과 무관).
-    글로벌 월간 한도만 체크한다.
+    Per-user daily limit is not enforced (this is a global cache and is
+    therefore unrelated to a user's budget). Only the global monthly limit applies.
 
     Returns:
-        {"description": str, "danbooru_background": str} 또는 None
+        {"description": str, "danbooru_background": str} or None
     """
     if not location_key:
         return None
@@ -308,18 +308,18 @@ async def search_location(location_key: str) -> dict | None:
     if not key:
         return None
 
-    # 1. 캐시 확인 — 모든 유저가 공유하는 글로벌 캐시
+    # 1. Cache check — global cache shared across all users
     cached = history.get_location_context(key)
     if cached:
         logger.debug("Location cache hit: %s", key)
         return cached
 
-    # 마스터 스위치 확인
+    # Master switch check
     if not GROK_SEARCH_ENABLED or not GROK_API_KEY:
         logger.info("Location research skipped (disabled or no API key): %s", key)
         return None
 
-    # 글로벌 월간 한도만 체크 (유저별 일일 한도는 건너뜀 — 글로벌 캐시)
+    # Only the global monthly limit (per-user daily limit is skipped — this is a global cache)
     if not _check_global_limit():
         logger.warning("Location research skipped (monthly global limit): %s", key)
         return None
@@ -346,7 +346,7 @@ async def search_location(location_key: str) -> dict | None:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": GROK_MODEL_NAME,
+                    "model": GROK_PROMPTING_MODEL,
                     "tools": [{"type": "web_search"}],
                     "input": [
                         {"role": "system", "content": _LOCATION_SYSTEM_PROMPT},
@@ -374,16 +374,16 @@ async def search_location(location_key: str) -> dict | None:
         logger.warning("Location research parse failed: key=%s raw=%s", key, raw_text[:200])
         return None
 
-    # 월간 카운터 증가 (유저 per-day는 증가시키지 않음 — 글로벌 캐시)
+    # Increment the monthly counter (we do not increment per-user daily — this is a global cache)
     month = _now_month()
     _monthly_count[month] = _monthly_count.get(month, 0) + 1
 
-    # DB 저장
+    # Save to DB
     try:
         history.save_location_context(key, parsed["description"], parsed["danbooru_background"])
     except Exception as e:
         logger.error("Location save failed (%s): %s", key, e)
-        # 저장 실패해도 결과는 반환
+        # Return the result even if the save failed
 
     logger.info("Location research success: key=%s desc_len=%d bg=%s",
                 key, len(parsed["description"]), parsed["danbooru_background"][:80])

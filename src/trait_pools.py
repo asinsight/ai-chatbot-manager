@@ -1,11 +1,12 @@
 """
-trait_pools.py — Danbooru 태그 풀 + 랜덤 캐릭터 조합 유틸 (SFW fork)
+trait_pools.py — Danbooru tag pools + random-character composition utilities (SFW fork)
 
-이미지 제네레이터 봇의 `/random` (SFW) 플로우에서 외형/체형/의상 태그를
-큐레이티드 풀에서 랜덤 샘플링하기 위한 모듈. 포즈/표정/장소 등 상황별 태그는
-Grok이 자율 결정하므로 이 파일은 캐릭터 "정체성" 수준의 고정 태그만 담는다.
+Module that random-samples appearance / body / clothing tags from curated
+pools for the image-generator bot's `/random` (SFW) flow. Situational tags
+(pose / expression / location) are decided autonomously by Grok, so this file
+holds only "identity"-level fixed tags.
 
-순수 stdlib (`random`)만 사용 — DB / API 의존성 없음.
+Uses stdlib only (`random`) — no DB / API dependencies.
 """
 
 import json
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def dedup_tags(tag_string: str) -> str:
-    """쉼표 구분 태그 문자열에서 중복 제거. 순서 유지."""
+    """Dedupe tags in a comma-separated tag string. Preserves order."""
     seen = set()
     result = []
     for tag in tag_string.split(","):
@@ -33,14 +34,14 @@ def dedup_tags(tag_string: str) -> str:
 
 
 # ============================================================
-# PART 1: APPEARANCE (외모) — 고정, 이미지 일관성의 핵심
+# PART 1: APPEARANCE — fixed; the foundation of cross-render consistency
 # ============================================================
 
 HAIR_COLOR = [
     # ── Basic & Natural ──
     "blonde_hair", "black_hair", "brown_hair", "light_brown_hair", "dark_brown_hair",
     "red_hair", "auburn_hair", "orange_hair",
-    # ── Fantasy / Vibrant (채도 조정 — 형광/네온 계열 제거, 차분한 대체 색 사용) ──
+    # ── Fantasy / Vibrant (saturation tuned — drop fluorescent/neon, prefer muted alternatives) ──
     "blue_hair", "light_blue_hair", "dark_blue_hair", "teal_hair", "turquoise_hair",
     "pink_hair", "light_pink_hair", "coral_hair",
     "purple_hair", "light_purple_hair", "violet_hair",
@@ -135,10 +136,10 @@ SKIN_TONE = [
     "freckles", "freckled_skin", "blushing_skin",
 ]
 
-# 종족 (판타지 세계관, 인간형만)
-# None = 일반 인간 (태그 없음)
+# Species (fantasy setting, humanoid only)
+# None = plain human (no tag)
 SPECIES = [
-    # 인간 가중치 (8/21 ≈ 38% — 이전 40%에서 모자 제거된 witch 등과 함께 새로 튜닝)
+    # Human weighting (8/21 ≈ 38% — re-tuned from the previous 40% along with hat-less witch etc.)
     None, None, None, None, None, None, None, None,
     "elf, pointy_ears",
     "dark_elf, dark-skinned_female, pointy_ears",
@@ -148,7 +149,7 @@ SPECIES = [
     "angel, angel_wings, halo",
     "fallen_angel, black_wings, halo",
     "vampire, fangs, red_eyes",
-    "witch",  # 모자는 의상/악세서리에서 결정 — 종족 태그에 강제 포함하지 않음
+    "witch",  # The hat is decided by clothing / accessories — do not force it into the species tag
     "fox_girl, fox_ears, fox_tail",
     "cat_girl, cat_ears, cat_tail",
     "wolf_girl, wolf_ears, wolf_tail",
@@ -158,17 +159,17 @@ SPECIES = [
 ]
 
 # ============================================================
-# PART 2: BODY (체형) — 고정
+# PART 2: BODY — fixed
 # ============================================================
 
-# ── 카테고리별로 분리 — roll_body()가 각 카테고리에서 독립 확률로 샘플링 ──
+# ── Split by category — roll_body() samples each category with an independent probability ──
 
-# 키 (SIZE) — 한 명이 가질 수 있는 하나의 속성
+# Height (SIZE) — only one value per character
 BODY_SIZE = [
     "petite", "short", "shortstack", "medium_height", "tall_female",
 ]
 
-# 기초 체형 (BUILD) — 골격/살의 기본 인상
+# Base build (BUILD) — overall skeletal/flesh impression
 BODY_BUILD = [
     # Slim
     "slim", "slender", "skinny", "delicate", "fragile",
@@ -178,7 +179,7 @@ BODY_BUILD = [
     "plump", "chubby", "slightly_chubby", "thick", "soft_body",
 ]
 
-# 라인 (CURVE) — 곡선/비율 강조 (선택적)
+# Line (CURVE) — emphasises curves / proportions (optional)
 BODY_CURVE = [
     "curvy", "voluptuous", "hourglass_figure", "pear_shaped_figure",
     "busty", "curvaceous",
@@ -188,18 +189,18 @@ BODY_CURVE = [
     "long_legs", "long_torso", "short_torso",
 ]
 
-# 강조 포인트 (ACCENT) — 가끔 섞는 디테일
+# Highlight detail (ACCENT) — only mixed in occasionally
 BODY_ACCENT = [
     "abs", "defined_abs", "visible_ribs", "collarbone", "sharp_collarbone",
 ]
 
-# 엉덩이는 별도 ASS 카테고리로 통일
+# Butt is consolidated into its own ASS category
 BODY_ASS = [
     "big_ass", "huge_ass", "plump_ass", "round_ass",
     "bubble_butt", "heart-shaped_ass", "wide_ass", "thick_ass", "jiggly_ass",
 ]
 
-# 가슴 크기 — 순수 사이즈만 (adult 규칙과 충돌하는 flat_chest 제외)
+# Breast size — pure size only (excludes flat_chest, which conflicts with the adult rule)
 BREAST_SIZE = [
     # Small
     "tiny_breasts", "small_breasts", "petite_breasts",
@@ -211,19 +212,19 @@ BREAST_SIZE = [
     "heavy_breasts", "hanging_breasts",
 ]
 
-# 가슴 모양/프레이밍 — 크기와 독립적으로 추가될 수 있는 디테일
+# Breast shape/framing — detail that can be added independently of size
 BREAST_FEATURE = [
     "perky_breasts", "round_breasts", "teardrop_breasts",
     "sideboob", "underboob", "cleavage", "deep_cleavage", "breast_focus",
 ]
 
 # ============================================================
-# PART 3: CLOTHING (의상) — 세계관별, 변경 가능
-# 색상/아이템 EXACT 사용, 절대 변경 금지
+# PART 3: CLOTHING — per setting, mutable
+# Use colors / items EXACTLY — never substitute.
 # ============================================================
 
 CLOTHING_SETS = {
-    # ── School Uniforms (학교 교복) ──
+    # ── School Uniforms ──
     "school_uniform_a": "white_shirt, blue_ribbon, pleated_skirt, blue_skirt, kneehighs, white_kneehighs, loafers, frills, sailor_collar, school_uniform",
     "school_uniform_b": "serafuku, sailor_collar, red_neckerchief, pleated_skirt, navy_skirt, thighhighs, black_thighhighs, frilled_sleeves, school_uniform",
     "school_uniform_c": "blazer, grey_blazer, white_shirt, plaid_skirt, red_plaid, loose_socks, school_uniform, vest",
@@ -231,7 +232,7 @@ CLOTHING_SETS = {
     "school_uniform_e": "gakuran, male_school_uniform, black_uniform, white_shirt, red_necktie, black_pants, school_uniform",
     "sailor_fuku": "sailor_fuku, long_sleeves, pleated_skirt, neckerchief, thighhighs, frills",
 
-    # ── Office / Professional (직장/정장) ──
+    # ── Office / Professional ──
     "office_formal": "white_blouse, black_pencil_skirt, black_pantyhose, high_heels, blouse, tight_skirt, cleavage, pantyhose",
     "office_casual": "cream_blouse, grey_slacks, cardigan, flats, office_lady, collared_shirt",
     "secretary": "secretary, white_blouse, tight_skirt, pantyhose, glasses, high_heels, clipboard",
@@ -239,7 +240,7 @@ CLOTHING_SETS = {
     "flight_attendant": "flight_attendant, uniform, pencil_skirt, scarf, pillbox_hat, pantyhose, high_heels, stewardess",
     "pilot_uniform": "pilot, uniform, hat, gloves, necktie, black_pantyhose, boots, captain_hat",
 
-    # ── Casual / Daily (일상/캐주얼) ──
+    # ── Casual / Daily ──
     "casual_summer": "white_crop_top, blue_denim_shorts, sneakers, navel, midriff, short_shorts",
     "casual_winter": "oversized_sweater, black_leggings, scarf, boots, turtleneck, sweater",
     "casual_dress": "sundress, floral_print, sandals, straw_hat, bare_shoulders, summer_dress",
@@ -250,12 +251,12 @@ CLOTHING_SETS = {
     "tube_top": "tube_top, white_tube_top, hotpants, sandals, navel, strapless",
     "crop_top_skirt": "crop_top, navel, miniskirt, thighhighs, sneakers, midriff",
 
-    # ── Maid / Service (메이드/서비스) ──
+    # ── Maid / Service ──
     "maid_classic": "maid_headdress, maid_apron, black_dress, white_apron, frills, thighhighs, white_thighhighs, puffy_sleeves, maid",
     "maid_cafe": "maid_headdress, pink_dress, white_apron, frills, kneehighs, mary_janes, maid, frilled_apron",
     "waitress": "waitress, white_blouse, black_skirt, apron, name_tag, flats, frills, maid_apron",
 
-    # ── Fantasy / Cosplay (판타지/코스프레) ──
+    # ── Fantasy / Cosplay ──
     "fantasy_mage": "robe, hooded_robe, staff, thigh_boots, corset, belt, magic",
     "fantasy_knight": "armor, breastplate, gauntlets, cape, thigh_boots, circlet, plate_armor",
     "fantasy_elf": "white_dress, leaf_ornament, cape, sandals, pointed_ears, elf",
@@ -265,12 +266,12 @@ CLOTHING_SETS = {
     "witch": "black_robe, belt, thigh_boots, staff, cape, witch",
     "steampunk": "steampunk, corset, goggles, top_hat, gears, thigh_boots, gloves, steampunk",
 
-    # ── Gothic / Lolita (고딕/로리타) ──
+    # ── Gothic / Lolita ──
     "gothic_lolita": "gothic_lolita, black_dress, petticoat, corset, choker, cross_necklace, platform_shoes, frills",
     "sweet_lolita": "sweet_lolita, pink_dress, frills, petticoat, bow, lace, mary_janes",
     "classic_lolita": "classic_lolita, blue_dress, frills, bonnet, lace, petticoat",
 
-    # ── Traditional / Cultural (전통 의상) ──
+    # ── Traditional / Cultural ──
     "kimono": "kimono, obi, tabi, geta, hair_ornament, floral_kimono, furisode",
     "yukata": "yukata, obi, geta, hair_ornament, fan, festival, summer_kimono",
     "hanbok": "hanbok, jeogori, chima, hair_ribbon, traditional_hair_ornament, korean_clothes",
@@ -278,27 +279,27 @@ CLOTHING_SETS = {
     "qipao_short": "china_dress, short_dress, side_slit, thighhighs, flats, mandarin_collar",
     "shrine_maiden": "miko, hakama, white_kimono, red_hakama, hair_ribbon, tabi, shrine_maiden",
 
-    # ── Swimsuit / Beach (수영복/비치) ──
+    # ── Swimsuit / Beach ──
     "swimsuit_bikini": "bikini, string_bikini, side-tie_bikini_bottom, sandals, micro_bikini",
     "swimsuit_one": "one-piece_swimsuit, high-leg_swimsuit, barefoot, competition_swimsuit",
     "school_swimsuit": "school_swimsuit, blue_swimsuit, white_trim, nametag, barefoot",
 
-    # ── Sleepwear / Loungewear (잠옷/홈웨어) ──
+    # ── Sleepwear / Loungewear ──
     "sleepwear_cute": "pajamas, oversized_shirt, shorts, bare_legs, pajama_shirt",
 
-    # ── Idol / Stage / Performer (아이돌/무대) ──
+    # ── Idol / Stage / Performer ──
     "idol_stage": "idol_clothes, frills, miniskirt, thighhighs, gloves, hair_ornament, idol, stage",
     "cheerleader": "cheerleader, crop_top, pleated_skirt, pompoms, sneakers, hair_ribbon",
     "dancer_ballet": "ballerina, leotard, tutu, ballet_slippers, hair_bun, tights",
     "belly_dancer": "belly_dancer, bra, harem_pants, veil, navel, barefoot, jewelry, armlet",
 
-    # ── Sports / Gym (스포츠/체육) ──
+    # ── Sports / Gym ──
     "gym_wear": "sports_bra, bike_shorts, sneakers, sweatband, athletic",
     "tennis_uniform": "tennis_uniform, pleated_skirt, white_shirt, visor, wristband, sneakers",
     "volleyball_uniform": "volleyball_uniform, shorts, jersey, kneepads, sneakers, ponytail",
     "track_suit": "tracksuit, jacket, shorts, sneakers, sweatband",
 
-    # ── Uniforms / Roleplay (유니폼/역할놀이) ──
+    # ── Uniforms / Roleplay ──
     "nurse": "nurse_cap, white_dress, apron, thighhighs, white_thighhighs, nurse",
     "bunny_girl": "bunny_ears, playboy_bunny, wrist_cuffs, pantyhose, black_pantyhose, bow_tie, high_heels",
     "police_uniform": "police, police_uniform, police_hat, badge, miniskirt, thighhighs, boots",
@@ -306,13 +307,13 @@ CLOTHING_SETS = {
     "racing_queen": "race_queen, bodysuit, thighhighs, high_heels, gloves, race_queen",
     "pirate": "pirate, pirate_hat, eyepatch, torn_shirt, corset, thigh_boots, belt",
 
-    # ── Special / Form-Fitting (특수/타이트) ──
+    # ── Special / Form-Fitting ──
     "tight_dress": "tight_dress, pencil_dress, cleavage, high_heels, necklace, bodycon_dress",
     "backless_dress": "backless_dress, bare_back, halterneck, high_heels, hair_up",
     "slit_dress": "dress, side_slit, thigh_strap, high_heels, necklace",
     "mini_skirt_set": "miniskirt, tank_top, navel, thighhighs, boots",
 
-    # ── Seasonal / Festival / Costume (계절/축제/코스튬) ──
+    # ── Seasonal / Festival / Costume ──
     "santa_costume": "santa_costume, red_dress, fur_trim, santa_hat, thighhighs, boots",
     "halloween_witch": "halloween, witch_hat, torn_dress, striped_thighhighs, broom, jack-o'-lantern",
     "halloween_vampire": "halloween, vampire, gothic_dress, cape, fake_fangs, choker, red_eyes",
@@ -321,7 +322,7 @@ CLOTHING_SETS = {
     "bathrobe": "bathrobe, white_robe, bare_legs, slippers, wet_hair",
     "coat_winter": "long_coat, scarf, turtleneck, miniskirt, boots, earmuffs",
 
-    # ── Street / Cyber / Modern (스트릿/사이버) ──
+    # ── Street / Cyber / Modern ──
     "cyberpunk_street": "crop_top, black_jacket, leather_jacket, hotpants, thigh_boots, visor, choker, urban_futuristic",
     "cyberpunk_corpo": "bodysuit, black_bodysuit, high_collar, sleek_boots, earpiece, urban_futuristic",
     "overalls": "overalls, denim, white_shirt, sneakers, rolled_up_sleeves",
@@ -330,7 +331,7 @@ CLOTHING_SETS = {
 
 
 # ============================================================
-# PART 4: UNDERWEAR (속옷) — 의상과 매칭
+# PART 4: UNDERWEAR — paired with the clothing set
 # ============================================================
 
 UNDERWEAR_SETS = {
@@ -402,23 +403,23 @@ UNDERWEAR_SETS = {
 
 
 # ============================================================
-# 랜덤 조합 함수
+# Random composition functions
 # ============================================================
 
 def roll_appearance() -> dict:
-    """외모 태그 랜덤 조합. 캐릭터 정체성 = 이 태그들의 고정.
+    """Random composition of appearance tags. Character identity = these tags fixed.
 
-    eye_shape, eyebrow, nose는 매번 1개씩 무조건 포함 (identity lock 강화).
+    eye_shape, eyebrow, nose are always included exactly once each (strengthens identity lock).
     """
     hair_color = random.choice(HAIR_COLOR)
     hair_styles = random.sample(HAIR_STYLE, k=random.randint(1, 2))
     bangs = random.choice(BANGS)
     eye_color = random.choice(EYE_COLOR)
-    eye_shape = random.choice(EYE_SHAPE)  # 매번 포함
-    eyebrow = random.choice(EYEBROW)       # 매번 포함
-    nose = random.choice(NOSE)             # 매번 포함
+    eye_shape = random.choice(EYE_SHAPE)  # always included
+    eyebrow = random.choice(EYEBROW)       # always included
+    nose = random.choice(NOSE)             # always included
     skin_tone = random.choice(SKIN_TONE)
-    species = random.choice(SPECIES)  # None = 인간
+    species = random.choice(SPECIES)  # None = human
 
     parts = ["1girl", hair_color] + hair_styles + [bangs, eye_color, eye_shape, eyebrow, nose, skin_tone]
     if species:
@@ -439,34 +440,35 @@ def roll_appearance() -> dict:
 
 
 def roll_body() -> dict:
-    """체형 태그 확률적 랜덤 조합.
+    """Probabilistic random composition of body tags.
 
-    각 카테고리는 독립 확률로 포함/스킵 — 태그 과잉을 막아 다양성과 자연스러움을 확보.
-    모델은 태그가 없어도 성인 여성 기본값으로 잘 그리므로 "없음"도 유효한 결과.
+    Each category is independently included/skipped — avoids tag overload and
+    keeps diversity / naturalness high. The model paints a sensible adult-female
+    default even with no tags, so "none" is also a valid outcome.
     """
     shape: list[str] = []
 
-    # SIZE (키) — 70%
+    # SIZE (height) — 70%
     if random.random() < 0.7:
         shape.append(random.choice(BODY_SIZE))
-    # BUILD (기초 체형) — 80%
+    # BUILD (base) — 80%
     if random.random() < 0.8:
         shape.append(random.choice(BODY_BUILD))
-    # CURVE (라인) — 40%
+    # CURVE (line) — 40%
     if random.random() < 0.4:
         shape.append(random.choice(BODY_CURVE))
-    # ACCENT (악센트) — 20%
+    # ACCENT — 20%
     if random.random() < 0.2:
         shape.append(random.choice(BODY_ACCENT))
-    # ASS (엉덩이 강조) — 25%
+    # ASS (butt accent) — 25%
     if random.random() < 0.25:
         shape.append(random.choice(BODY_ASS))
 
-    # BREAST_SIZE — 70% 포함 (30%는 모델 디폴트)
+    # BREAST_SIZE — included 70% of the time (30% leaves it to the model default)
     breast_parts: list[str] = []
     if random.random() < 0.7:
         breast_parts.append(random.choice(BREAST_SIZE))
-    # BREAST_FEATURE — 30% 추가 (사이즈와 독립)
+    # BREAST_FEATURE — added another 30% (independent from size)
     if random.random() < 0.3:
         breast_parts.append(random.choice(BREAST_FEATURE))
 
@@ -480,8 +482,8 @@ def roll_body() -> dict:
 
 
 def roll_clothing(location: str, clothing_pool: list[str] | None = None) -> dict:
-    """장소에 맞는 의상 + 속옷 랜덤 조합.
-    clothing_pool이 주어지면 lorebook 기반, 없으면 전체 CLOTHING_SETS에서 랜덤."""
+    """Random composition of an outfit + underwear that fits the location.
+    If clothing_pool is provided, sample from it (lorebook-driven); otherwise sample from all CLOTHING_SETS."""
     pool = clothing_pool if clothing_pool else list(CLOTHING_SETS.keys())
     valid = [k for k in pool if k in CLOTHING_SETS]
     if not valid:
@@ -502,12 +504,12 @@ def roll_clothing(location: str, clothing_pool: list[str] | None = None) -> dict
 
 
 def roll_character(location: str, clothing_pool: list[str] | None = None) -> dict:
-    """전체 캐릭터 trait 랜덤 조합. Grok에 보낼 seed 데이터."""
+    """Random composition of a full character trait set. Seed data for Grok."""
     appearance = roll_appearance()
     body = roll_body()
     clothing = roll_clothing(location, clothing_pool=clothing_pool)
 
-    # danbooru_tags — 캐릭터 고정 파트만 저장
+    # danbooru_tags — store only the character-fixed parts
     danbooru_tags = {
         "appearance": dedup_tags(appearance["appearance_tags"]),
         "body": dedup_tags(body["body_tags"]),
@@ -516,38 +518,38 @@ def roll_character(location: str, clothing_pool: list[str] | None = None) -> dic
     }
 
     return {
-        # 태그 원본 (개별 파트)
+        # Raw tags (per part)
         "appearance": appearance,
         "body": body,
         "clothing": clothing,
-        # 캐릭터 고정 태그 (상황별 특수/표정 태그는 Grok이 선택)
+        # Identity-fixed tags (situational/expression tags are chosen by Grok)
         "danbooru_tags": danbooru_tags,
     }
 
 
 # ─────────────────────────────────────────────────────────────────────
-# SFW scene-type pool — config/sfw_scenes.json 에서 로드
-# Python에서 프리셀렉하여 Grok에 시드로 전달.
-# 스키마 + 관리 규칙은 config/sfw_scenes.json 헤더 참조.
+# SFW scene-type pool — loaded from config/sfw_scenes.json.
+# Python pre-selects a scene and passes it to Grok as seed data.
+# Schema and maintenance rules live in the config/sfw_scenes.json header.
 # ─────────────────────────────────────────────────────────────────────
 
 _SFW_SCENES_PATH = Path(__file__).parent.parent / "config" / "sfw_scenes.json"
 
 
 def _load_sfw_scenes() -> list[dict]:
-    """config/sfw_scenes.json 로드. `_` 프리픽스 키는 문서/템플릿으로 skip.
+    """Load config/sfw_scenes.json. Keys with `_` prefix are docs/templates and are skipped.
 
-    반환되는 각 dict는 `key` 필드를 포함 (object 키를 역주입) — 기존 Python
-    리터럴과 API 호환.
+    Each returned dict includes a `key` field (the object key copied back into
+    the value) — keeps API compatibility with the previous Python literal layout.
     """
     try:
         with open(_SFW_SCENES_PATH) as f:
             raw = json.load(f)
     except FileNotFoundError:
-        logger.error("SFW_SCENES 파일 없음: %s", _SFW_SCENES_PATH)
+        logger.error("SFW_SCENES file missing: %s", _SFW_SCENES_PATH)
         return []
     except json.JSONDecodeError as e:
-        logger.error("SFW_SCENES JSON 파싱 실패 (%s): %s", _SFW_SCENES_PATH, e)
+        logger.error("SFW_SCENES JSON parse failed (%s): %s", _SFW_SCENES_PATH, e)
         return []
 
     scenes: list[dict] = []
@@ -555,11 +557,11 @@ def _load_sfw_scenes() -> list[dict]:
         if key.startswith("_"):
             continue
         if not isinstance(val, dict):
-            logger.warning("SFW_SCENES[%s]: dict 아님 — skip", key)
+            logger.warning("SFW_SCENES[%s]: not a dict — skipping", key)
             continue
         entry = dict(val)
         entry["key"] = key
-        # 필수 필드 검증 (관대하게, 빠진 건 빈값으로 채움)
+        # Validate required fields (lenient — fill missing ones with empty values)
         entry.setdefault("label", key)
         entry.setdefault("person_tags", "1girl, solo")
         entry.setdefault("pose_pool", [])
@@ -579,14 +581,14 @@ _FORCED_SFW_SCENE: str | None = os.getenv("FORCE_SFW_SCENE") or None
 
 
 def list_sfw_scene_keys() -> list[str]:
-    """SFW_SCENES 의 모든 key 리스트."""
+    """Return every key in SFW_SCENES."""
     return [s["key"] for s in SFW_SCENES]
 
 
 def set_forced_sfw_scene(key: str | None) -> tuple[bool, str]:
-    """런타임 SFW 씬 오버라이드. None/빈문자면 해제.
+    """Override the SFW scene at runtime. Pass None or "" to clear.
 
-    Returns: (ok, message) — 잘못된 key면 (False, reason).
+    Returns: (ok, message) — for an invalid key, (False, reason).
     """
     global _FORCED_SFW_SCENE
     if not key:
@@ -601,15 +603,15 @@ def set_forced_sfw_scene(key: str | None) -> tuple[bool, str]:
 
 
 def get_forced_sfw_scene() -> str | None:
-    """현재 SFW 오버라이드 key 반환 (없으면 None)."""
+    """Return the current SFW override key (None if not set)."""
     return _FORCED_SFW_SCENE
 
 
 def roll_sfw_scene(weights: list[float] | None = None) -> dict:
     """Pick one SFW scene uniformly at random (or with weights). Returns a deep copy.
 
-    - `_FORCED_SFW_SCENE` (env `FORCE_SFW_SCENE` 또는 `set_forced_sfw_scene()`) 가 설정돼 있으면
-      random 무시하고 해당 씬 고정 반환 — 테스트용.
+    - When `_FORCED_SFW_SCENE` is set (via env `FORCE_SFW_SCENE` or
+      `set_forced_sfw_scene()`), skip random and return that scene — used for testing.
     """
     import copy
     if _FORCED_SFW_SCENE:

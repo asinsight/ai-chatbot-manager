@@ -1,4 +1,4 @@
-"""로깅 설정 모듈 — 날짜별 파일 + 콘솔 동시 로깅."""
+"""Logging configuration — daily rotating file + console output."""
 
 import logging
 import os
@@ -7,10 +7,10 @@ from pathlib import Path
 
 
 def setup_logging():
-    """날짜별 파일 + 콘솔 동시 로깅 설정.
+    """Configure daily rotating file logging plus console logging.
 
-    환경변수:
-        LOG_LEVEL: 로그 레벨 (기본 INFO). DEBUG 시 상세 출력.
+    Env vars:
+        LOG_LEVEL: log level (default INFO). DEBUG enables verbose output.
     """
     log_dir = Path(__file__).parent.parent / "logs"
     log_dir.mkdir(exist_ok=True)
@@ -19,13 +19,13 @@ def setup_logging():
         logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO
     )
 
-    # 포맷: 시간 | 레벨 | 모듈 | 메시지
+    # Format: time | level | module | message
     formatter = logging.Formatter(
         "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # 파일 핸들러 — 날짜별 자동 로테이션, 30일 보존
+    # File handler — daily auto rotation, 30-day retention
     file_handler = TimedRotatingFileHandler(
         log_dir / "bot.log",
         when="midnight",
@@ -35,16 +35,18 @@ def setup_logging():
     file_handler.setFormatter(formatter)
     file_handler.suffix = "%Y-%m-%d"
 
-    # 콘솔 핸들러
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
+    # NOTE: no StreamHandler. The platform admin (`platform/lib/bot-process.ts`)
+    # redirects the child's stdout+stderr into `logs/bot.log` for the dashboard
+    # log-tail. Adding a StreamHandler here would duplicate every logger record
+    # in that same file (one write via TimedRotatingFileHandler, one via
+    # stdout → platform redirect). Stray prints / uncaught tracebacks still
+    # land in bot.log via the platform redirect — that's the intended path.
 
-    # 루트 로거 설정
+    # Root logger config
     root = logging.getLogger()
     root.setLevel(log_level)
     root.addHandler(file_handler)
-    root.addHandler(console_handler)
 
-    # httpx 로그 레벨 조정 (API 콜 로그 너무 시끄러움)
+    # Quiet noisy httpx API logs
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("telegram.ext.Application").setLevel(logging.WARNING)

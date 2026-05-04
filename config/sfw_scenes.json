@@ -1,7 +1,7 @@
 {
-  "_doc": "sfw_scenes — Python에서 프리셀렉하여 Grok에 시드로 전달하는 SFW 씬 카드.\nNSFW와 동일한 패턴 — Grok이 포즈 목록에서 자율 선택 시 편향되는 문제를 제거하기 위해 '씬 타입'을 미리 고정한다.\n\n로더: src/trait_pools.py `_load_sfw_scenes()` — 언더스코어(_) 프리픽스 키는 skip.\nAPI: `SFW_SCENES` (list), `roll_sfw_scene()`, `list_sfw_scene_keys()`, `set_forced_sfw_scene(key)`.\n\n스키마 per 엔트리 (NSFW보다 필드 3개 더 많음):\n- label: 사람이 읽는 설명\n- person_tags: danbooru 인원 태그 (comma-sep) — 필수\n- pose_pool: Grok에 제공할 포즈 후보 (list)\n- camera_pool: 카메라 앵글 후보 (list)\n- location_pool: 로케이션 후보 (list) — SFW 전용\n- activity_tags: 활동/소품 태그 (comma-sep) — SFW 전용\n- expression_hint: 표정 가이드 (Grok이 참고, 자율 변형 가능) — SFW 전용\n- notes: 메모 (한글 OK)\n\nPM이 새 씬 추가 시 `_template` 복사해서 채우고 고유 key로 등록.",
+  "_doc": "sfw_scenes — SFW scene cards pre-selected in Python and forwarded to Grok as a seed.\nSame pattern as the original NSFW catalog: fixing the 'scene type' up front prevents Grok from biasing pose selection.\n\nLoader: src/trait_pools.py `_load_sfw_scenes()` — keys with leading underscore (_) are skipped.\nAPI: `SFW_SCENES` (list), `roll_sfw_scene()`, `list_sfw_scene_keys()`, `set_forced_sfw_scene(key)`.\n\nPer-entry schema (3 extra fields vs. the NSFW form):\n- label: human-readable description\n- person_tags: danbooru person-count tags (comma-sep) — required\n- pose_pool: pose candidates fed to Grok (list)\n- camera_pool: camera-angle candidates (list)\n- location_pool: location candidates (list) — SFW-only\n- activity_tags: activity / prop tags (comma-sep) — SFW-only\n- expression_hint: expression hint (Grok may adapt freely) — SFW-only\n- notes: free-form memo\n\nWhen adding a new scene, copy `_template`, fill it in, and register under a unique key.",
   "_template": {
-    "_doc": "TEMPLATE — 복사해서 신규 씬 등록 시 사용. key는 object 키 그 자체.",
+    "_doc": "TEMPLATE — copy this when registering a new scene. The object key is the scene id.",
     "label": "PLACEHOLDER — short English description",
     "person_tags": "1girl, solo",
     "pose_pool": [
@@ -18,7 +18,7 @@
     ],
     "activity_tags": "activity, prop, environment_detail",
     "expression_hint": "soft_smile, relaxed",
-    "notes": "PLACEHOLDER — 메모"
+    "notes": "PLACEHOLDER — memo"
   },
   "cafe_coffee": {
     "label": "Relaxing at a cafe with coffee",
@@ -1301,7 +1301,7 @@
     ],
     "activity_tags": "couch, sofa, cushion, blanket, tv, remote_control, coffee_table, rug",
     "expression_hint": "relaxed, soft_smile, closed_eyes, sleepy, content",
-    "notes": "Casual home lounging. TV watching / reading / just relaxing on the couch. 소파 중심 구도."
+    "notes": "Casual home lounging. TV watching / reading / just relaxing on the couch. Couch-centered composition."
   },
   "bar_pub_evening": {
     "label": "Evening at a bar / pub",
@@ -1334,6 +1334,6 @@
     ],
     "activity_tags": "cocktail_glass, wine_glass, beer_mug, bar_counter, liquor_shelf",
     "expression_hint": "slight_smile, relaxed, gentle_smile, content, contemplative",
-    "notes": "성인 분위기지만 SFW (술 한잔 정도) — no sultry/bedroom-eyes/blush emphasis."
+    "notes": "Adult atmosphere but still SFW (a single drink at most) — no sultry / bedroom-eyes / blush emphasis."
   }
 }

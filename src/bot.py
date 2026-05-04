@@ -1,12 +1,13 @@
 """
-멀티봇 엔트리포인트.
+Multi-bot entry point.
 
-하나의 프로세스에서 메인 봇(관리) + 캐릭터 봇(대화) N개를 동시 실행한다.
-각 봇은 독립적인 Application 인스턴스를 갖고, bot_data로 설정을 구분한다.
+Runs the main bot (admin) and N character bots (chat) concurrently in a single
+process. Each bot has its own Application instance and uses bot_data to keep
+its configuration isolated.
 
-환경변수:
-  MAIN_BOT_TOKEN    — 메인 봇 토큰 (온보딩, 프로필, 관리)
-  CHAR_BOT_{char_id} — 캐릭터 봇 토큰 (대화, 이미지)
+Env vars:
+  MAIN_BOT_TOKEN    — main bot token (onboarding, profile, admin)
+  CHAR_BOT_{char_id} — character bot token (chat, image)
 """
 
 import asyncio
@@ -16,13 +17,7 @@ import signal
 import sys
 
 from dotenv import load_dotenv
-load_dotenv()  # 모듈 import 전에 .env 로드 (모듈 레벨 os.getenv 지원)
-
-# ENV 기반 봇 토큰 해석: TEST_X 또는 PROD_X → X로 매핑
-_ENV_PREFIX = os.getenv("ENV", "test").upper() + "_"
-for _key in list(os.environ):
-    if _key.startswith(_ENV_PREFIX):
-        os.environ[_key[len(_ENV_PREFIX):]] = os.environ[_key]
+load_dotenv()  # load .env before module imports (so module-level os.getenv works)
 
 from telegram.ext import ApplicationBuilder
 
@@ -40,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 def _uncaught_exception_handler(exc_type, exc_value, exc_tb):
-    """sys.excepthook — 프로세스 종료 전 미처리 예외 로깅."""
+    """sys.excepthook — log uncaught exceptions before the process exits."""
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_tb)
         return
@@ -48,56 +43,63 @@ def _uncaught_exception_handler(exc_type, exc_value, exc_tb):
 
 
 def _asyncio_exception_handler(loop, context):
-    """asyncio 이벤트 루프 미처리 예외 핸들러."""
+    """Asyncio event-loop uncaught exception handler."""
     msg = context.get("exception", context.get("message", "Unknown asyncio error"))
     logger.error("Asyncio exception: %s", msg)
 
 
 async def main():
-    # ── 예외 핸들러 설정 ──
+    # ── Install exception handlers ──
     sys.excepthook = _uncaught_exception_handler
     loop = asyncio.get_running_loop()
     loop.set_exception_handler(_asyncio_exception_handler)
 
-    # ── DB 초기화 ──
+    # ── DB init ──
     init_db()
 
-    # ── LLM 큐 워커 시작 ──
+    # ── Start the LLM queue worker ──
     await llm_queue.start()
 
-    # ── Admin 계정 등록 ──
+    # ── Register admin accounts ──
     admin_ids = os.getenv("ADMIN_USER_IDS", "")
     for uid in admin_ids.split(","):
         uid = uid.strip()
         if uid:
             set_admin(int(uid), True)
-            logger.info("Admin 등록: %s", uid)
+            logger.info("admin registered: %s", uid)
 
-    # ── 캐릭터 + 시스템 설정 로드 ──
+    # ── Load character + system configuration ──
     characters = load_all_characters()
     if not characters:
-        raise SystemExit("persona/ 디렉토리에 캐릭터 JSON 파일이 없습니다.")
-    logger.info("캐릭터 %d개 로드: %s", len(characters), ", ".join(characters.keys()))
+        raise SystemExit("No character JSON files found under persona/.")
+    logger.info("loaded %d characters: %s", len(characters), ", ".join(characters.keys()))
 
     system_config = load_system_config()
-    logger.info("마스터 시스템 프롬프트 로드 완료")
+    logger.info("master system prompt loaded")
 
-    # ── 봇 등록 ──
-    apps: list[tuple[str, any]] = []  # (이름, Application) 쌍
+    # ── Register bots ──
+    apps: list[tuple[str, any]] = []  # list of (name, Application) pairs
 
-    # 메인 봇
-    main_token = os.getenv("MAIN_BOT_TOKEN")
-    if main_token:
-        main_app = ApplicationBuilder().token(main_token).write_timeout(60).media_write_timeout(120).read_timeout(30).connect_timeout(20).pool_timeout(10).build()
-        main_app.bot_data["characters"] = characters
-        main_app.bot_data["system_config"] = system_config
-        register_main_handlers(main_app)
-        apps.append(("main", main_app))
-        logger.info("메인 봇 등록 완료")
-    else:
-        logger.warning("MAIN_BOT_TOKEN이 설정되지 않았습니다")
+    # Main bot — REQUIRED. The character / imagegen bots assume the main bot is
+    # alive (deep-link handoffs, onboarding redirects). Refuse to start without it.
+    main_token = os.getenv("MAIN_BOT_TOKEN", "").strip()
+    main_username = os.getenv("MAIN_BOT_USERNAME", "").strip()
+    if not main_token or not main_username:
+        missing = []
+        if not main_token: missing.append("MAIN_BOT_TOKEN")
+        if not main_username: missing.append("MAIN_BOT_USERNAME")
+        raise SystemExit(
+            "Main bot is not configured — missing " + " + ".join(missing)
+            + " in .env. Set both values and try again."
+        )
+    main_app = ApplicationBuilder().token(main_token).write_timeout(60).media_write_timeout(120).read_timeout(30).connect_timeout(20).pool_timeout(10).build()
+    main_app.bot_data["characters"] = characters
+    main_app.bot_data["system_config"] = system_config
+    register_main_handlers(main_app)
+    apps.append(("main", main_app))
+    logger.info("main bot registered")
 
-    # 캐릭터 봇 — char_id별로 CHAR_BOT_{char_id} 토큰 매핑
+    # Character bots — map CHAR_BOT_{char_id} token per char_id
     for char_id, char_data in characters.items():
         token = os.getenv(f"CHAR_BOT_{char_id}")
         if not token:
@@ -105,13 +107,13 @@ async def main():
         char_app = ApplicationBuilder().token(token).write_timeout(60).media_write_timeout(120).read_timeout(30).connect_timeout(20).pool_timeout(10).build()
         char_app.bot_data["char_id"] = char_id
         char_app.bot_data["character"] = char_data
-        char_app.bot_data["characters"] = characters  # 전체 캐릭터 참조용
+        char_app.bot_data["characters"] = characters  # for full character reference
         char_app.bot_data["system_config"] = system_config
         register_char_handlers(char_app)
         apps.append((char_id, char_app))
-        logger.info("캐릭터 봇 등록: %s (%s)", char_id, char_data.get("name", char_id))
+        logger.info("character bot registered: %s (%s)", char_id, char_data.get("name", char_id))
 
-    # 이미지 제네레이터 봇 — 캐릭터와 별도 등록
+    # Image-generator bot — registered separately from characters
     imagegen_token = os.getenv("CHAR_BOT_imagegen")
     if imagegen_token:
         imagegen_app = ApplicationBuilder().token(imagegen_token).write_timeout(60).media_write_timeout(120).read_timeout(30).connect_timeout(20).pool_timeout(10).build()
@@ -119,34 +121,34 @@ async def main():
         imagegen_app.bot_data["system_config"] = system_config
         register_imagegen_handlers(imagegen_app)
         apps.append(("imagegen", imagegen_app))
-        logger.info("이미지 제네레이터 봇 등록 완료")
+        logger.info("image generator bot registered")
 
     if not apps:
         raise SystemExit(
-            "등록된 봇이 없습니다. "
-            ".env에 MAIN_BOT_TOKEN 또는 CHAR_BOT_* 토큰을 설정하세요."
+            "No bots registered. "
+            "Set MAIN_BOT_TOKEN or CHAR_BOT_* tokens in .env."
         )
 
-    logger.info("총 %d개 봇 시작...", len(apps))
+    logger.info("starting %d bots...", len(apps))
 
-    # ── 모든 봇 초기화 + polling 시작 (non-blocking) ──
+    # ── Initialize all bots and start polling (non-blocking) ──
     for name, app in apps:
         await app.initialize()
         await app.start()
         await app.updater.start_polling(drop_pending_updates=True)
-        logger.info("봇 polling 시작: %s", name)
+        logger.info("bot polling started: %s", name)
 
-    logger.info("모든 봇 실행 중. Ctrl+C로 종료.")
+    logger.info("all bots running. Ctrl+C to exit.")
 
-    # ── Admin 시작 알림 + ComfyUI watchdog ──
-    # 메인 봇의 bot 인스턴스를 알림용으로 사용
+    # ── Admin start notification + ComfyUI watchdog ──
+    # Use the main bot's instance for notifications
     main_bot = None
     for name, app in apps:
         if name == "main":
             main_bot = app.bot
             break
     if main_bot is None and apps:
-        # 메인 봇이 없으면 첫 번째 봇 사용
+        # If no main bot, use the first registered bot
         main_bot = apps[0][1].bot
 
     watchdog_task = None
@@ -154,12 +156,12 @@ async def main():
     if main_bot:
         if admin_notify:
             try:
-                await notify_admins(main_bot, "✅ 봇이 시작되었습니다.")
+                await notify_admins(main_bot, "✅ Bot started.")
             except Exception as e:
-                logger.error("Admin 시작 알림 실패: %s", e)
+                logger.error("admin start notify failed: %s", e)
         watchdog_task = asyncio.create_task(comfyui_watchdog(main_bot))
 
-    # ── 종료 시그널 대기 ──
+    # ── Wait for shutdown signal ──
     stop_event = asyncio.Event()
 
     def _signal_handler():
@@ -171,9 +173,9 @@ async def main():
     await stop_event.wait()
 
     # ── Graceful shutdown ──
-    logger.info("봇 종료 중...")
+    logger.info("shutting down bots...")
 
-    # watchdog 취소
+    # Cancel the watchdog
     if watchdog_task is not None:
         watchdog_task.cancel()
         try:
@@ -181,21 +183,21 @@ async def main():
         except asyncio.CancelledError:
             pass
 
-    # Admin 종료 알림
+    # Admin shutdown notification
     if main_bot and admin_notify:
         try:
-            await notify_admins(main_bot, "⚠️ 봇이 종료됩니다.")
+            await notify_admins(main_bot, "⚠️ Bot is shutting down.")
         except Exception as e:
-            logger.error("Admin 종료 알림 실패: %s", e)
+            logger.error("admin shutdown notify failed: %s", e)
 
     await llm_queue.stop()
     for name, app in apps:
         await app.updater.stop()
         await app.stop()
         await app.shutdown()
-        logger.info("봇 종료 완료: %s", name)
+        logger.info("bot stopped: %s", name)
 
-    logger.info("모든 봇 종료 완료.")
+    logger.info("all bots stopped.")
 
 
 if __name__ == "__main__":

@@ -1,11 +1,13 @@
 # `config/` — JSON configuration (SFW fork)
 
-Runtime configuration for `ella-chat-publish`. All five files in this directory are required at startup; the bot will fail to import `grok.py` if `grok_prompts.json` is missing or invalid.
+Runtime configuration for the bot. All five files in this directory are required at startup; the bot will fail to import `grok.py` if `grok_prompts.json` is missing or invalid.
 
 ## Files
 
 ### `profile_keys.json`
-Whitelist of keys allowed when merging/saving character profiles. Used by `src/profile_keys.py` to drop unknown fields when applying partial edits to a saved character. Schema-style flat list — no NSFW-specific keys (`body_nsfw` is not present).
+Whitelist of canonical user-profile keys (with alias lists). Determines which topics the LLM tracks about the user (name / age / hobby / family / …). Used by `src/profile_keys.py` to canonicalize LLM-extracted keys when applying partial profile edits — unknown keys are dropped, alias matches are routed to the canonical form. Schema-style flat list — no NSFW-specific keys (`body_nsfw` is not present).
+
+Edited via the platform admin under `/prompts` → "Profile keys" tab (master-detail + chips), since the file controls LLM behavior (not image config).
 
 ### `grok_prompts.json`
 Externalized system prompts for the Grok API client. Loaded once at `src/grok.py` import time (fail-fast — missing keys or empty strings raise `RuntimeError`; there are no fallback strings). Keys (5):
@@ -32,6 +34,9 @@ SFW scene catalog used by `trait_pools.roll_sfw_scene()` (called from `handlers_
 
 ### `pose_motion_presets.json`
 Pose-motion presets for video generation, loaded by `src/pose_motion_presets.py`. Flat schema: each entry is `{ pose_key: { motion_text: "..." } }`. The original two-tier structure (`sfw` / `nsfw` / `explicit`) was collapsed to a single text-only motion string per pose. There is no LoRA tier, no `general_nsfw` fallback.
+
+### `workflow_descriptions.json`
+Free-form descriptions for each `comfyui_workflow/*.json`, shown next to the workflow tab on the platform admin `/workflows` page. The bot does **not** read this file — it is platform-admin-only metadata. Edited via the per-workflow tab (description textarea + Save). Underscore-prefixed keys (`_doc`) are ignored.
 
 ## SFW-fork drops (not present in this directory)
 
