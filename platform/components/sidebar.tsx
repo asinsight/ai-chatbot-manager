@@ -42,7 +42,7 @@ export function Sidebar() {
     <aside className="hidden w-60 shrink-0 border-r bg-muted/30 md:block">
       <div className="flex h-14 items-center border-b px-4">
         <span className="text-sm font-semibold tracking-tight">
-          Chatbot Manager
+          AI Chat Manager
         </span>
       </div>
       <nav className="flex flex-col gap-1 p-3">

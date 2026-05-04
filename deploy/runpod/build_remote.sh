@@ -5,7 +5,7 @@
 
 set -e
 
-echo "=== ella-chat-publish ComfyUI Docker build (x86_64) ==="
+echo "=== ai-chat-manager ComfyUI Docker build (x86_64) ==="
 
 # 1. Working directory
 cd /workspace

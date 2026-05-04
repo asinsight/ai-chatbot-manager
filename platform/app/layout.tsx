@@ -6,7 +6,7 @@ import { Header } from "@/components/header";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "Chatbot Manager",
+  title: "AI Chat Manager",
   description: "Local admin console for the SFW Telegram chatbot platform.",
 };
 
